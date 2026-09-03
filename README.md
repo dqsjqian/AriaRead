@@ -4,6 +4,8 @@
 
 基于 [Aria](https://github.com/dqsjqian/Aria)（C++20 响应式 MVVM 框架）构建，兼容主流书源格式。
 
+[English](README.en.md) | [简体中文](README.md)
+
 ## 界面截图
 
 同一份 C++ 核心同时驱动两种 Web 形态：
@@ -66,7 +68,7 @@ OpenRead/
 - [x] 源码全部从源码编译（无预编译二进制）
 - [x] `.gitmodules` 声明所有第三方依赖
 - [x] MIT LICENSE
-- [x] README.md
+- [x] README.md（中文）+ README.en.md（英文）
 
 ## 许可证
 
