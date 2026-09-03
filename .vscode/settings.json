@@ -1,0 +1,40 @@
+{
+    // CMake 配置
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.configureOnOpen": true,
+    "cmake.generator": "Ninja",
+    "cmake.configureArgs": [
+        "-DCMAKE_BUILD_TYPE=Debug",
+        "-DOPENREAD_BUILD_TESTS=ON",
+        "-DOPENREAD_BUILD_CONSOLE=ON"
+    ],
+
+    // C/C++ 配置
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.intelliSenseMode": "macos-clang-arm64",
+
+    // 文件关联
+    "files.associations": {
+        "*.h": "cpp",
+        "*.cpp": "cpp",
+        "CMakeLists.txt": "cmake"
+    },
+
+    // 搜索排除
+    "search.exclude": {
+        "**/build": true,
+        "**/third_party": true
+    },
+
+    // 文件排除
+    "files.exclude": {
+        "**/.git": true,
+        "**/.DS_Store": true
+    },
+
+    // 终端配置
+    "terminal.integrated.env.osx": {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    }
+}

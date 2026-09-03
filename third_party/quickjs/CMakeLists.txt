@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────
+# QuickJS 2025-09-13 (Official)
+# 移除了 bignum 扩展，不再需要 libbf.c / CONFIG_BIGNUM
+# ──────────────────────────────────────────────
+
+set(QUICKJS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(QUICKJS_SOURCES
+    ${QUICKJS_SOURCE_DIR}/quickjs.c
+    ${QUICKJS_SOURCE_DIR}/libregexp.c
+    ${QUICKJS_SOURCE_DIR}/libunicode.c
+    ${QUICKJS_SOURCE_DIR}/cutils.c
+    ${QUICKJS_SOURCE_DIR}/dtoa.c
+    ${QUICKJS_SOURCE_DIR}/quickjs-libc.c
+)
+
+# QuickJS 是纯 C 代码
+add_library(quickjs STATIC ${QUICKJS_SOURCES})
+
+set_target_properties(quickjs PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+
+# 编译定义：不用 CONFIG_BIGNUM（2025 版已移除 bignum 扩展）
+if(NOT MSVC)
+    target_compile_options(quickjs PRIVATE -w)
+    target_compile_definitions(quickjs PRIVATE
+        _GNU_SOURCE
+        CONFIG_VERSION="2025-09-13"
+    )
+else()
+    target_compile_definitions(quickjs PRIVATE
+        CONFIG_VERSION="2025-09-13"
+    )
+endif()
+
+# 只暴露 quickjs.h 给需要它的源文件（PRIVATE，防止 _GNU_SOURCE 传播到 C++ 目标）
+target_include_directories(quickjs SYSTEM PRIVATE ${QUICKJS_SOURCE_DIR})

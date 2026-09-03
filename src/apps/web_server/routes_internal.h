@@ -1,0 +1,40 @@
+/// @file routes_internal.h
+/// @brief routes.cpp 拆分后的内部声明：各路由分组注册函数 + 共享符号。
+///
+/// register_routes()（routes.cpp）作为总入口，依次调用下列分组注册函数。
+/// 每个分组一个 .cpp，按资源域划分，便于定位与维护。
+
+#pragma once
+
+#include "openread/engine.h"
+#include "openread/vm/search_view_model.h"
+#include "openread/vm/bookshelf_view_model.h"
+#include "openread/vm/reader_view_model.h"
+#include "openread/vm/source_view_model.h"
+
+#include "aria/async/executor.hpp"
+
+#include <atomic>
+#include <httplib.h>
+
+namespace openread::web {
+
+/// 全局运行标志（main.cpp 定义；信号处理 + 长任务 SSE 提前退出共享）。
+extern std::atomic<bool> g_running;
+
+// ── 分组注册函数 ───────────────────────────────────────────────────
+void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+
+void register_search_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+
+void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+
+void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+                               aria::async::IExecutor& worker);
+
+void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+                             aria::async::IExecutor& worker);
+
+void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+
+}  // namespace openread::web

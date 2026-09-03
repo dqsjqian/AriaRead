@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRead - 书源调试器</title>
+    <!-- E6: 内嵌 SVG favicon（书本图标），不依赖外部文件，打包分发也能显示 -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="header">
+        <h1 class="header-left">📖 Open<span>Read</span> 书源管理</h1>
+        <div class="header-center">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="输入关键词，搜索有效书源..." autocomplete="off" onkeydown="if(event.key==='Enter')doSearchAll()" oninput="onSearchInputChange()" onfocus="showHistoryDropdown('book')" onblur="hideHistoryDropdown('book')">
+                <div class="history-dropdown" id="bookHistoryDropdown"></div>
+                <button id="searchBtn" onclick="doSearchAll()">🔍 搜索</button>
+            </div>
+            <div class="source-picker-wrap">
+                <button class="btn source-picker-btn" id="sourcePickerBtn" onclick="toggleSourcePicker()">📚 全部书源 ▾</button>
+                <div class="source-picker-panel" id="sourcePickerPanel" style="display:none">
+                    <div class="sp-header">
+                        <input type="text" class="sp-search" id="spSearch" placeholder="搜索书源..." oninput="filterSourcePicker()">
+                        <div class="sp-actions">
+                            <button class="sp-action" onclick="selectAllSources()">全选</button>
+                            <button class="sp-action" onclick="deselectAllSources()">全不选</button>
+                            <button class="sp-action" onclick="selectExcellentSources()">⭐ 优</button>
+                        </div>
+                    </div>
+                    <div class="sp-list" id="spList"></div>
+                    <div class="sp-footer">
+                        <span class="sp-count" id="spCount">已选 0 个</span>
+                        <button class="btn btn-primary sp-confirm" onclick="confirmSourcePicker()">确定</button>
+                    </div>
+                </div>
+            </div>
+            <div class="search-filters" id="searchFilters">
+                <label><input type="checkbox" id="matchName" checked>书名</label>
+                <label><input type="checkbox" id="matchAuthor">作者</label>
+                <label><input type="checkbox" id="matchIntro">简介</label>
+            </div>
+            <div class="search-progress" id="searchProgress" style="display:none">
+                <div class="spinner" style="width:14px;height:14px;border-width:2px"></div>
+                <span id="progressText">搜索中...</span>
+                <button id="stopSearchBtn" class="btn btn-stop" onclick="cancelCurrentSearch()" style="display:none">⏹ 停止</button>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="dot" id="statusDot"></div>
+            <span id="statusText">连接中...</span>
+            <button class="shutdown-btn" id="shutdownBtn" onclick="shutdownServer()" title="关闭服务">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+                    <line x1="12" y1="2" x2="12" y2="12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="main">
+        <!-- 侧边栏：书源列表 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>
+                    <span class="title-row">📚 书源列表</span>
+                    <div class="source-menu-wrap" style="margin-left:auto;position:relative">
+                        <button class="btn source-menu-btn" onclick="toggleSourceMenu(this)">⚙️ 操作 ▾</button>
+                        <div class="source-menu" id="sourceMenu" style="display:none">
+                            <div class="source-menu-item" onclick="closeSourceMenu();showUrlModal()">🔗 URL加载</div>
+                            <div class="source-menu-item" onclick="closeSourceMenu();showLoadModal()">📁 文件加载</div>
+                            <div class="source-menu-item" onclick="closeSourceMenu();showRawModal()">📝 粘贴导入</div>
+                            <div class="source-menu-item" onclick="closeSourceMenu();exportSources()">📤 导出书源</div>
+                            <div class="source-menu-divider"></div>
+                            <div class="source-menu-item" onclick="closeSourceMenu();cleanInvalidSources()">🧹 清理无效</div>
+                            <div class="source-menu-item danger" onclick="closeSourceMenu();clearSources()">🗑️ 清空全部</div>
+                        </div>
+                    </div>
+                </h2>
+                <div class="sidebar-actions">
+                    <div class="validate-row">
+                        <button class="btn btn-validate" id="validateBtn" onclick="validateSources()" disabled>🛡️ 检测书源</button>
+                        <div class="validate-progress" id="validateProgress" style="display:none">
+                            <div class="progress-line" id="validateProgressLine">
+                                <div class="spinner" id="validateSpinner"></div>
+                                <span class="progress-num" id="validateNum">0/0</span>
+                                <div class="progress-bar"><div class="fill" id="validateFill" style="width:0%"></div></div>
+                            </div>
+                            <div class="summary-wrap" id="validateSummary">
+                                <div class="summary-inline" id="summaryInline"></div>
+                                <div class="summary-grid" id="summaryGrid">
+                                    <div class="row" id="summaryRow1"></div>
+                                    <div class="row" id="summaryRow2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="source-search-bar">
+                <input type="text" id="sourceSearchInput" placeholder="搜索书源名称..." autocomplete="off" oninput="filterSourceList()" onfocus="showHistoryDropdown('source')" onblur="hideHistoryDropdown('source')">
+                <div class="history-dropdown" id="sourceHistoryDropdown"></div>
+            </div>
+            <div class="source-list" id="sourceList">
+                <div class="empty">
+                    <div class="icon">📂</div>
+                    <h3>暂无书源</h3>
+                    <p>点击「URL加载」输入书源地址</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="content">
+            <div class="toolbar"></div>
+
+            <div class="tabs">
+                <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 搜索</div>
+                <div class="tab active" data-tab="bookshelf" onclick="switchTab('bookshelf')">📚 书架</div>
+                <div class="tab" data-tab="reader" onclick="switchTab('reader')">📖 阅读</div>
+                <div class="tab" data-tab="rss" onclick="switchTab('rss')">📡 RSS</div>
+                <div class="tab" data-tab="debug" onclick="switchTab('debug')">🔧 调试</div>
+                <div class="tab" data-tab="console" onclick="switchTab('console')">⚡ JS</div>
+            </div>
+
+            <div class="results" id="results">
+            </div>
+        </div>
+    </div>
+
+    <!-- URL Load Modal -->
+    <div class="modal-overlay" id="urlModal" style="display:none">
+        <div class="modal">
+            <h3>🔗 从 URL 加载书源</h3>
+            <div class="preset-urls">
+                <div class="label">历史记录（点击自动填入）：</div>
+                <div class="tags" id="urlHistoryTags">
+                    <span class="empty-hint">暂无历史记录</span>
+                </div>
+            </div>
+            <input type="text" id="sourceUrl" placeholder="输入书源 JSON 的 URL">
+            <div class="modal-actions">
+                <button class="btn" onclick="closeUrlModal()">取消</button>
+                <button class="btn btn-primary" onclick="loadUrl()">下载并加载</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load File Modal -->
+    <div class="modal-overlay" id="loadModal" style="display:none">
+        <div class="modal">
+            <h3>📁 加载本地书源文件</h3>
+            <div style="margin-bottom:12px">
+                <label class="btn btn-primary" style="cursor:pointer;display:inline-block">
+                    📂 选择文件
+                    <input type="file" id="fileInput" accept=".json,.txt" style="display:none" onchange="onFileSelected(this)">
+                </label>
+                <span id="fileInputName" style="margin-left:8px;color:var(--text2);font-size:13px">未选择文件</span>
+            </div>
+            <div style="color:var(--text2);font-size:12px;margin-bottom:8px">── 或手动输入路径 ──</div>
+            <input type="text" id="filePath" placeholder="书源文件路径（支持 .json / .txt），如 /path/to/sources.json">
+            <div class="modal-actions">
+                <button class="btn" onclick="document.getElementById('loadModal').style.display='none'">取消</button>
+                <button class="btn btn-primary" onclick="loadFile()">加载</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Raw JSON Modal -->
+    <div class="modal-overlay" id="rawModal" style="display:none">
+        <div class="modal">
+            <h3>📝 粘贴书源 JSON</h3>
+            <textarea id="rawJson" placeholder='粘贴书源 JSON...'></textarea>
+            <div class="modal-actions">
+                <button class="btn" onclick="document.getElementById('rawModal').style.display='none'">取消</button>
+                <button class="btn btn-primary" onclick="loadRaw()">加载</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS: 按依赖顺序加载各模块 -->
+    <script src="store.js"></script>     <!-- B2: 事件总线 + 书架 Store -->
+    <script src="app.js"></script>       <!-- 全局变量、工具函数、初始化、tab切换 -->
+    <script src="sources.js"></script>   <!-- 书源列表、书源操作、书源验证 -->
+    <script src="search.js"></script>    <!-- 搜索、书籍卡片渲染、书源多选面板 -->
+    <script src="reader.js"></script>    <!-- 阅读会话管理、目录/正文加载 -->
+    <script src="bookshelf.js"></script> <!-- 书架渲染、换源、下载、阅读进度 -->
+    <script src="rss.js"></script>       <!-- D8: RSS 订阅源 -->
+    <script src="debug.js"></script>     <!-- D5: 书源调试页 -->
+</body>
+</html>

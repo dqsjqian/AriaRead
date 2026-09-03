@@ -1,0 +1,72 @@
+# ──────────────────────────────────────────────
+# OpenRead .gitignore
+# ──────────────────────────────────────────────
+
+# 构建目录
+build/
+.build/
+.build_*/
+out/
+cmake-build-*/
+
+# IDE
+.vscode/*.log
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 编译产物
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# 依赖（QuickJS 核心源文件已纳入版本管理）
+
+# CMake 缓存
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake.in
+
+# CMake 生成的文件（version.h 等）
+generated/
+
+# 测试数据
+tests/data/*.json
+
+# 日志
+*.log
+*.diff
+
+# 数据库文件（运行时生成）
+*.db
+*.db-shm
+*.db-wal
+
+# 临时文件
+tmp/
+temp/
+
+# Release 打包产物
+release/web/openread
+release/web/install.sh
+release/web/*.dylib
+release/web/*.dll
+release/web/web/
+release/android/
+release/ios/
+release/win/
+release/mac/
+
+# 个人书源数据与备份文件（不入库）
+tests/rss*.json
+*.bak

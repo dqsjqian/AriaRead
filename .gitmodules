@@ -1,0 +1,8 @@
+[submodule "third_party/openssl"]
+	path = third_party/openssl
+	url = https://github.com/openssl/openssl.git
+	branch = openssl-3.3.1
+[submodule "third_party/aria"]
+	path = third_party/aria
+	url = https://github.com/dqsjqian/Aria.git
+	branch = main

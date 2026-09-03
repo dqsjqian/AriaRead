@@ -1,0 +1,8 @@
+#pragma once
+/// @file version.h
+/// @brief OpenRead 版本号（由 CMake 自动生成，请勿手动修改）
+
+#define OPENREAD_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define OPENREAD_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define OPENREAD_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define OPENREAD_VERSION "@PROJECT_VERSION@"
