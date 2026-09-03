@@ -8,8 +8,10 @@ See-also:
   - CURLOPT_CONNECTTIMEOUT_MS (3)
   - CURLOPT_DEBUGFUNCTION (3)
   - CURLOPT_STDERR (3)
+  - CURLOPT_FTPPORT (3)
 Protocol:
   - FTP
+Added-in: 7.24.0
 ---
 
 # NAME
@@ -27,11 +29,17 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_ACCEPTTIMEOUT_MS, long ms);
 # DESCRIPTION
 
 Pass a long telling libcurl the maximum number of milliseconds to wait for a
-server to connect back to libcurl when an active FTP connection is used.
+server to connect back to libcurl when an active FTP connection is used. When
+active FTP is used, the client (libcurl) tells the server to do a TCP connect
+back to the client, instead of vice versa for passive FTP.
+
+This option has no purpose for passive FTP.
 
 # DEFAULT
 
 60000 milliseconds
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -40,20 +48,23 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "ftp://example.com/path/file");
 
-    /* wait no more than 5 seconds for FTP server responses */
+    /* wait no more than 5 seconds for the FTP server to connect */
     curl_easy_setopt(curl, CURLOPT_ACCEPTTIMEOUT_MS, 5000L);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.24.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_IPRESOLVE (3)
 Protocol:
   - All
+Added-in: 7.60.0
 ---
 
 # NAME
@@ -46,6 +47,8 @@ performance impacts and may cause IPv4 to be used before IPv6 or vice versa.
 
 0 (disabled)
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -53,10 +56,11 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_DNS_SHUFFLE_ADDRESSES, 1L);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* always cleanup */
     curl_easy_cleanup(curl);
@@ -64,9 +68,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.60.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 

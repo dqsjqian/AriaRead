@@ -9,6 +9,7 @@ See-also:
   - curl_pushheader_bynum (3)
 Protocol:
   - HTTP
+Added-in: 7.44.0
 ---
 
 # NAME
@@ -32,8 +33,11 @@ elsewhere and it has no function then.
 It returns the value for the given header field name (or NULL) for the
 incoming server push request. This is a shortcut so that the application does
 not have to loop through all headers to find the one it is interested in. The
-data this function points to is freed when this callback returns. If more than
+data this function points to is freed when this callback returns and,
+although not constrained by its type, may not be altered. If more than
 one header field use the same name, this returns only the first one.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -75,9 +79,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.44.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 

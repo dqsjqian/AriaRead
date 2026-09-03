@@ -11,6 +11,7 @@ Added: 7.9
 Multi: single
 See-also:
   - cookie
+  - junk-session-cookies
 Example:
   - -c store-here.txt $URL
   - -c store-here.txt -b read-these $URL
@@ -19,7 +20,7 @@ Example:
 # `--cookie-jar`
 
 Specify to which file you want curl to write all cookies after a completed
-operation. Curl writes all cookies from its in-memory cookie storage to the
+operation. curl writes all cookies from its in-memory cookie storage to the
 given file at the end of operations. Even if no cookies are known, a file is
 created so that it removes any formerly existing cookies from the file. The
 file uses the Netscape cookie file format. If you set the filename to a single
@@ -36,3 +37,6 @@ If the cookie jar cannot be created or written to, the whole curl operation
 does not fail or even report an error clearly. Using --verbose gets a warning
 displayed, but that is the only visible feedback you get about this possibly
 lethal situation.
+
+You may want to restrict your umask to prevent other users on the same system
+to access the created file.

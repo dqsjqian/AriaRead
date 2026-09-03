@@ -14,11 +14,12 @@ See-also:
   - select (2)
 Protocol:
   - All
+Added-in: 7.9.6
 ---
 
 # NAME
 
-curl_multi_fdset - extracts file descriptor information from a multi handle
+curl_multi_fdset - extract file descriptor information from a multi handle
 
 # SYNOPSIS
 
@@ -78,6 +79,8 @@ which can cause crashes, or worse. The effect of NOT storing it might possibly
 save you from the crash, but makes your program NOT wait for sockets it should
 wait for...
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -88,8 +91,8 @@ int main(void)
   fd_set fdexcep;
   int maxfd;
   int rc;
-  CURLMcode mc;
-  struct timeval timeout = {1, 0};
+  CURLMcode mresult;
+  struct timeval timeout = { 1, 0 };
 
   CURLM *multi = curl_multi_init();
 
@@ -97,26 +100,30 @@ int main(void)
 
     /* call curl_multi_perform() */
 
-    /* get file descriptors from the transfers */
-    mc = curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
 
-    if(mc != CURLM_OK) {
-      fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+    /* get file descriptors from the transfers */
+    mresult = curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    if(mresult != CURLM_OK) {
+      fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mresult);
       break;
     }
 
     /* wait for activity on one of the sockets */
     rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
 
-  } while(!mc);
+  } while(!mresult);
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.9.6
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-**CURLMcode** type, general libcurl multi interface error code. See
-libcurl-errors(3)
+This function returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_VERBOSE (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
@@ -32,32 +33,41 @@ data.
 
 If you are using libcurl as a Windows DLL, this option causes an exception and
 a crash in the library since it cannot access a FILE * passed on from the
-application. A work-around is to instead use CURLOPT_DEBUGFUNCTION(3).
+application. A workaround is to instead use CURLOPT_DEBUGFUNCTION(3).
 
 # DEFAULT
 
 stderr
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
 ~~~c
 int main(void)
 {
-  CURL *curl = curl_easy_init();
+  CURL *curl;
   FILE *filep = fopen("dump", "wb");
+  if(!filep)
+    return 1;
+  curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_STDERR, filep);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
+  fclose(filep);
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -13,6 +13,7 @@ Protocol:
 TLS-backend:
   - OpenSSL
   - GnuTLS
+Added-in: 7.21.4
 ---
 
 # NAME
@@ -29,19 +30,30 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_TLSAUTH_PASSWORD, char *pwd);
 
 # DESCRIPTION
 
+Deprecated option. It serves no purpose anymore.
+
 Pass a char pointer as parameter, which should point to the null-terminated
 password to use for the TLS authentication method specified with the
-CURLOPT_TLSAUTH_TYPE(3) option. Requires that the
-CURLOPT_TLSAUTH_USERNAME(3) option also be set.
+CURLOPT_TLSAUTH_TYPE(3) option. Requires that the CURLOPT_TLSAUTH_USERNAME(3)
+option also be set.
 
 The application does not have to keep the string around after setting this
 option.
 
-This feature relies in TLS SRP which does not work with TLS 1.3.
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
+This feature relies on TLS-SRP which does not work with TLS 1.3.
 
 # DEFAULT
 
 NULL
+
+# DEPRECATED
+
+This option was deprecated in 8.22.0.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -50,22 +62,22 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     curl_easy_setopt(curl, CURLOPT_TLSAUTH_TYPE, "SRP");
     curl_easy_setopt(curl, CURLOPT_TLSAUTH_USERNAME, "user");
     curl_easy_setopt(curl, CURLOPT_TLSAUTH_PASSWORD, "secret");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.21.4, with the OpenSSL and GnuTLS backends only
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

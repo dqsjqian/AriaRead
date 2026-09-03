@@ -11,6 +11,7 @@ See-also:
   - CURLOPT_WRITEFUNCTION (3)
 Protocol:
   - All
+Added-in: 7.9.7
 ---
 
 # NAME
@@ -40,7 +41,9 @@ might experience crashes.
 
 # DEFAULT
 
-By default, this is a FILE * to stdin.
+stdin
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -52,23 +55,27 @@ struct MyData {
 int main(void)
 {
   CURL *curl = curl_easy_init();
-  struct MyData this;
+  struct MyData my_data;
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* pass pointer that gets passed in to the
        CURLOPT_READFUNCTION callback */
-    curl_easy_setopt(curl, CURLOPT_READDATA, &this);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &my_data);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
 This option was once known by the older name CURLOPT_INFILE, the name
 CURLOPT_READDATA(3) was introduced in 7.9.7.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 

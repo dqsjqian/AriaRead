@@ -11,6 +11,7 @@ See-also:
   - CURLOPT_HSTSREADFUNCTION (3)
   - CURLOPT_HSTSWRITEDATA (3)
   - CURLOPT_HSTSWRITEFUNCTION (3)
+Added-in: 7.74.0
 ---
 
 # NAME
@@ -38,6 +39,8 @@ do that.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -45,25 +48,34 @@ struct MyData {
   void *custom;
 };
 
+static CURLSTScode hsts_cb(CURL *easy, struct curl_hstsentry *sts,
+                           void *clientp)
+{
+  /* populate the struct as documented */
+  return CURLSTS_OK;
+}
+
 int main(void)
 {
   CURL *curl = curl_easy_init();
-  struct MyData this;
+  struct MyData my_data;
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
 
     /* pass pointer that gets passed in to the
        CURLOPT_HSTSREADFUNCTION callback */
-    curl_easy_setopt(curl, CURLOPT_HSTSREADDATA, &this);
+    curl_easy_setopt(curl, CURLOPT_HSTSREADDATA, &my_data);
+    /* set HSTS read callback */
+    curl_easy_setopt(curl, CURLOPT_HSTSREADFUNCTION, hsts_cb);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.74.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 

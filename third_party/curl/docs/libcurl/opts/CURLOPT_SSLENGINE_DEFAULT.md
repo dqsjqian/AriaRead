@@ -11,6 +11,7 @@ Protocol:
   - TLS
 TLS-backend:
   - OpenSSL
+Added-in: 7.9.3
 ---
 
 # NAME
@@ -36,6 +37,8 @@ This option has no effect unless set after CURLOPT_SSLENGINE(3).
 
 None
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -43,19 +46,17 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     curl_easy_setopt(curl, CURLOPT_SSLENGINE, "dynamic");
     curl_easy_setopt(curl, CURLOPT_SSLENGINE_DEFAULT, 1L);
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Only if the SSL backend is OpenSSL built with engine support.
+# %AVAILABILITY%
 
 # RETURN VALUE
 

@@ -14,6 +14,7 @@ See-also:
   - curl_url_strerror (3)
 Protocol:
   - All
+Added-in: 7.63.0
 ---
 
 # NAME
@@ -44,7 +45,9 @@ updated contents is used.
 
 # DEFAULT
 
-The default value of this parameter is NULL.
+NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -54,13 +57,13 @@ int main(void)
   CURL *curl = curl_easy_init();
   CURLU *urlp = curl_url();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     CURLUcode ret;
     ret = curl_url_set(urlp, CURLUPART_URL, "https://example.com", 0);
 
     curl_easy_setopt(curl, CURLOPT_CURLU, urlp);
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_url_cleanup(urlp);
     curl_easy_cleanup(curl);
@@ -68,10 +71,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.63.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

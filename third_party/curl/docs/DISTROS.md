@@ -14,11 +14,12 @@ distro. Those marked *Rolling Release* typically run the latest version of curl
 and are therefore less likely to have back-ported patches to older versions.
 
 We discuss curl distro issues, patches and collaboration on the [curl-distros
-mailing list](https://lists.haxx.se/listinfo/curl-distros).
+mailing list](https://lists.haxx.se/listinfo/curl-distros) ([list
+archives](https://curl.se/mail/list.cgi?list=curl-distros)).
 
 ## AlmaLinux
 
-- curl package source and patches: curl package source and patches
+- curl package source and patches: https://git.almalinux.org/rpms/curl/
 - curl issues: https://bugs.almalinux.org/view_all_bug_page.php click Category and choose curl
 - curl security: https://errata.almalinux.org/ search for curl
 
@@ -31,9 +32,9 @@ mailing list](https://lists.haxx.se/listinfo/curl-distros).
 
 ## Alt Linux
 
-- curl: http://www.sisyphus.ru/srpm/Sisyphus/curl
-- curl patches: http://www.sisyphus.ru/ru/srpm/Sisyphus/curl/patches
-- curl issues: http://www.sisyphus.ru/ru/srpm/Sisyphus/curl/bugs
+- curl: https://packages.altlinux.org/en/search/?q=curl
+- curl issues: https://packages.altlinux.org/en/sisyphus/srpms/curl/issues/
+- curl patches: https://git.altlinux.org/gears/c/curl.git?p=curl.git;a=tree;f=.gear
 
 ## Arch Linux
 
@@ -48,8 +49,8 @@ mailing list](https://lists.haxx.se/listinfo/curl-distros).
 
 *Rolling Release*
 
-- curl package source and patches: https://git.buildroot.net/buildroot/tree/package/libcurl
-- curl issues: https://bugs.buildroot.org/buglist.cgi?quicksearch=curl
+- curl package source and patches: **missing URL**
+- curl issues: **missing URL**
 
 ## Chimera
 
@@ -136,6 +137,12 @@ Issues and patches for this are managed in the main curl project.
 - curl: https://git.savannah.gnu.org/gitweb/?p=guix.git;a=blob;f=gnu/packages/curl.scm;hb=HEAD
 - curl issues: https://issues.guix.gnu.org/search?query=curl
 
+## Haiku
+
+- curl: https://github.com/haikuports/haikuports/tree/master/net-misc/curl
+- curl issues: https://github.com/haikuports/haikuports/issues
+- curl patches: https://github.com/haikuports/haikuports/tree/master/net-misc/curl/patches (if any)
+
 ## Homebrew
 
 *Rolling Release*
@@ -143,7 +150,13 @@ Issues and patches for this are managed in the main curl project.
 - curl: https://formulae.brew.sh/formula/curl
 
 Homebrew's policy is that all patches and issues should be submitted upstream
-unless it is very specific to Homebrew's way of packaging software.
+unless it is specific to Homebrew's way of packaging software.
+
+## LibreELEC
+
+- curl: https://github.com/LibreELEC/LibreELEC.tv/blob/master/packages/web/curl/
+- curl issues: https://github.com/LibreELEC/LibreELEC.tv/issues?q=is%3Aissue%20state%3Aopen%20curl
+- curl patches: https://github.com/LibreELEC/LibreELEC.tv/blob/master/packages/web/curl/patches/
 
 ## MacPorts
 
@@ -158,10 +171,18 @@ unless it is very specific to Homebrew's way of packaging software.
 - curl: https://svnweb.mageia.org/packages/cauldron/curl/current/SPECS/curl.spec?view=markup
 - curl issues: https://bugs.mageia.org/buglist.cgi?bug_status=NEW&bug_status=UNCONFIRMED&bug_status=NEEDINFO&bug_status=UPSTREAM&bug_status=ASSIGNED&component=RPM%20Packages&f1=cf_rpmpkg&list_id=176576&o1=casesubstring&product=Mageia&query_format=advanced&v1=curl
 - curl patches: https://svnweb.mageia.org/packages/cauldron/curl/current/SOURCES/
-- curl patches in stable distro releases: https://svnweb.mageia.org/packages/updates/<STABLE_VERSION>/curl/current/SOURCES/
+- curl patches in stable distro releases: https://svnweb.mageia.org/packages/updates/9/curl/current/SOURCES/
 - curl security: https://advisories.mageia.org/src_curl.html
 
 ## MSYS2
+
+*Rolling Release*
+
+- curl: https://github.com/msys2/MSYS2-packages/tree/master/curl
+- curl issues: https://github.com/msys2/MSYS2-packages/issues
+- curl patches: https://github.com/msys2/MSYS2-packages/tree/master/curl (`*.patch`)
+
+## MSYS2 (mingw-w64)
 
 *Rolling Release*
 
@@ -173,13 +194,13 @@ unless it is very specific to Homebrew's way of packaging software.
 
 *Rolling Release*
 
-- curl: https://github.com/lordmulder/cURL-build-win32
-- curl issues: https://github.com/lordmulder/cURL-build-win32/issues
-- curl patches: https://github.com/lordmulder/cURL-build-win32/tree/master/patch
+- curl: https://github.com/lordmulder/curl-build-win32
+- curl issues: https://github.com/lordmulder/curl-build-win32/issues
+- curl patches: https://github.com/lordmulder/curl-build-win32/tree/master/patch
 
 ## NixOS
 
-- curl: https://github.com/NixOS/nixpkgs/blob/master/pkgs/tools/networking/curl/default.nix
+- curl: https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/by-name/cu/curlMinimal/package.nix
 - curl issues: https://github.com/NixOS/nixpkgs
 
 nixpkgs is the package repository used by the NixOS Linux distribution, but
@@ -206,6 +227,12 @@ can also be used on other distributions
 - curl: https://github.com/oracle/solaris-userland/tree/master/components/curl
 - curl issues: https://support.oracle.com/ (requires support contract)
 - curl patches: https://github.com/oracle/solaris-userland/tree/master/components/curl/patches
+
+## OpenBSD
+
+- curl: https://github.com/openbsd/ports/tree/master/net/curl
+- curl issues: https://www.openbsd.org/mail.html (ports mailing list)
+- curl patches: https://github.com/openbsd/ports/tree/master/net/curl/patches
 
 ## OpenEmbedded / Yocto Project
 
@@ -235,7 +262,7 @@ can also be used on other distributions
 ## Rocky Linux
 
 - curl: https://git.rockylinux.org/staging/rpms/curl/-/blob/r9/SPECS/curl.spec
-- curl issues: https://bugs.rockylinux.org
+- curl issues: https://bugs.rockylinux.org/
 - curl patches: https://git.rockylinux.org/staging/rpms/curl/-/tree/r9/SOURCES
 
 ## SerenityOS

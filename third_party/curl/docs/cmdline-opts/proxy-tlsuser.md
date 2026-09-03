@@ -11,9 +11,15 @@ See-also:
   - proxy
   - proxy-tlspassword
 Example:
-  - --proxy-tlsuser smith -x https://proxy $URL
+  - --proxy-tlsuser smith -x https://proxy.example $URL
 ---
 
 # `--proxy-tlsuser`
 
-Same as --tlsuser but used in HTTPS proxy context.
+Deprecated option. This has no functionality since 8.22.0.
+
+Set username for use for HTTPS proxy with the TLS authentication method
+specified with --proxy-tlsauthtype. Requires that --proxy-tlspassword also is
+set.
+
+This option does not work with TLS 1.3.

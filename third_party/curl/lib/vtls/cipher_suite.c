@@ -23,17 +23,15 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#if defined(USE_MBEDTLS) || defined(USE_BEARSSL)
-#include "cipher_suite.h"
-#include "curl_printf.h"
-#include "strcase.h"
-#include <string.h>
+#if defined(USE_MBEDTLS) || defined(USE_RUSTLS)
+
+#include "vtls/cipher_suite.h"
 
 /*
  * To support the CURLOPT_SSL_CIPHER_LIST option on SSL backends
  * that do not support it natively, but do support setting a list of
  * IANA ids, we need a list of all supported cipher suite names
- * (openssl and IANA) to be able to look up the IANA ids.
+ * (OpenSSL and IANA) to be able to look up the IANA ids.
  *
  * To keep the binary size of this list down we compress each entry
  * down to 2 + 6 bytes using the C preprocessor.
@@ -42,7 +40,7 @@
 /*
  * mbedTLS NOTE: mbedTLS has mbedtls_ssl_get_ciphersuite_id() to
  * convert a string representation to an IANA id, we do not use that
- * because it does not support "standard" openssl cipher suite
+ * because it does not support "standard" OpenSSL cipher suite
  * names, nor IANA names.
  */
 
@@ -50,7 +48,7 @@
 
 /* Text for cipher suite parts (max 64 entries),
    keep indexes below in sync with this! */
-static const char *cs_txt =
+static const char cs_txt[] =
   "\0"
   "TLS" "\0"
   "WITH" "\0"
@@ -71,7 +69,7 @@ static const char *cs_txt =
   "ECDH" "\0"
   "ECDHE" "\0"
   "ECDSA" "\0"
-  "EDE" "\0"
+  "EDE" "\0" /* spellchecker:disable-line */
   "GCM" "\0"
   "MD5" "\0"
   "NULL" "\0"
@@ -81,7 +79,7 @@ static const char *cs_txt =
   "SHA" "\0"
   "SHA256" "\0"
   "SHA384" "\0"
-#if defined(USE_MBEDTLS)
+#ifdef USE_MBEDTLS
   "ARIA" "\0"
   "ARIA128" "\0"
   "ARIA256" "\0"
@@ -112,7 +110,7 @@ enum {
   CS_TXT_IDX_ECDH,
   CS_TXT_IDX_ECDHE,
   CS_TXT_IDX_ECDSA,
-  CS_TXT_IDX_EDE,
+  CS_TXT_IDX_EDE, /* spellchecker:disable-line */
   CS_TXT_IDX_GCM,
   CS_TXT_IDX_MD5,
   CS_TXT_IDX_NULL,
@@ -122,7 +120,7 @@ enum {
   CS_TXT_IDX_SHA,
   CS_TXT_IDX_SHA256,
   CS_TXT_IDX_SHA384,
-#if defined(USE_MBEDTLS)
+#ifdef USE_MBEDTLS
   CS_TXT_IDX_ARIA,
   CS_TXT_IDX_ARIA128,
   CS_TXT_IDX_ARIA256,
@@ -133,24 +131,24 @@ enum {
   CS_TXT_LEN,
 };
 
-#define CS_ZIP_IDX(a, b, c, d, e, f, g, h)    \
-{                                             \
-  (uint8_t) ((a) << 2 | ((b) & 0x3F) >> 4),   \
-  (uint8_t) ((b) << 4 | ((c) & 0x3F) >> 2),   \
-  (uint8_t) ((c) << 6 | ((d) & 0x3F)),        \
-  (uint8_t) ((e) << 2 | ((f) & 0x3F) >> 4),   \
-  (uint8_t) ((f) << 4 | ((g) & 0x3F) >> 2),   \
-  (uint8_t) ((g) << 6 | ((h) & 0x3F))         \
+#define CS_ZIP_IDX(a, b, c, d, e, f, g, h)            \
+{                                                     \
+  (uint8_t)((((a) << 2) & 0xFF) | ((b) & 0x3F) >> 4), \
+  (uint8_t)((((b) << 4) & 0xFF) | ((c) & 0x3F) >> 2), \
+  (uint8_t)((((c) << 6) & 0xFF) | ((d) & 0x3F)),      \
+  (uint8_t)((((e) << 2) & 0xFF) | ((f) & 0x3F) >> 4), \
+  (uint8_t)((((f) << 4) & 0xFF) | ((g) & 0x3F) >> 2), \
+  (uint8_t)((((g) << 6) & 0xFF) | ((h) & 0x3F))       \
 }
-#define CS_ENTRY(id, a, b, c, d, e, f, g, h)  \
-{                                             \
-  id,                                         \
-  CS_ZIP_IDX(                                 \
-    CS_TXT_IDX_ ## a, CS_TXT_IDX_ ## b,       \
-    CS_TXT_IDX_ ## c, CS_TXT_IDX_ ## d,       \
-    CS_TXT_IDX_ ## e, CS_TXT_IDX_ ## f,       \
-    CS_TXT_IDX_ ## g, CS_TXT_IDX_ ## h        \
-  )                                           \
+#define CS_ENTRY(id, a, b, c, d, e, f, g, h) \
+{                                            \
+  id,                                        \
+  CS_ZIP_IDX(                                \
+    CS_TXT_IDX_ ## a, CS_TXT_IDX_ ## b,      \
+    CS_TXT_IDX_ ## c, CS_TXT_IDX_ ## d,      \
+    CS_TXT_IDX_ ## e, CS_TXT_IDX_ ## f,      \
+    CS_TXT_IDX_ ## g, CS_TXT_IDX_ ## h       \
+  )                                          \
 }
 
 struct cs_entry {
@@ -159,7 +157,27 @@ struct cs_entry {
 };
 
 /* !checksrc! disable COMMANOSPACE all */
-static const struct cs_entry cs_list [] = {
+static const struct cs_entry cs_list[] = {
+  /* TLS 1.3 ciphers */
+  CS_ENTRY(0x1301, TLS,AES,128,GCM,SHA256,,,),
+  CS_ENTRY(0x1302, TLS,AES,256,GCM,SHA384,,,),
+  CS_ENTRY(0x1303, TLS,CHACHA20,POLY1305,SHA256,,,,),
+  CS_ENTRY(0x1304, TLS,AES,128,CCM,SHA256,,,),
+  CS_ENTRY(0x1305, TLS,AES,128,CCM,8,SHA256,,),
+  /* TLS 1.2 ciphers */
+  CS_ENTRY(0xC02B, TLS,ECDHE,ECDSA,WITH,AES,128,GCM,SHA256),
+  CS_ENTRY(0xC02B, ECDHE,ECDSA,AES128,GCM,SHA256,,,),
+  CS_ENTRY(0xC02C, TLS,ECDHE,ECDSA,WITH,AES,256,GCM,SHA384),
+  CS_ENTRY(0xC02C, ECDHE,ECDSA,AES256,GCM,SHA384,,,),
+  CS_ENTRY(0xC02F, TLS,ECDHE,RSA,WITH,AES,128,GCM,SHA256),
+  CS_ENTRY(0xC02F, ECDHE,RSA,AES128,GCM,SHA256,,,),
+  CS_ENTRY(0xC030, TLS,ECDHE,RSA,WITH,AES,256,GCM,SHA384),
+  CS_ENTRY(0xC030, ECDHE,RSA,AES256,GCM,SHA384,,,),
+  CS_ENTRY(0xCCA8, TLS,ECDHE,RSA,WITH,CHACHA20,POLY1305,SHA256,),
+  CS_ENTRY(0xCCA8, ECDHE,RSA,CHACHA20,POLY1305,,,,),
+  CS_ENTRY(0xCCA9, TLS,ECDHE,ECDSA,WITH,CHACHA20,POLY1305,SHA256,),
+  CS_ENTRY(0xCCA9, ECDHE,ECDSA,CHACHA20,POLY1305,,,,),
+#ifdef USE_MBEDTLS
   CS_ENTRY(0x002F, TLS,RSA,WITH,AES,128,CBC,SHA,),
   CS_ENTRY(0x002F, AES128,SHA,,,,,,),
   CS_ENTRY(0x0035, TLS,RSA,WITH,AES,256,CBC,SHA,),
@@ -204,27 +222,14 @@ static const struct cs_entry cs_list [] = {
   CS_ENTRY(0xC029, ECDH,RSA,AES128,SHA256,,,,),
   CS_ENTRY(0xC02A, TLS,ECDH,RSA,WITH,AES,256,CBC,SHA384),
   CS_ENTRY(0xC02A, ECDH,RSA,AES256,SHA384,,,,),
-  CS_ENTRY(0xC02B, TLS,ECDHE,ECDSA,WITH,AES,128,GCM,SHA256),
-  CS_ENTRY(0xC02B, ECDHE,ECDSA,AES128,GCM,SHA256,,,),
-  CS_ENTRY(0xC02C, TLS,ECDHE,ECDSA,WITH,AES,256,GCM,SHA384),
-  CS_ENTRY(0xC02C, ECDHE,ECDSA,AES256,GCM,SHA384,,,),
   CS_ENTRY(0xC02D, TLS,ECDH,ECDSA,WITH,AES,128,GCM,SHA256),
   CS_ENTRY(0xC02D, ECDH,ECDSA,AES128,GCM,SHA256,,,),
   CS_ENTRY(0xC02E, TLS,ECDH,ECDSA,WITH,AES,256,GCM,SHA384),
   CS_ENTRY(0xC02E, ECDH,ECDSA,AES256,GCM,SHA384,,,),
-  CS_ENTRY(0xC02F, TLS,ECDHE,RSA,WITH,AES,128,GCM,SHA256),
-  CS_ENTRY(0xC02F, ECDHE,RSA,AES128,GCM,SHA256,,,),
-  CS_ENTRY(0xC030, TLS,ECDHE,RSA,WITH,AES,256,GCM,SHA384),
-  CS_ENTRY(0xC030, ECDHE,RSA,AES256,GCM,SHA384,,,),
   CS_ENTRY(0xC031, TLS,ECDH,RSA,WITH,AES,128,GCM,SHA256),
   CS_ENTRY(0xC031, ECDH,RSA,AES128,GCM,SHA256,,,),
   CS_ENTRY(0xC032, TLS,ECDH,RSA,WITH,AES,256,GCM,SHA384),
   CS_ENTRY(0xC032, ECDH,RSA,AES256,GCM,SHA384,,,),
-  CS_ENTRY(0xCCA8, TLS,ECDHE,RSA,WITH,CHACHA20,POLY1305,SHA256,),
-  CS_ENTRY(0xCCA8, ECDHE,RSA,CHACHA20,POLY1305,,,,),
-  CS_ENTRY(0xCCA9, TLS,ECDHE,ECDSA,WITH,CHACHA20,POLY1305,SHA256,),
-  CS_ENTRY(0xCCA9, ECDHE,ECDSA,CHACHA20,POLY1305,,,,),
-#if defined(USE_MBEDTLS)
   CS_ENTRY(0x0001, TLS,RSA,WITH,NULL,MD5,,,),
   CS_ENTRY(0x0001, NULL,MD5,,,,,,),
   CS_ENTRY(0x0002, TLS,RSA,WITH,NULL,SHA,,,),
@@ -297,11 +302,6 @@ static const struct cs_entry cs_list [] = {
   CS_ENTRY(0x00B8, RSA,PSK,NULL,SHA256,,,,),
   CS_ENTRY(0x00B9, TLS,RSA,PSK,WITH,NULL,SHA384,,),
   CS_ENTRY(0x00B9, RSA,PSK,NULL,SHA384,,,,),
-  CS_ENTRY(0x1301, TLS,AES,128,GCM,SHA256,,,),
-  CS_ENTRY(0x1302, TLS,AES,256,GCM,SHA384,,,),
-  CS_ENTRY(0x1303, TLS,CHACHA20,POLY1305,SHA256,,,,),
-  CS_ENTRY(0x1304, TLS,AES,128,CCM,SHA256,,,),
-  CS_ENTRY(0x1305, TLS,AES,128,CCM,8,SHA256,,),
   CS_ENTRY(0xC001, TLS,ECDH,ECDSA,WITH,NULL,SHA,,),
   CS_ENTRY(0xC001, ECDH,ECDSA,NULL,SHA,,,,),
   CS_ENTRY(0xC006, TLS,ECDHE,ECDSA,WITH,NULL,SHA,,),
@@ -316,19 +316,6 @@ static const struct cs_entry cs_list [] = {
   CS_ENTRY(0xC036, ECDHE,PSK,AES256,CBC,SHA,,,),
   CS_ENTRY(0xCCAB, TLS,PSK,WITH,CHACHA20,POLY1305,SHA256,,),
   CS_ENTRY(0xCCAB, PSK,CHACHA20,POLY1305,,,,,),
-#endif
-#if defined(USE_BEARSSL)
-  CS_ENTRY(0x000A, TLS,RSA,WITH,3DES,EDE,CBC,SHA,),
-  CS_ENTRY(0x000A, DES,CBC3,SHA,,,,,),
-  CS_ENTRY(0xC003, TLS,ECDH,ECDSA,WITH,3DES,EDE,CBC,SHA),
-  CS_ENTRY(0xC003, ECDH,ECDSA,DES,CBC3,SHA,,,),
-  CS_ENTRY(0xC008, TLS,ECDHE,ECDSA,WITH,3DES,EDE,CBC,SHA),
-  CS_ENTRY(0xC008, ECDHE,ECDSA,DES,CBC3,SHA,,,),
-  CS_ENTRY(0xC00D, TLS,ECDH,RSA,WITH,3DES,EDE,CBC,SHA),
-  CS_ENTRY(0xC00D, ECDH,RSA,DES,CBC3,SHA,,,),
-  CS_ENTRY(0xC012, TLS,ECDHE,RSA,WITH,3DES,EDE,CBC,SHA),
-  CS_ENTRY(0xC012, ECDHE,RSA,DES,CBC3,SHA,,,),
-#endif
   CS_ENTRY(0xC09C, TLS,RSA,WITH,AES,128,CCM,,),
   CS_ENTRY(0xC09C, AES128,CCM,,,,,,),
   CS_ENTRY(0xC09D, TLS,RSA,WITH,AES,256,CCM,,),
@@ -345,8 +332,7 @@ static const struct cs_entry cs_list [] = {
   CS_ENTRY(0xC0AE, ECDHE,ECDSA,AES128,CCM8,,,,),
   CS_ENTRY(0xC0AF, TLS,ECDHE,ECDSA,WITH,AES,256,CCM,8),
   CS_ENTRY(0xC0AF, ECDHE,ECDSA,AES256,CCM8,,,,),
-#if defined(USE_MBEDTLS)
-  /* entries marked ns are "non-standard", they are not in openssl */
+  /* entries marked ns are "non-standard", they are not in OpenSSL */
   CS_ENTRY(0x0041, TLS,RSA,WITH,CAMELLIA,128,CBC,SHA,),
   CS_ENTRY(0x0041, CAMELLIA128,SHA,,,,,,),
   CS_ENTRY(0x0045, TLS,DHE,RSA,WITH,CAMELLIA,128,CBC,SHA),
@@ -551,12 +537,11 @@ static const struct cs_entry cs_list [] = {
   CS_ENTRY(0xCCAE, RSA,PSK,CHACHA20,POLY1305,,,,),
 #endif
 };
-#define CS_LIST_LEN (sizeof(cs_list) / sizeof(cs_list[0]))
+#define CS_LIST_LEN CURL_ARRAYSIZE(cs_list)
 
-static int cs_str_to_zip(const char *cs_str, size_t cs_len,
-                         uint8_t zip[6])
+static int cs_str_to_zip(const char *cs_str, size_t cs_len, uint8_t zip[6])
 {
-  uint8_t indexes[8] = {0};
+  uint8_t indexes[8] = { 0 };
   const char *entry, *cur;
   const char *nxt = cs_str;
   const char *end = cs_str + cs_len;
@@ -565,7 +550,7 @@ static int cs_str_to_zip(const char *cs_str, size_t cs_len,
   size_t len;
 
   /* split the cipher string by '-' or '_' */
-  if(strncasecompare(cs_str, "TLS", 3))
+  if(curl_strnequal(cs_str, "TLS", 3))
     separator = '_';
 
   do {
@@ -574,37 +559,37 @@ static int cs_str_to_zip(const char *cs_str, size_t cs_len,
 
     /* determine the length of the part */
     cur = nxt;
-    for(; nxt < end && *nxt != '\0' && *nxt != separator; nxt++);
+    for(; nxt < end && *nxt != '\0' && *nxt != separator; nxt++)
+      ;
     len = nxt - cur;
 
     /* lookup index for the part (skip empty string at 0) */
     for(idx = 1, entry = cs_txt + 1; idx < CS_TXT_LEN; idx++) {
       size_t elen = strlen(entry);
-      if(elen == len && strncasecompare(entry, cur, len))
+      if(elen == len && curl_strnequal(entry, cur, len))
         break;
       entry += elen + 1;
     }
     if(idx == CS_TXT_LEN)
       return -1;
 
-    indexes[i++] = (uint8_t) idx;
+    indexes[i++] = (uint8_t)idx;
   } while(nxt < end && *(nxt++) != '\0');
 
   /* zip the 8 indexes into 48 bits */
-  zip[0] = (uint8_t) (indexes[0] << 2 | (indexes[1] & 0x3F) >> 4);
-  zip[1] = (uint8_t) (indexes[1] << 4 | (indexes[2] & 0x3F) >> 2);
-  zip[2] = (uint8_t) (indexes[2] << 6 | (indexes[3] & 0x3F));
-  zip[3] = (uint8_t) (indexes[4] << 2 | (indexes[5] & 0x3F) >> 4);
-  zip[4] = (uint8_t) (indexes[5] << 4 | (indexes[6] & 0x3F) >> 2);
-  zip[5] = (uint8_t) (indexes[6] << 6 | (indexes[7] & 0x3F));
+  zip[0] = (uint8_t)(indexes[0] << 2 | (indexes[1] & 0x3F) >> 4);
+  zip[1] = (uint8_t)(indexes[1] << 4 | (indexes[2] & 0x3F) >> 2);
+  zip[2] = (uint8_t)(indexes[2] << 6 | (indexes[3] & 0x3F));
+  zip[3] = (uint8_t)(indexes[4] << 2 | (indexes[5] & 0x3F) >> 4);
+  zip[4] = (uint8_t)(indexes[5] << 4 | (indexes[6] & 0x3F) >> 2);
+  zip[5] = (uint8_t)(indexes[6] << 6 | (indexes[7] & 0x3F));
 
   return 0;
 }
 
-static int cs_zip_to_str(const uint8_t zip[6],
-                         char *buf, size_t buf_size)
+static int cs_zip_to_str(const uint8_t zip[6], char *buf, size_t buf_size)
 {
-  uint8_t indexes[8] = {0};
+  uint8_t indexes[8] = { 0 };
   const char *entry;
   char separator = '-';
   int idx, i, r;
@@ -612,12 +597,12 @@ static int cs_zip_to_str(const uint8_t zip[6],
 
   /* unzip the 8 indexes */
   indexes[0] = zip[0] >> 2;
-  indexes[1] = ((zip[0] << 4) & 0x3F) | zip[1] >> 4;
-  indexes[2] = ((zip[1] << 2) & 0x3F) | zip[2] >> 6;
+  indexes[1] = (uint8_t)(((zip[0] << 4) & 0x3F) | zip[1] >> 4);
+  indexes[2] = (uint8_t)(((zip[1] << 2) & 0x3F) | zip[2] >> 6);
   indexes[3] = ((zip[2] << 0) & 0x3F);
   indexes[4] = zip[3] >> 2;
-  indexes[5] = ((zip[3] << 4) & 0x3F) | zip[4] >> 4;
-  indexes[6] = ((zip[4] << 2) & 0x3F) | zip[5] >> 6;
+  indexes[5] = (uint8_t)(((zip[3] << 4) & 0x3F) | zip[4] >> 4);
+  indexes[6] = (uint8_t)(((zip[4] << 2) & 0x3F) | zip[5] >> 6);
   indexes[7] = ((zip[5] << 0) & 0x3F);
 
   if(indexes[0] == CS_TXT_IDX_TLS)
@@ -635,9 +620,9 @@ static int cs_zip_to_str(const uint8_t zip[6],
 
     /* append the part string to the buffer */
     if(i > 0)
-      r = msnprintf(&buf[len], buf_size - len, "%c%s", separator, entry);
+      r = curl_msnprintf(&buf[len], buf_size - len, "%c%s", separator, entry);
     else
-      r = msnprintf(&buf[len], buf_size - len, "%s", entry);
+      r = curl_msnprintf(&buf[len], buf_size - len, "%s", entry);
 
     if(r < 0)
       return -1;
@@ -654,7 +639,7 @@ uint16_t Curl_cipher_suite_lookup_id(const char *cs_str, size_t cs_len)
 
   if(cs_len > 0 && cs_str_to_zip(cs_str, cs_len, zip) == 0) {
     for(i = 0; i < CS_LIST_LEN; i++) {
-      if(memcmp(cs_list[i].zip, zip, sizeof(zip)) == 0)
+      if(!memcmp(cs_list[i].zip, zip, sizeof(zip)))
         return cs_list[i].id;
     }
   }
@@ -665,24 +650,25 @@ uint16_t Curl_cipher_suite_lookup_id(const char *cs_str, size_t cs_len)
 static bool cs_is_separator(char c)
 {
   switch(c) {
-    case ' ':
-    case '\t':
-    case ':':
-    case ',':
-    case ';':
-      return true;
-    default:;
+  case ' ':
+  case '\t':
+  case ':':
+  case ',':
+  case ';':
+    return TRUE;
   }
-  return false;
+  return FALSE;
 }
 
 uint16_t Curl_cipher_suite_walk_str(const char **str, const char **end)
 {
   /* move string pointer to first non-separator or end of string */
-  for(; cs_is_separator(*str[0]); (*str)++);
+  for(; cs_is_separator(*str[0]); (*str)++)
+    ;
 
   /* move end pointer to next separator or end of string */
-  for(*end = *str; *end[0] != '\0' && !cs_is_separator(*end[0]); (*end)++);
+  for(*end = *str; *end[0] != '\0' && !cs_is_separator(*end[0]); (*end)++)
+    ;
 
   return Curl_cipher_suite_lookup_id(*str, *end - *str);
 }
@@ -708,9 +694,9 @@ int Curl_cipher_suite_get_str(uint16_t id, char *buf, size_t buf_size,
     r = cs_zip_to_str(cs_list[j].zip, buf, buf_size);
 
   if(r < 0)
-    msnprintf(buf, buf_size, "TLS_UNKNOWN_0x%04x", id);
+    curl_msnprintf(buf, buf_size, "TLS_UNKNOWN_0x%04x", id);
 
   return r;
 }
 
-#endif /* defined(USE_MBEDTLS) || defined(USE_BEARSSL) */
+#endif /* defined(USE_MBEDTLS) || defined(USE_RUSTLS) */

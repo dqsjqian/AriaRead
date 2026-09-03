@@ -9,11 +9,12 @@ See-also:
   - curl_multi_wait (3)
 Protocol:
   - All
+Added-in: 7.68.0
 ---
 
 # NAME
 
-curl_multi_wakeup - wakes up a sleeping curl_multi_poll call
+curl_multi_wakeup - wake up a sleeping curl_multi_poll call
 
 # SYNOPSIS
 
@@ -38,32 +39,36 @@ that multiple calls to this function wake up the same waiting operation.
 
 This function has no effect on curl_multi_wait(3) calls.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
 extern int time_to_die(void);
 extern int set_something_to_signal_thread_1_to_exit(void);
-extern int decide_to_stop_thread1();
+extern int decide_to_stop_thread1(void);
 
 int main(void)
 {
   CURL *easy;
-  CURLM *multi;
+  CURLM *multi = curl_multi_init();
   int still_running;
+
+  easy = curl_easy_init();
 
   /* add the individual easy handle */
   curl_multi_add_handle(multi, easy);
 
   /* this is thread 1 */
   do {
-    CURLMcode mc;
+    CURLMcode mresult;
     int numfds;
 
-    mc = curl_multi_perform(multi, &still_running);
+    mresult = curl_multi_perform(multi, &still_running);
 
-    if(mc == CURLM_OK) {
+    if(mresult == CURLM_OK) {
       /* wait for activity, timeout or wakeup */
-      mc = curl_multi_poll(multi, NULL, 0, 10000, &numfds);
+      mresult = curl_multi_poll(multi, NULL, 0, 10000, &numfds);
     }
 
     if(time_to_die())
@@ -84,10 +89,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.68.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLMcode type, general libcurl multi interface error code.
+This function returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

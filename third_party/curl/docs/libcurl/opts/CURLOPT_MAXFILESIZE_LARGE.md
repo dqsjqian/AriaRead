@@ -11,6 +11,7 @@ Protocol:
   - FTP
   - HTTP
   - MQTT
+Added-in: 7.11.0
 ---
 
 # NAME
@@ -28,22 +29,24 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_MAXFILESIZE_LARGE,
 
 # DESCRIPTION
 
-Pass a curl_off_t as parameter. This specifies the maximum accepted *size*
-(in bytes) of a file to download. If the file requested is found larger than
-this value, the transfer is aborted and *CURLE_FILESIZE_EXCEEDED* is
-returned. Passing a zero *size* disables this, and passing a negative *size*
-yields a *CURLE_BAD_FUNCTION_ARGUMENT*.
+Pass a curl_off_t as parameter. This specifies the maximum accepted *size* (in
+bytes) of a file to download. If the file requested is found larger than this
+value, the transfer is aborted and *CURLE_FILESIZE_EXCEEDED* is returned.
+Passing a zero *size* disables this, and passing a negative *size* yields a
+*CURLE_BAD_FUNCTION_ARGUMENT*.
 
-The file size is not always known prior to the download start, and for such
-transfers this option has no effect - even if the file transfer eventually
-ends up being larger than this given limit.
+If the size is known to exceed the limit before the transfer starts, libcurl
+aborts before starting the transfer. If the transfer instead exceeds the limit
+while it is in progress, libcurl aborts it at that point.
 
-Since 8.4.0, this option also stops ongoing transfers if they reach this
-threshold.
+Since 8.20.0, this option also stops ongoing transfers that would reach this
+threshold due to automatic decompression using CURLOPT_ACCEPT_ENCODING(3).
 
 # DEFAULT
 
 0, meaning disabled.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -52,21 +55,25 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode ret;
+    CURLcode result;
     curl_off_t ridiculous = (curl_off_t)1 << 48;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     /* refuse to download if larger than ridiculous */
     curl_easy_setopt(curl, CURLOPT_MAXFILESIZE_LARGE, ridiculous);
-    ret = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# %AVAILABILITY%
 
-Added in 7.11.0
+# HISTORY
+
+Before curl 8.4.0, the limit was not applied to transfers in progress.
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, CURLE_UNKNOWN_OPTION if not, or
-CURLE_BAD_FUNCTION_ARGUMENT if the size passed is invalid.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

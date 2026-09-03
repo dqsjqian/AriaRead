@@ -8,6 +8,7 @@ See-also:
   - curl_version_info (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
@@ -27,7 +28,13 @@ char *curl_version();
 Returns a human readable string with the version number of libcurl and some of
 its important components (like OpenSSL version).
 
-We recommend using curl_version_info(3) instead!
+For MultiSSL builds the string contains all SSL backend names and the inactive
+backend names are in parentheses. For example "(OpenSSL/3.0.8) Schannel" or
+"OpenSSL/3.0.8 (Schannel)".
+
+We recommend using curl_version_info(3) instead.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -38,9 +45,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 

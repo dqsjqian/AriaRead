@@ -13,6 +13,7 @@ Protocol:
   - HTTP
   - IMAP
   - SMTP
+Added-in: 7.56.0
 ---
 
 # NAME
@@ -55,6 +56,8 @@ part is transferred using chunks by HTTP but is rejected by IMAP.
 Setting a part's contents multiple times is valid: only the value set by the
 last call is retained.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -80,13 +83,17 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-As long as at least one of HTTP, SMTP or IMAP is enabled. Added in 7.56.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLE_OK or a CURL error code upon failure. CURLE_READ_ERROR is only an
-indication that the file is not yet readable: it can be safely ignored at
-this time, but the file must be made readable before the pertaining
-easy handle is performed.
+This function returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3). If CURLOPT_ERRORBUFFER(3) was set with curl_easy_setopt(3)
+there can be an error message stored in the error buffer when non-zero is
+returned.
+
+CURLE_READ_ERROR is only an indication that the file is not yet readable: it
+can be safely ignored at this time, but the file must be made readable before
+the pertaining easy handle is performed.

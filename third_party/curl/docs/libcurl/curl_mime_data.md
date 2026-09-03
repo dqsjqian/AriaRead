@@ -13,6 +13,7 @@ Protocol:
   - HTTP
   - IMAP
   - SMTP
+Added-in: 7.56.0
 ---
 
 # NAME
@@ -49,6 +50,8 @@ last call is retained. It is possible to unassign part's contents by setting
 Setting large data is memory consuming: one might consider using
 curl_mime_data_cb(3) in such a case.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -65,16 +68,19 @@ int main(void)
     /* add a part */
     part = curl_mime_addpart(mime);
 
-    /* add data to the part  */
+    /* add data to the part */
     curl_mime_data(part, "raw contents to send", CURL_ZERO_TERMINATED);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-As long as at least one of HTTP, SMTP or IMAP is enabled. Added in 7.56.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLE_OK or a CURL error code upon failure.
+This function returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3). If CURLOPT_ERRORBUFFER(3) was set with curl_easy_setopt(3)
+there can be an error message stored in the error buffer when non-zero is
+returned.

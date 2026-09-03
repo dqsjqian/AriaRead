@@ -23,22 +23,14 @@
  ***************************************************************************/
 #include "tool_setup.h"
 
-#include "strcase.h"
-
-#define ENABLE_CURLX_PRINTF
-/* use our own printf() functions */
-#include "curlx.h"
-
 #include "tool_cfgable.h"
 #include "tool_msgs.h"
 #include "tool_getparam.h"
 #include "tool_helpers.h"
 
-#include "memdebug.h" /* keep this as LAST include */
-
 /*
-** Helper functions that are used from more than one source file.
-*/
+ * Helper functions that are used from more than one source file.
+ */
 
 const char *param2text(ParameterError error)
 {
@@ -47,8 +39,8 @@ const char *param2text(ParameterError error)
     return "had unsupported trailing garbage";
   case PARAM_OPTION_UNKNOWN:
     return "is unknown";
-  case PARAM_OPTION_AMBIGUOUS:
-    return "is ambiguous";
+  case PARAM_CONFIG_OPTION_UNKNOWN:
+    return "found an unknown config option";
   case PARAM_REQUIRES_PARAMETER:
     return "requires parameter";
   case PARAM_BAD_USE:
@@ -58,19 +50,15 @@ const char *param2text(ParameterError error)
   case PARAM_NEGATIVE_NUMERIC:
     return "expected a positive numerical parameter";
   case PARAM_LIBCURL_DOESNT_SUPPORT:
-    return "the installed libcurl version doesn't support this";
+    return "the installed libcurl version does not support this";
   case PARAM_LIBCURL_UNSUPPORTED_PROTOCOL:
     return "a specified protocol is unsupported by libcurl";
   case PARAM_NO_MEM:
     return "out of memory";
   case PARAM_NO_PREFIX:
-    return "the given option can't be reversed with a --no- prefix";
+    return "the given option cannot be reversed with a --no- prefix";
   case PARAM_NUMBER_TOO_LARGE:
     return "too large number";
-  case PARAM_NO_NOT_BOOLEAN:
-    return "used '--no-' for option that isn't a boolean";
-  case PARAM_CONTDISP_SHOW_HEADER:
-    return "showing headers and --remote-header-name cannot be combined";
   case PARAM_CONTDISP_RESUME_FROM:
     return "--continue-at and --remote-header-name cannot be combined";
   case PARAM_READ_ERROR:
@@ -79,15 +67,17 @@ const char *param2text(ParameterError error)
     return "variable expansion failure";
   case PARAM_BLANK_STRING:
     return "blank argument where content is expected";
+  case PARAM_VAR_SYNTAX:
+    return "syntax error in --variable argument";
   default:
     return "unknown error";
   }
 }
 
-int SetHTTPrequest(struct OperationConfig *config, HttpReq req, HttpReq *store)
+int SetHTTPrequest(HttpReq req, HttpReq *store)
 {
   /* this mirrors the HttpReq enum in tool_sdecls.h */
-  const char *reqname[]= {
+  static const char * const reqname[] = {
     "", /* unspec */
     "GET (-G, --get)",
     "HEAD (-I, --head)",
@@ -96,23 +86,22 @@ int SetHTTPrequest(struct OperationConfig *config, HttpReq req, HttpReq *store)
     "PUT (-T, --upload-file)"
   };
 
-  if((*store == HTTPREQ_UNSPEC) ||
+  if((*store == TOOL_HTTPREQ_UNSPEC) ||
      (*store == req)) {
     *store = req;
     return 0;
   }
-  warnf(config->global, "You can only select one HTTP request method! "
+  warnf("You can only select one HTTP request method! "
         "You asked for both %s and %s.",
         reqname[req], reqname[*store]);
 
   return 1;
 }
 
-void customrequest_helper(struct OperationConfig *config, HttpReq req,
-                          char *method)
+void customrequest_helper(HttpReq req, const char *method)
 {
   /* this mirrors the HttpReq enum in tool_sdecls.h */
-  const char *dflt[]= {
+  static const char * const dflt[] = {
     "GET",
     "GET",
     "HEAD",
@@ -124,12 +113,11 @@ void customrequest_helper(struct OperationConfig *config, HttpReq req,
   if(!method)
     ;
   else if(curl_strequal(method, dflt[req])) {
-    notef(config->global, "Unnecessary use of -X or --request, %s is already "
+    notef("Unnecessary use of -X or --request, %s is already "
           "inferred.", dflt[req]);
   }
   else if(curl_strequal(method, "head")) {
-    warnf(config->global,
-          "Setting custom HTTP method to HEAD with -X/--request may not work "
+    warnf("Setting custom HTTP method to HEAD with -X/--request may not work "
           "the way you want. Consider using -I/--head instead.");
   }
 }

@@ -14,12 +14,13 @@ TLS-backend:
   - OpenSSL
   - GnuTLS
   - Schannel
-  - Secure Transport
+  - Rustls
+Added-in: 7.19.1
 ---
 
 # NAME
 
-CURLINFO_CERTINFO - get the TLS certificate chain
+CURLINFO_CERTINFO - TLS certificate chain
 
 # SYNOPSIS
 
@@ -32,7 +33,7 @@ CURLcode curl_easy_getinfo(CURL *handle, CURLINFO_CERTINFO,
 
 # DESCRIPTION
 
-Pass a pointer to a *struct curl_certinfo ** and it is set to point to a
+Pass a pointer to a `struct curl_certinfo *` and it is set to point to a
 struct that holds info about the server's certificate chain, assuming you had
 CURLOPT_CERTINFO(3) enabled when the request was made.
 
@@ -50,6 +51,8 @@ items with textual information in the format "name:content" such as
 "Subject:Foo", "Issuer:Bar", etc. The items in each list varies depending on
 the SSL backend and the certificate.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -57,7 +60,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://www.example.com/");
 
     /* connect to any HTTPS site, trusted or not */
@@ -66,14 +69,14 @@ int main(void)
 
     curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(!res) {
+    if(result == CURLE_OK) {
       int i;
       struct curl_certinfo *ci;
-      res = curl_easy_getinfo(curl, CURLINFO_CERTINFO, &ci);
+      result = curl_easy_getinfo(curl, CURLINFO_CERTINFO, &ci);
 
-      if(!res) {
+      if(result == CURLE_OK) {
         printf("%d certs!\n", ci->num_of_certs);
 
         for(i = 0; i < ci->num_of_certs; i++) {
@@ -91,14 +94,16 @@ int main(void)
 
 See also the *certinfo.c* example.
 
-# AVAILABILITY
+# HISTORY
 
-This option is only working in libcurl built with OpenSSL, GnuTLS, Schannel or
-Secure Transport. GnuTLS support added in 7.42.0. Schannel support added in
-7.50.0. Secure Transport support added in 7.79.0.
+GnuTLS support added in 7.42.0. Schannel support added in 7.50.0. mbedTLS
+support added in 8.9.0.
 
-Added in 7.19.1
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

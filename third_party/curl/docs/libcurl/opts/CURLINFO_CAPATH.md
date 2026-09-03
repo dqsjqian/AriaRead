@@ -15,11 +15,12 @@ TLS-backend:
   - GnuTLS
   - mbedTLS
   - wolfSSL
+Added-in: 7.84.0
 ---
 
 # NAME
 
-CURLINFO_CAPATH - get the default built-in CA path string
+CURLINFO_CAPATH - default built-in CA path string
 
 # SYNOPSIS
 
@@ -43,6 +44,8 @@ This is a path identifying a directory.
 
 The **path** pointer is set to NULL if there is no default path.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -53,17 +56,18 @@ int main(void)
     char *capath = NULL;
     curl_easy_getinfo(curl, CURLINFO_CAPATH, &capath);
     if(capath) {
-      printf("default ca path: %s\n", capath);
+      printf("default CA path: %s\n", capath);
     }
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.84.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

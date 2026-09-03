@@ -5,10 +5,11 @@ Long: proxy-ntlm
 Help: NTLM authentication with the proxy
 Category: proxy auth
 Added: 7.10.7
-Multi: mutex
+Multi: boolean
 See-also:
   - proxy-negotiate
   - proxy-anyauth
+  - proxy-user
 Example:
   - --proxy-ntlm --proxy-user user:passwd -x http://proxy $URL
 ---

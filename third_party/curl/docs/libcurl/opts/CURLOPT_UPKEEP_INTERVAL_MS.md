@@ -8,6 +8,7 @@ See-also:
   - CURLOPT_TCP_KEEPALIVE (3)
 Protocol:
   - All
+Added-in: 7.62.0
 ---
 
 # NAME
@@ -41,6 +42,8 @@ is called, an HTTP/2 PING frame is sent on the connection.
 
 CURL_UPKEEP_INTERVAL_DEFAULT (currently defined as 60000L, which is 60 seconds)
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -48,13 +51,14 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     /* Make a connection to an HTTP/2 server. */
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* Set the interval to 30000ms / 30s */
     curl_easy_setopt(curl, CURLOPT_UPKEEP_INTERVAL_MS, 30000L);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* Perform more work here. */
 
@@ -71,10 +75,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.62.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

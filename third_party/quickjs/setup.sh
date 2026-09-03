@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────
 # QuickJS 下载脚本
-# 版本：2025-09-13（官方最新稳定版）
+# 版本：2026-06-04（官方最新稳定版）
 #
 # 用法：bash third_party/quickjs/setup.sh
 # ──────────────────────────────────────────────
 set -euo pipefail
 
-QUICKJS_VERSION="2025-09-13"
+QUICKJS_VERSION="2026-06-04"
 QUICKJS_URL="https://bellard.org/quickjs/quickjs-${QUICKJS_VERSION}.tar.xz"
 TARGET_DIR="$(cd "$(dirname "$0")/.." && pwd)/third_party/quickjs"
 

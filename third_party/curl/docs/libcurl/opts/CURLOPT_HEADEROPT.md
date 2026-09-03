@@ -9,6 +9,7 @@ Protocol:
 See-also:
   - CURLOPT_HTTPHEADER (3)
   - CURLOPT_PROXYHEADER (3)
+Added-in: 7.37.0
 ---
 
 # NAME
@@ -44,6 +45,8 @@ proxy and then CURLOPT_HTTPHEADER(3) headers only to the server.
 
 CURLHEADER_SEPARATE (changed in 7.42.1, used CURLHEADER_UNIFIED before then)
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -51,7 +54,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode ret;
+    CURLcode result;
     struct curl_slist *list;
     list = curl_slist_append(NULL, "Shoesize: 10");
     list = curl_slist_append(list, "Accept:");
@@ -61,19 +64,25 @@ int main(void)
 
     /* HTTPS over a proxy makes a separate CONNECT to the proxy, so tell
        libcurl to not send the custom headers to the proxy. Keep them
-       separate! */
+       separate. */
     curl_easy_setopt(curl, CURLOPT_HEADEROPT, CURLHEADER_SEPARATE);
-    ret = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_slist_free_all(list);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Added in 7.37.0
+**CURLHEADER_*** macros became `long` types in 8.16.0, prior to this version
+a `long` cast was necessary when passed to curl_easy_setopt(3).
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

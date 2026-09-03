@@ -11,6 +11,7 @@ See-also:
   - CURLOPT_UPLOAD (3)
 Protocol:
   - HTTP
+Added-in: 7.1
 ---
 
 # NAME
@@ -37,6 +38,8 @@ This option is **deprecated** since version 7.12.1. Use CURLOPT_UPLOAD(3).
 
 0, disabled
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -52,10 +55,14 @@ static size_t read_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
 
 int main(void)
 {
-  CURL *curl = curl_easy_init();
+  CURL *curl;
+  FILE *src = fopen("local-file", "r");
+  if(!src)
+    return 1;
+  curl = curl_easy_init();
   if(curl) {
-    FILE *src = fopen("local-file", "r");
-    curl_off_t fsize; /* set this to the size of the input file */
+    CURLcode result;
+    curl_off_t fsize = 123456; /* set this to the size of the input file */
 
     /* we want to use our own read function */
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_cb);
@@ -73,15 +80,22 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)fsize);
 
     /* Now run off and do what you have been told */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
+  fclose(src);
 }
 ~~~
 
-# AVAILABILITY
+# DEPRECATED
 
-Deprecated since 7.12.1. Do not use.
+Deprecated since 7.12.1.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if HTTP is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

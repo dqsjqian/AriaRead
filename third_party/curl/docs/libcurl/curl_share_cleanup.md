@@ -9,11 +9,12 @@ See-also:
   - curl_share_setopt (3)
 Protocol:
   - All
+Added-in: 7.10
 ---
 
 # NAME
 
-curl_share_cleanup - Clean up a shared object
+curl_share_cleanup - close a shared object
 
 # SYNOPSIS
 
@@ -26,10 +27,21 @@ CURLSHcode curl_share_cleanup(CURLSH *share_handle);
 # DESCRIPTION
 
 This function deletes a shared object. The share handle cannot be used anymore
-when this function has been called.
+when this function has been called. The share fails the call if it is
+still being used in any easy handle.
 
 Passing in a NULL pointer in *share_handle* makes this function return
 immediately with no action.
+
+Any use of the **share_handle** after this function has been called and have
+returned, is illegal.
+
+For applications that use a share in several threads, it is critical that
+the destruction of the share is only done when all other threads have stopped
+using it. While libcurl tracks how many easy handles are using a share,
+it can not observe how many pointers to the share the application has.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -44,9 +56,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.10
+# %AVAILABILITY%
 
 # RETURN VALUE
 

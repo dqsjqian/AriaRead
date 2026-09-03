@@ -21,6 +21,8 @@ Experimental support in curl means:
    to our API/ABI rules as we do for regular features, as long as it is marked
    experimental.
 5. Experimental features are clearly marked so in documentation. Beware.
+6. Vulnerabilities in experimental features are not considered security
+   problems; please report them as regular bugs/feedback instead.
 
 ## Graduation
 
@@ -32,37 +34,31 @@ Experimental support in curl means:
    provided by the experiment and then the disabling should be managed inside
    each affected test case.
 
-## Experimental features right now
-
-### The Hyper HTTP backend
+## The quiche QUIC and HTTP/3 backend
 
 Graduation requirements:
 
-- HTTP/1 and HTTP/2 support, including multiplexing
+- The library should be considered out-of-beta
 
-###  HTTP/3 support (non-ngtcp2 backends)
+- a reasonable expectation of a stable API going forward
+
+- HTTP/3 with the given build should perform without risking busy-loops
+
+## HTTP/3 proxy and CONNECT-UDP support
+
+Support for HTTP/3 proxy and CONNECT-UDP tunneling is experimental and
+requires an explicit build-time opt-in (`--enable-proxy-http3` for
+autotools, `-DUSE_PROXY_HTTP3=ON` for CMake).
 
 Graduation requirements:
 
-- The used libraries should be considered out-of-beta with a reasonable
-  expectation of a stable API going forward.
+- implementation stability over time with no known severe regressions
 
-- Using HTTP/3 with the given build should perform without risking busy-loops
-
-### The rustls backend
+## The Rustls TLS backend
 
 Graduation requirements:
 
 - a reasonable expectation of a stable API going forward.
-
-### WebSocket
-
-Graduation requirements:
-
-- feedback from users saying that the API works for their specific use cases
-
-- unless the above happens, we consider WebSocket silently working by
-  September 2024 when it has been stewing as EXPERIMENTAL for two years.
 
 ## ECH
 
@@ -78,3 +74,64 @@ Graduation requirements:
 
 - it has been given time to mature, so no earlier than April 2025 (twelve
   months after being added here)
+
+## SSL session import/export
+
+Import/Export of SSL sessions tickets in libcurl and curl command line
+option '--ssl-session <filename>' for faster TLS handshakes and use
+of TLSv1.3/QUIC Early Data (0-RTT).
+
+Graduation requirements:
+
+- the implementation is considered safe
+
+- feedback from users saying that session export works for their use cases
+
+## HTTPS RR
+
+HTTPS records support is a requirement for ECH but is provided as a
+stand-alone feature that is itself considered EXPERIMENTAL.
+
+Graduation requirements:
+
+- HTTPS records work for DoH, c-ares and the threaded resolver
+
+- HTTPS records can control ALPN and port number, at least
+
+- There are options to control HTTPS use
+
+## HTTP Message Signatures (RFC 9421)
+
+Sign outgoing HTTP requests according to RFC 9421 using the
+`--httpsig-algo`, `--httpsig-key`, `--httpsig-keyid` and
+`--httpsig-headers` command line options, or the corresponding
+`CURLOPT_HTTPSIG_*` libcurl options. Built only when configured with
+`--enable-httpsig`.
+
+Graduation requirements:
+
+- the option set (names, arguments, defaults) is settled
+
+- interoperability has been verified against at least two independent
+  RFC 9421 implementations
+
+- no test cases are disabled for the feature
+
+- feedback from users saying the API works for their use cases
+
+## Apple fast UDP
+
+There are undocumented system calls available in Apple operating systems that
+when used allow for faster sending and receiving of UDP messages.
+
+The undocumented and thus unsupported-by-Apple nature of these functions
+brings a risk that they are removed in a future OS update, or perhaps worse:
+marginally modified to instead cause subtle and hard-to-spot bugs.
+
+Graduation requirements:
+
+- testimonials from users that these work reliably
+
+- measurements that show they make a measurable performance impact
+
+- an easy way to (re-)build curl to not use these functions

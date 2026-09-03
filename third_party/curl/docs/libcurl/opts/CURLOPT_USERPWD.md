@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_USERNAME (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
@@ -34,8 +35,8 @@ specify the username part with the domain name in order for the server to
 successfully obtain a Kerberos Ticket. If you do not then the initial part of
 the authentication handshake may fail.
 
-When using NTLM, the username can be specified simply as the username without
-the domain name should the server be part of a single domain and forest.
+When using NTLM, the username can be specified without the domain name
+should the server be part of a single domain and forest.
 
 To specify the domain name use either Down-Level Logon Name or UPN (User
 Principal Name) formats. For example **EXAMPLE\user** and **user@example.com**
@@ -62,9 +63,14 @@ for that, or include it in the URL.
 The application does not have to keep the string around after setting this
 option.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -73,23 +79,23 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/foo.bin");
 
     curl_easy_setopt(curl, CURLOPT_USERPWD, "clark:kent");
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK on success or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

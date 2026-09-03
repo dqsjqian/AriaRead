@@ -12,11 +12,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 7.55.0
 ---
 
 # NAME
 
-CURLINFO_SIZE_DOWNLOAD_T - get the number of downloaded bytes
+CURLINFO_SIZE_DOWNLOAD_T - number of downloaded bytes
 
 # SYNOPSIS
 
@@ -34,6 +35,8 @@ were downloaded. The amount is only for the latest transfer and gets reset
 again for each new transfer. This counts actual payload data, what's also
 commonly called body. All meta and header data is excluded from this amount.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -41,17 +44,17 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* Perform the request */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(!res) {
+    if(result == CURLE_OK) {
       /* check the size */
       curl_off_t dl;
-      res = curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD_T, &dl);
-      if(!res) {
+      result = curl_easy_getinfo(curl, CURLINFO_SIZE_DOWNLOAD_T, &dl);
+      if(result == CURLE_OK) {
         printf("Downloaded %" CURL_FORMAT_CURL_OFF_T " bytes\n", dl);
       }
     }
@@ -59,10 +62,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.55.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

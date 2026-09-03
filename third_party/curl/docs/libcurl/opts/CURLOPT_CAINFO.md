@@ -15,6 +15,7 @@ Protocol:
   - TLS
 TLS-backend:
   - All
+Added-in: 7.4.2
 ---
 
 # NAME
@@ -41,10 +42,6 @@ accessible file.
 This option is by default set to the system path where libcurl's CA
 certificate bundle is assumed to be stored, as established at build time.
 
-(iOS and macOS) When curl uses Secure Transport this option is supported. If
-the option is not set, then curl uses the certificates in the system and user
-Keychain to verify the peer.
-
 (Schannel) This option is supported for Schannel in Windows 7 or later but we
 recommend not using it until Windows 8 since it works better starting then.
 If the option is not set, then curl uses the certificates in the Windows'
@@ -53,12 +50,17 @@ store of root certificates (the default for Schannel).
 The application does not have to keep the string around after setting this
 option.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
 The default value for this can be figured out with CURLINFO_CAINFO(3).
 
 # DEFAULT
 
-Built-in system specific. When curl is built with Secure Transport or
-Schannel, this option is not set by default.
+Built-in system specific. When curl is built with Schannel, this option is not
+set by default.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -67,19 +69,24 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     curl_easy_setopt(curl, CURLOPT_CAINFO, "/etc/certs/cabundle.pem");
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
 Schannel support added in libcurl 7.60.
 
+# %AVAILABILITY%
+
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

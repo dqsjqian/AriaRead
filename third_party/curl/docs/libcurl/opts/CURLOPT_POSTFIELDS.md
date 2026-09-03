@@ -13,6 +13,7 @@ See-also:
 Protocol:
   - HTTP
   - MQTT
+Added-in: 7.1
 ---
 
 # NAME
@@ -40,10 +41,9 @@ preserved by the calling application until the associated transfer finishes.
 This behavior can be changed (so libcurl does copy the data) by instead using
 the CURLOPT_COPYPOSTFIELDS(3) option.
 
-This POST is a normal **application/x-www-form-urlencoded** kind (and
-libcurl sets that Content-Type by default when this option is used), which is
-commonly used by HTML forms. Change Content-Type with
-CURLOPT_HTTPHEADER(3).
+This POST is a normal **application/x-www-form-urlencoded** kind (and libcurl
+sets that Content-Type by default when this option is used), which is commonly
+used by HTML forms. Change Content-Type with CURLOPT_HTTPHEADER(3).
 
 You can use curl_easy_escape(3) to URL encode your data, if
 necessary. It returns a pointer to an encoded string that can be passed as
@@ -57,9 +57,9 @@ CURLOPT_POSTFIELDS(3) to an empty string, or set CURLOPT_POST(3) to 1 and
 CURLOPT_POSTFIELDSIZE(3) to 0.
 
 libcurl assumes this option points to a null-terminated string unless you also
-set CURLOPT_POSTFIELDSIZE(3) to specify the length of the provided data,
-which then is strictly required if you want to send off null bytes included in
-the data.
+set CURLOPT_POSTFIELDSIZE(3) to specify the length of the provided data, which
+then is strictly required if you want to send off null bytes included in the
+data.
 
 Using POST with HTTP 1.1 implies the use of a "Expect: 100-continue" header,
 and libcurl adds that header automatically if the POST is either known to be
@@ -69,9 +69,14 @@ header with CURLOPT_HTTPHEADER(3) as usual.
 To make **multipart/formdata** posts, check out the
 CURLOPT_MIMEPOST(3) option combined with curl_mime_init(3).
 
+Using this option multiple times makes the last set pointer override the
+previous ones. Set it to NULL to disable its use again.
+
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -79,9 +84,10 @@ NULL
 /* send an application/x-www-form-urlencoded POST */
 int main(void)
 {
+  CURLcode result = CURLE_OK;
   CURL *curl = curl_easy_init();
   if(curl) {
-    const char *data = "data to send";
+    static const char *data = "data to send";
 
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
@@ -91,13 +97,14 @@ int main(void)
     /* pass in a pointer to the data - libcurl does not copy */
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 
   /* send an application/json POST */
   curl = curl_easy_init();
   if(curl) {
-    const char *json = "{\"name\": \"daniel\"}";
+    static const char *json = "{\"name\": \"daniel\"}";
     struct curl_slist *slist1 = NULL;
     slist1 = curl_slist_append(slist1, "Content-Type: application/json");
     slist1 = curl_slist_append(slist1, "Accept: application/json");
@@ -110,15 +117,17 @@ int main(void)
     /* pass in a pointer to the data - libcurl does not copy */
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

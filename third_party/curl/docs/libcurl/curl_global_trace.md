@@ -9,6 +9,7 @@ See-also:
   - libcurl (3)
 Protocol:
   - All
+Added-in: 8.3.0
 ---
 
 # NAME
@@ -40,9 +41,9 @@ the CURL_VERSION_THREADSAFE feature bit set (most platforms).
 
 If this is not thread-safe, you must not call this function when any other
 thread in the program (i.e. a thread sharing the same memory) is running. This
-does not just mean no other thread that is using libcurl. Because
+does not only mean no other thread that is using libcurl. Because
 curl_global_init(3) may call functions of other libraries that are similarly
-thread unsafe, it could conflict with any other thread that uses these other
+thread-unsafe, it could conflict with any other thread that uses these other
 libraries.
 
 If you are initializing libcurl from a Windows DLL you should not initialize
@@ -96,17 +97,90 @@ In order to find out all components involved in a transfer, run it with "all"
 configured. You can then see all names involved in your libcurl version in the
 trace.
 
+## `dns`
+
+Tracing of DNS operations to resolve hostnames and HTTPS records.
+
 ## `doh`
 
-Tracing of DNS-over-HTTP operations to resolve hostnames.
+Tracing of DoH operations (DNS over HTTPS) to resolve hostnames and
+HTTPS records.
+
+## `lib-ids`
+
+Adds transfer and connection identifiers as prefix to every call to
+CURLOPT_DEBUGFUNCTION(3). The format is `[n-m]` where `n` is the identifier
+of the transfer and `m` is the identifier of the connection. A literal `x`
+is used for internal transfers or when no connection is assigned.
+
+For example, `[5-x]` is the prefix for transfer 5 that has no
+connection. The command line tool `curl`uses the same format for its
+`--trace-ids` option.
+
+`lib-ids` is intended for libcurl applications that handle multiple
+transfers but have no own way to identify in trace output which transfer
+a trace event is connected to.
+
+## `multi`
+
+Traces multi operations managing transfers' state changes and sockets poll
+states.
 
 ## `read`
 
-Traces reading of upload data from the application in order to send it to the server.
+Traces reading of upload data from the application in order to send it to the
+server.
+
+## `ssh`
+
+Tracing of SSH related protocols SCP and SFTP.
+
+## `ssls`
+
+Tracing of SSL Session handling, e.g. caching/import/export.
+
+## `smtp`
+
+Tracing of SMTP operations when this protocol is enabled in your build.
+
+## `threads`
+
+Tracing of thread queue and pools, used in threaded DNS resolving.
+
+## `timer`
+
+Tracing of timers set for transfers.
 
 ## `write`
 
 Traces writing of download data, received from the server, to the application.
+
+## `ws`
+
+Tracing of WebSocket operations when this protocol is enabled in your build.
+
+# TRACE GROUPS
+
+Besides the specific component names there are the following group names
+defined:
+
+## `all`
+
+## `network`
+
+All components involved in bare network I/O, including the SSL layer.
+
+All components that your libcurl is built with.
+
+## `protocol`
+
+All components involved in transfer protocols, such as 'ftp' and 'http/2'.
+
+## `proxy`
+
+All components involved in use of proxies.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -131,9 +205,7 @@ of an enabled component appears at the beginning in brackets.
 ...
 ~~~
 
-# AVAILABILITY
-
-Added in 8.3
+# %AVAILABILITY%
 
 # RETURN VALUE
 

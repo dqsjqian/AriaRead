@@ -7,8 +7,10 @@ Source: libcurl
 See-also:
   - CURLOPT_TCP_KEEPALIVE (3)
   - CURLOPT_TCP_KEEPINTVL (3)
+  - CURLOPT_TCP_KEEPCNT (3)
 Protocol:
-  - All
+  - TCP
+Added-in: 7.25.0
 ---
 
 # NAME
@@ -36,6 +38,8 @@ this amount.
 
 60
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -43,6 +47,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* enable TCP keep-alive for this transfer */
@@ -54,15 +59,20 @@ int main(void)
     /* interval time between keep-alive probes: 60 seconds */
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
 
-    curl_easy_perform(curl);
+    /* maximum number of keep-alive probes: 3 */
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPCNT, 3L);
+
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.25.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

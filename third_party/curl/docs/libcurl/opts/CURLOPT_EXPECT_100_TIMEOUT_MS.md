@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_POST (3)
 Protocol:
   - HTTP
+Added-in: 7.36.0
 ---
 
 # NAME
@@ -36,6 +37,8 @@ sent anyway.
 
 1000 milliseconds
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -43,20 +46,23 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* wait 3 seconds for 100-continue */
     curl_easy_setopt(curl, CURLOPT_EXPECT_100_TIMEOUT_MS, 3000L);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.36.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

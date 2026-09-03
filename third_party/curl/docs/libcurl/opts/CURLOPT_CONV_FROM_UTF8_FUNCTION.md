@@ -9,6 +9,7 @@ Protocol:
 See-also:
   - CURLOPT_CONV_FROM_NETWORK_FUNCTION (3)
   - CURLOPT_CONV_TO_NETWORK_FUNCTION (3)
+Added-in: 7.15.4
 ---
 
 # NAME
@@ -52,7 +53,7 @@ CURLE_CONV_REQD error code.
 If HAVE_ICONV is defined, CURL_ICONV_CODESET_OF_HOST must also be defined.
 For example:
 ~~~c
- #define CURL_ICONV_CODESET_OF_HOST "IBM-1047"
+#define CURL_ICONV_CODESET_OF_HOST "IBM-1047"
 ~~~
 
 The iconv code in libcurl defaults the network and UTF8 codeset names as
@@ -68,6 +69,8 @@ You need to override these definitions if they are different on your system.
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -93,13 +96,18 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
+# DEPRECATED
 
 Not available and deprecated since 7.82.0.
 
 Available only if **CURL_DOES_CONVERSIONS** was defined when libcurl was
 built.
 
+# %AVAILABILITY%
+
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -9,6 +9,7 @@ Protocol:
 See-also:
   - CURLOPT_FTP_FILEMETHOD (3)
   - CURLOPT_FTP_USE_EPSV (3)
+Added-in: 7.10.7
 ---
 
 # NAME
@@ -20,11 +21,9 @@ CURLOPT_FTP_CREATE_MISSING_DIRS - create missing directories for FTP and SFTP
 ~~~c
 #include <curl/curl.h>
 
-typedef enum {
-  CURLFTP_CREATE_DIR_NONE,
-  CURLFTP_CREATE_DIR,
-  CURLFTP_CREATE_DIR_RETRY
-} curl_ftpcreatedir;
+#define CURLFTP_CREATE_DIR_NONE  0L
+#define CURLFTP_CREATE_DIR       1L
+#define CURLFTP_CREATE_DIR_RETRY 2L
 
 CURLcode curl_easy_setopt(CURL *handle, CURLOPT_FTP_CREATE_MISSING_DIRS,
                           long create);
@@ -49,11 +48,13 @@ retry the CWD command again if the subsequent **MKD** command fails. This is
 especially useful if you are doing many simultaneous connections against the
 same server and they all have this option enabled, as then CWD may first fail
 but then another connection does **MKD** before this connection and thus
-**MKD** fails but trying CWD works!
+**MKD** fails but trying CWD works.
 
 # DEFAULT
 
 CURLFTP_CREATE_DIR_NONE (0)
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -62,25 +63,29 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL,
                      "ftp://example.com/non-existing/new.txt");
     curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS,
-                     (long)CURLFTP_CREATE_DIR_RETRY);
+                     CURLFTP_CREATE_DIR_RETRY);
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Added in 7.10.7. SFTP support added in 7.16.3. The retry option was added in
-7.19.4.
+**CURLFTP_CREATE_*** enums became `long` types in 8.16.0, prior to this version
+a `long` cast was necessary when passed to curl_easy_setopt(3).
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if the
-create value is not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

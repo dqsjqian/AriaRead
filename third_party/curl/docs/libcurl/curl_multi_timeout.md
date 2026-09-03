@@ -11,6 +11,7 @@ See-also:
   - curl_multi_socket (3)
 Protocol:
   - All
+Added-in: 7.15.4
 ---
 
 # NAME
@@ -36,7 +37,7 @@ curl_multi_socket_action(3) function with the **sockfd** argument set
 to CURL_SOCKET_TIMEOUT, or call curl_multi_perform(3) if you are using
 the simpler and older multi interface approach.
 
-The timeout value returned in the long **timeout** points to, is in number
+The timeout value returned in the long **timeout_ms** points to, is in number
 of milliseconds at this moment. If 0, it means you should proceed immediately
 without waiting for anything. If it returns -1, there is no timeout at all set.
 
@@ -44,9 +45,11 @@ An application that uses the *multi_socket* API should not use this function.
 It should instead use the CURLMOPT_TIMERFUNCTION(3) option for proper and
 desired behavior.
 
-Note: if libcurl returns a -1 timeout here, it just means that libcurl
-currently has no stored timeout value. You must not wait too long (more than a
-few seconds perhaps) before you call curl_multi_perform(3) again.
+Note: if libcurl returns a -1 timeout here, it means that libcurl currently
+has no stored timeout value. You must not wait too long (more than a few
+seconds perhaps) before you call curl_multi_perform(3) again.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -58,7 +61,7 @@ int main(void)
   fd_set fdread;
   fd_set fdwrite;
   fd_set fdexcep;
-  int maxfd;
+  int maxfd = 2;
   CURLM *multi = curl_multi_init();
 
   curl_multi_timeout(multi, &timeo);
@@ -82,10 +85,11 @@ out which sockets to wait for by calling curl_multi_fdset(3).
 When there is activity or timeout, call curl_multi_perform(3) and then
 loop - until all transfers are complete.
 
-# AVAILABILITY
-
-This function was added in libcurl 7.15.4.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-The standard CURLMcode for multi interface error codes.
+This function returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

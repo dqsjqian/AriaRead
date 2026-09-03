@@ -13,7 +13,11 @@ See-also:
 Protocol:
   - TLS
 TLS-backend:
+  - GnuTLS
   - OpenSSL
+  - Schannel
+  - wolfSSL
+Added-in: 7.87.0
 ---
 
 # NAME
@@ -31,20 +35,23 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_CA_CACHE_TIMEOUT, long age);
 # DESCRIPTION
 
 Pass a long, this sets the timeout in seconds. This tells libcurl the maximum
-time any cached certificate store it has in memory may be kept and reused for
-new connections. Once the timeout has expired, a subsequent fetch requiring a
-certificate has to reload it.
+time any cached CA certificate store it has in memory may be kept and reused
+for new connections. Once the timeout has expired, a subsequent fetch
+requiring a CA certificate has to reload it.
 
-Building a certificate store from a CURLOPT_CAINFO(3) file is a slow
-operation so curl may cache the generated certificate store internally to speed
-up future connections.
+Building a CA certificate store from a CURLOPT_CAINFO(3) file is a slow
+operation so curl may cache the generated certificate store internally to
+speed up future connections.
 
-Set to zero to completely disable caching, or set to -1 to retain the cached
-store remain forever. By default, libcurl caches this info for 24 hours.
+Set the timeout to zero to completely disable caching, or set to -1 to retain
+the cached store remain forever. By default, libcurl caches this info for 24
+hours.
 
 # DEFAULT
 
 86400 (24 hours)
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -53,30 +60,33 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/foo.bin");
 
     /* only reuse certificate stores for a short time */
     curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 60L);
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* in this second request, the cache is not used if more than
        sixty seconds passed since the previous connection */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-This option was added in curl 7.87.0.
+This option is supported by OpenSSL and its forks (since 7.87.0), Schannel
+(since 8.5.0), wolfSSL (since 8.9.0) and GnuTLS (since 8.9.0).
 
-This option is supported by OpenSSL and its forks (since 7.87.0) and Schannel
-(since 8.5.0).
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

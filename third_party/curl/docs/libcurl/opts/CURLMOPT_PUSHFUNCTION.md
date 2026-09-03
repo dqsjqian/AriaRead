@@ -11,6 +11,7 @@ See-also:
   - RFC 7540
 Protocol:
   - HTTP
+Added-in: 7.44.0
 ---
 
 # NAME
@@ -62,11 +63,11 @@ usual.
 If the callback returns CURL_PUSH_OK, the new easy handle is added to the
 multi handle, the callback must not do that by itself.
 
-The callback can access PUSH_PROMISE headers with two accessor
-functions. These functions can only be used from within this callback and they
-can only access the PUSH_PROMISE headers: curl_pushheader_byname(3) and
-curl_pushheader_bynum(3). The normal response headers are passed to the
-header callback for pushed streams just as for normal streams.
+The callback can access PUSH_PROMISE headers with two accessor functions.
+These functions can only be used from within this callback and they can only
+access the PUSH_PROMISE headers: curl_pushheader_byname(3) and
+curl_pushheader_bynum(3). The normal response headers are passed to the header
+callback for pushed streams like for normal streams.
 
 The header fields can also be accessed with curl_easy_header(3),
 introduced in later libcurl versions.
@@ -76,7 +77,7 @@ introduced in later libcurl versions.
 ## CURL_PUSH_OK (0)
 
 The application has accepted the stream and it can now start receiving data,
-the ownership of the CURL handle has been taken over by the application.
+the ownership of the curl handle has been taken over by the application.
 
 ## CURL_PUSH_DENY (1)
 
@@ -96,17 +97,19 @@ All other return codes are reserved for future use.
 
 NULL, no callback
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
 #include <string.h>
 
 /* only allow pushes for filenames starting with "push-" */
-int push_callback(CURL *parent,
-                  CURL *easy,
-                  size_t num_headers,
-                  struct curl_pushheaders *headers,
-                  void *clientp)
+static int push_callback(CURL *parent,
+                         CURL *easy,
+                         size_t num_headers,
+                         struct curl_pushheaders *headers,
+                         void *clientp)
 {
   char *headp;
   int *transfers = (int *)clientp;
@@ -137,10 +140,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.44.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLM_OK if the option is supported, and CURLM_UNKNOWN_OPTION if not.
+curl_multi_setopt(3) returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

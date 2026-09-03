@@ -4,7 +4,7 @@ SPDX-License-Identifier: curl
 Long: trace-ids
 Help: Transfer + connection ids in verbose output
 Added: 8.2.0
-Category: verbose
+Category: verbose global
 Multi: boolean
 Scope: global
 See-also:
@@ -16,4 +16,9 @@ Example:
 
 # `--trace-ids`
 
-Prepends the transfer and connection identifiers to each trace or verbose line that curl displays.
+Prepend the transfer and connection identifiers to each trace or verbose line
+that curl displays.
+
+The identifiers are unique numbers assigned to each connection and transfer to
+allow a user to better understand which transfer and connection each verbose
+output line refers to.

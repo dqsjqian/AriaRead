@@ -10,6 +10,7 @@ See-also:
   - curl_multi_init (3)
 Protocol:
   - All
+Added-in: 7.9.6
 ---
 
 # NAME
@@ -36,7 +37,7 @@ Removing an easy handle while being in use is perfectly legal and effectively
 halts the transfer in progress involving that easy handle. All other easy
 handles and transfers remain unaffected.
 
-It is fine to remove a handle at any time during a transfer, just not from
+It is fine to remove a handle at any time during a transfer, but not from
 within any libcurl callback function.
 
 Removing an easy handle from the multi handle before the corresponding
@@ -45,6 +46,8 @@ state of it and the internal protocol handler deem it necessary. Otherwise
 libcurl keeps the connection alive in the connection pool associated with the
 multi handle, ready to get reused for a future transfer using this multi
 handle.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -66,10 +69,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.9.6
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLMcode type, general libcurl multi interface error code.
+This function returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

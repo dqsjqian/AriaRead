@@ -12,6 +12,7 @@ See-also:
   - libcurl-ws (3)
 Protocol:
   - WS
+Added-in: 7.86.0
 ---
 
 # NAME
@@ -28,11 +29,9 @@ const struct curl_ws_frame *curl_ws_meta(CURL *curl);
 
 # DESCRIPTION
 
-This function call is EXPERIMENTAL.
-
-When the write callback (CURLOPT_WRITEFUNCTION(3)) is invoked on
-received WebSocket traffic, curl_ws_meta(3) can be called from within
-the callback to provide additional information about the current frame.
+When the write callback (CURLOPT_WRITEFUNCTION(3)) is invoked on received
+WebSocket traffic, curl_ws_meta(3) can be called from within the callback to
+provide additional information about the current frame.
 
 This function only works from within the callback, and only when receiving
 WebSocket data.
@@ -42,6 +41,14 @@ what transfer the question is about, but as there is no such pointer provided
 to the callback by libcurl itself, applications that want to use
 curl_ws_meta(3) need to pass it on to the callback on its own.
 
+WebSocket messages are split into *frames*. A WebSocket message can be made up
+of an arbitrary number of frames. Each WebSocket frame payload can be up to
+2^63-1 bytes. When libcurl delivers WebSocket data, it splits each frame into
+*chunks*; each chunk is therefore part of a frame, or at most a full frame.
+
+Each callback delivers data for a single chunk that is then part of a single
+frame.
+
 # struct curl_ws_frame
 
 ~~~c
@@ -50,6 +57,7 @@ struct curl_ws_frame {
   int flags;
   curl_off_t offset;
   curl_off_t bytesleft;
+  size_t len;
 };
 ~~~
 
@@ -64,38 +72,70 @@ See the list below.
 
 ## `offset`
 
-When this frame is a continuation of fragment data already delivered, this is
-the offset into the final fragment where this piece belongs.
+When this chunk is a continuation of frame data already delivered in a
+previous callback, this is the offset into the complete frame payload where
+this chunk's data belongs.
 
 ## `bytesleft`
 
-If this is not a complete fragment, the *bytesleft* field informs about how
-many additional bytes are expected to arrive before this fragment is complete.
+When this is not a complete frame nor the last chunk for a frame, the
+*bytesleft* field informs about how many additional bytes are expected to
+arrive before this frame is complete.
+
+## `len`
+
+The length of the current data chunk.
 
 # FLAGS
 
+The *message type* flags (CURLWS_TEXT/BINARY/CLOSE/PING/PONG) are mutually
+exclusive.
+
 ## CURLWS_TEXT
 
-The buffer contains text data. Note that this makes a difference to WebSocket
+This is a message with text data. Note that this makes a difference to WebSocket
 but libcurl itself does not make any verification of the content or
 precautions that you actually receive valid UTF-8 content.
 
 ## CURLWS_BINARY
 
-This is binary data.
-
-## CURLWS_CONT
-
-This is not the final fragment of the message, it implies that there is
-another fragment coming as part of the same message.
+This is a message with binary data.
 
 ## CURLWS_CLOSE
 
-This transfer is now closed.
+This is a close message. No more data follows.
+
+It may contain a 2-byte unsigned integer in network byte order that indicates
+the close reason and may additionally contain up to 123 bytes of further
+textual payload for a total of at most 125 bytes. libcurl does not verify that
+the textual description is valid UTF-8.
 
 ## CURLWS_PING
 
-This as an incoming ping message, that expects a pong response.
+This is a ping message. It may contain up to 125 bytes of payload text.
+libcurl does not verify that the payload is valid UTF-8.
+
+Upon receiving a ping message, libcurl automatically responds with a pong
+message unless the **CURLWS_NOAUTOPONG** or **CURLWS_RAW_MODE** bit of
+CURLOPT_WS_OPTIONS(3) is set.
+
+## CURLWS_PONG
+
+This is a pong message. It may contain up to 125 bytes of payload text.
+libcurl does not verify that the payload is valid UTF-8.
+
+## CURLWS_CONT
+
+Can only occur in conjunction with CURLWS_TEXT or CURLWS_BINARY.
+
+This is not the final *frame* of the message, it implies that there is another
+*frame* coming as part of the same message. The application must reassemble
+the frames to receive the complete message.
+
+Only a single multi-frame message can be transmitted at a time, but it may be
+interrupted by CURLWS_CLOSE, CURLWS_PING or CURLWS_PONG frames.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -107,13 +147,13 @@ struct customdata {
   void *ptr;
 };
 
-static size_t writecb(unsigned char *buffer,
-                      size_t size, size_t nitems, void *p)
+static size_t writecb(char *buffer, size_t size, size_t nitems, void *p)
 {
   struct customdata *c = (struct customdata *)p;
   const struct curl_ws_frame *m = curl_ws_meta(c->easy);
 
-  printf("flags: %x\n", m->flags);
+  printf("flags: %x\n", (unsigned int)m->flags);
+  return 0;
 }
 
 int main(void)
@@ -127,14 +167,12 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &custom);
 
     curl_easy_perform(curl);
-
   }
+  return 0;
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.86.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 

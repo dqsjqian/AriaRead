@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_XFERINFOFUNCTION (3)
 Protocol:
   - All
+Added-in: 7.32.0
 ---
 
 # NAME
@@ -33,24 +34,26 @@ This is an alias for CURLOPT_PROGRESSDATA(3).
 
 # DEFAULT
 
-The default value of this parameter is NULL.
+NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
 ~~~c
 struct progress {
-  char *private;
+  char *private_data;
   size_t size;
 };
 
-static size_t progress_cb(void *clientp,
-                          curl_off_t dltotal,
-                          curl_off_t dlnow,
-                          curl_off_t ultotal,
-                          curl_off_t ulnow)
+static int progress_cb(void *clientp,
+                       curl_off_t dltotal,
+                       curl_off_t dlnow,
+                       curl_off_t ultotal,
+                       curl_off_t ulnow)
 {
   struct progress *memory = clientp;
-  printf("private ptr: %p\n", memory->private);
+  printf("private ptr: %p\n", (void *)memory->private_data);
   /* use the values */
 
   return 0; /* all is good */
@@ -62,17 +65,18 @@ int main(void)
   if(curl) {
     struct progress data;
 
-    /* pass struct to callback  */
+    /* pass struct to callback */
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &data);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.32.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

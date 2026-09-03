@@ -11,11 +11,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 7.45.0
 ---
 
 # NAME
 
-CURLINFO_ACTIVESOCKET - get the active socket
+CURLINFO_ACTIVESOCKET - active socket
 
 # SYNOPSIS
 
@@ -40,6 +41,8 @@ CURLOPT_CONNECT_ONLY(3), which skips the transfer phase.
 CURLINFO_ACTIVESOCKET(3) was added as a replacement for
 CURLINFO_LASTSOCKET(3) since that one is not working on all platforms.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -47,22 +50,22 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_socket_t sockfd;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* Do not do the transfer - only connect to host */
     curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-    res = curl_easy_perform(curl);
-    if(res != CURLE_OK) {
-      printf("Error: %s\n", curl_easy_strerror(res));
+    result = curl_easy_perform(curl);
+    if(result != CURLE_OK) {
+      printf("Error: %s\n", curl_easy_strerror(result));
       curl_easy_cleanup(curl);
       return 1;
     }
 
     /* Extract the socket from the curl handle */
-    res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sockfd);
-    if(!res && sockfd != CURL_SOCKET_BAD) {
+    result = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sockfd);
+    if(!result && sockfd != CURL_SOCKET_BAD) {
       /* operate on sockfd */
     }
 
@@ -71,10 +74,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.45.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

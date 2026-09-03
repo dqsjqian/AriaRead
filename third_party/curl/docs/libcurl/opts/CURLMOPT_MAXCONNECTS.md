@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_MAXCONNECTS (3)
 Protocol:
   - All
+Added-in: 7.16.3
 ---
 
 # NAME
@@ -25,17 +26,21 @@ CURLMcode curl_multi_setopt(CURLM *handle, CURLMOPT_MAXCONNECTS, long max);
 
 # DESCRIPTION
 
-Pass a long indicating the **max**. The set number is used as the maximum
-amount of simultaneously open connections that libcurl may keep in its
-connection cache after completed use. By default libcurl enlarges the size for
-each added easy handle to make it fit 4 times the number of added easy
-handles.
+Pass a long indicating the **max**, the maximum amount of connections that
+libcurl may keep alive in its connection cache after use. By default libcurl
+enlarges the size for each added easy handle to make it fit twice the number
+of added easy handles.
 
-By setting this option, you can prevent the cache size from growing beyond the
+By setting this option, you prevent the cache size from growing beyond the
 limit set by you.
 
-When the cache is full, curl closes the oldest one in the cache to prevent the
-number of open connections from increasing.
+When the cache is full on a set limit, curl closes the oldest connection
+present in the cache to prevent the number of connections from increasing.
+
+When the cache is full on the default limit, curl closes the oldest connection
+present in the cache only if it has not been used for at least a second. This
+is done because the number of added transfer can vary greatly, depending on
+how the application uses them.
 
 This option is for the multi handle's use only, when using the easy interface
 you should instead use the CURLOPT_MAXCONNECTS(3) option.
@@ -45,12 +50,14 @@ connections.
 
 Changing this value when there are transfers in progress is possible, and the
 new value is then used the next time checks are performed. Lowering the value
-does however not close down any active transfers, it simply does not allow new
-ones to get made.
+does not close down any active transfers, it prevents new ones from being
+made.
 
 # DEFAULT
 
 See DESCRIPTION
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -63,10 +70,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.16.3
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLM_OK if the option is supported, and CURLM_UNKNOWN_OPTION if not.
+curl_multi_setopt(3) returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

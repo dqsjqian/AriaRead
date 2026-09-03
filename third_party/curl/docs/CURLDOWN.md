@@ -80,6 +80,7 @@ Each curldown starts with a header with meta-data:
       - CURLOPT_HTTPAUTH (3)
     TLS-backend:
       - [name]
+    Added-in: [version or "n/a"]
     ---
 
 All curldown files *must* have all the headers present and at least one
@@ -94,13 +95,11 @@ If the `Protocol` list contains `TLS`, then there must also be a `TLS-backend`
 list, specifying `All` or a list of what TLS backends that work with this
 option. The available TLS backends are:
 
-- `BearSSL`
 - `GnuTLS`
 - `mbedTLS`
-- `OpenSSL` (also covers BoringSSL, libressl, quictls, AWS-LC and AmiSSL)
+- `OpenSSL` (also covers AmiSSL, AWS-LC, BoringSSL, LibreSSL and quictls)
 - `rustls`
 - `Schannel`
-- `Secure Transport`
 - `wolfSSL`
 - `All`: all TLS backends
 
@@ -109,7 +108,7 @@ syntax:
 
 ~~~
     # NAME
-    a page - this is a page descriving something
+    a page - this is a page describing something
 
     # SYNOPSIS
     ~~~c
@@ -120,7 +119,7 @@ syntax:
 ~~~
 
 Quoted source code should start with `~~~c` and end with `~~~` while regular
-quotes can start with `~~~` or just be indented with 4 spaces.
+quotes can start with `~~~` or be indented with 4 spaces.
 
 Headers at top-level `#` get converted to `.SH`.
 
@@ -135,8 +134,7 @@ Write italics like:
     This is *italics*.
 
 Due to how man pages do not support backticks especially formatted, such
-occurrences in the source are instead just using italics in the generated
-output:
+occurrences in the source are instead using italics in the generated output:
 
     This `word` appears in italics.
 
@@ -147,7 +145,15 @@ readable.
 To make sure curldown documents render correctly as markdown, all literal
 occurrences of `<` or `>` need to be escaped by a leading backslash.
 
-## symbols
+## Generating contents
+
+`# %PROTOCOLS%` - inserts a **PROTOCOLS** section based on the metadata
+provided in the header.
+
+`# %AVAILABILITY%` - inserts an **AVAILABILITY** section based on the metadata
+provided in the header.
+
+## Symbols
 
 All mentioned curl symbols that have their own man pages, like
 `curl_easy_perform(3)` are automatically rendered using italics in the output

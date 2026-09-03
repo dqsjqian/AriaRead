@@ -11,9 +11,12 @@ See-also:
   - proxy-key
   - proxy
 Example:
-  - --proxy-key-type DER --proxy-key here -x https://proxy $URL
+  - --proxy-key-type DER --proxy-key here -x https://proxy.example $URL
 ---
 
 # `--proxy-key-type`
 
-Same as --key-type but used in HTTPS proxy context.
+Specify the private key file type your --proxy-key provided private key uses.
+DER, PEM, and ENG are supported. If not specified, PEM is assumed.
+
+Equivalent to --key-type but used in HTTPS proxy context.

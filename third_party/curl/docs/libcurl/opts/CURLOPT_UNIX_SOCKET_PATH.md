@@ -10,6 +10,7 @@ See-also:
   - unix (7)
 Protocol:
   - All
+Added-in: 7.40.0
 ---
 
 # NAME
@@ -37,17 +38,22 @@ does not resolve the DNS hostname in the URL.
 The maximum path length on Cygwin, Linux and Solaris is 107. On other platforms
 it might be even less.
 
-Proxy and TCP options such as CURLOPT_TCP_NODELAY(3) are not
-supported. Proxy options such as CURLOPT_PROXY(3) have no effect either
-as these are TCP-oriented, and asking a proxy server to connect to a certain
-Unix domain socket is not possible.
+Proxy and TCP options such as CURLOPT_TCP_NODELAY(3) are not supported. Proxy
+options such as CURLOPT_PROXY(3) have no effect either as these are
+TCP-oriented, and asking a proxy server to connect to a certain Unix domain
+socket is not possible.
 
 The application does not have to keep the string around after setting this
 option.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
 # DEFAULT
 
-Default is NULL, meaning that no Unix domain sockets are used.
+NULL - no Unix domain sockets are used.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -56,16 +62,18 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, "/tmp/httpd.sock");
     curl_easy_setopt(curl, CURLOPT_URL, "http://localhost/");
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
 If you are on Linux and somehow have a need for paths larger than 107 bytes,
-you can use the proc filesystem to bypass the limitation:
+you can use the *proc* file system to bypass the limitation:
 
 ~~~c
   int dirfd = open(long_directory_path_to_socket, O_DIRECTORY | O_RDONLY);
@@ -75,10 +83,11 @@ you can use the proc filesystem to bypass the limitation:
   /* Be sure to keep dirfd valid until you discard the handle */
 ~~~
 
-# AVAILABILITY
-
-Added in 7.40.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

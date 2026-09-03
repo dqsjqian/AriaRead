@@ -5,13 +5,14 @@ Long: request
 Short: X
 Arg: <method>
 Help: Specify request method to use
-Category: connection
+Category: connection pop3 ftp imap smtp
 Added: 6.0
 Multi: single
 See-also:
   - request-target
+  - follow
 Example:
-  - -X "DELETE" $URL
+  - --request "DELETE" $URL
   - -X NLST ftp://example.com/
 ---
 
@@ -19,7 +20,7 @@ Example:
 
 Change the method to use when starting the transfer.
 
-curl passes on the verbatim string you give it its the request without any
+curl passes on the verbatim string you give it in the request without any
 filter or other safe guards. That includes white space and control characters.
 
 ## HTTP
@@ -37,10 +38,10 @@ This option only changes the actual word used in the HTTP request, it does not
 alter the way curl behaves. For example if you want to make a proper HEAD
 request, using -X HEAD does not suffice. You need to use the --head option.
 
-The method string you set with --request is used for all requests, which
-if you for example use --location may cause unintended side-effects when curl
-does not change request method according to the HTTP 30x response codes - and
-similar.
+If --location is used, the method string you set with --request is used for
+all requests, which may cause unintended side-effects when curl does not
+change request method according to the HTTP 30x response codes - and similar.
+Consider using --follow instead in combination with --request.
 
 ## FTP
 Specifies a custom FTP command to use instead of *LIST* when doing file lists

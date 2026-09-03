@@ -12,11 +12,12 @@ See-also:
   - curl_multi_remove_handle (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
 
-curl_easy_cleanup - End a libcurl easy handle
+curl_easy_cleanup - free an easy handle
 
 # SYNOPSIS
 
@@ -52,6 +53,8 @@ before it is closed.
 Passing in a NULL pointer in *handle* makes this function return immediately
 with no action.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -59,19 +62,17 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-    res = curl_easy_perform(curl);
-    if(res)
-      printf("error: %s\n", curl_easy_strerror(res));
+    result = curl_easy_perform(curl);
+    if(result != CURLE_OK)
+      printf("error: %s\n", curl_easy_strerror(result));
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.1
+# %AVAILABILITY%
 
 # RETURN VALUE
 

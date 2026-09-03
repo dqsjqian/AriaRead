@@ -13,6 +13,7 @@ Protocol:
 TLS-backend:
   - OpenSSL
   - wolfSSL
+Added-in: 7.73.0
 ---
 
 # NAME
@@ -24,18 +25,26 @@ CURLOPT_SSL_EC_CURVES - key exchange curves
 ~~~c
 #include <curl/curl.h>
 
-CURLcode curl_easy_setopt(CURL *handle, CURLOPT_SSL_EC_CURVES, char *alg_list);
+CURLcode curl_easy_setopt(CURL *handle, CURLOPT_SSL_EC_CURVES, char *list);
 ~~~
 
 # DESCRIPTION
 
-Pass a string as parameter with a colon delimited list of (EC) algorithms. This
-option defines the client's key exchange algorithms in the SSL handshake (if
-the SSL backend libcurl is built to use supports it).
+Pass a string as parameter with a colon delimited list of Elliptic curve (EC)
+algorithms. This option defines the client's key exchange algorithms in the
+SSL handshake (if the SSL backend libcurl is built to use supports it).
+
+The application does not have to keep the string around after setting this
+option.
+
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to restore back to internal default.
 
 # DEFAULT
 
 "", embedded in SSL backend
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -44,19 +53,20 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     curl_easy_setopt(curl, CURLOPT_SSL_EC_CURVES, "X25519:P-521");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.73.0. Supported by the OpenSSL backend.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

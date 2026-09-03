@@ -15,8 +15,8 @@ TLS-backend:
   - GnuTLS
   - mbedTLS
   - Schannel
-  - Secure Transport
   - wolfSSL
+Added-in: 7.52.0
 ---
 
 # NAME
@@ -37,13 +37,8 @@ This option is for connecting to an HTTPS proxy, not an HTTPS server.
 
 Pass a pointer to a null-terminated string as parameter. The string should be
 the filename of your client certificate used to connect to the HTTPS proxy.
-The default format is "P12" on Secure Transport and "PEM" on other engines,
-and can be changed with CURLOPT_PROXY_SSLCERTTYPE(3).
-
-With Secure Transport, this can also be the nickname of the certificate you
-wish to authenticate with as it is named in the security database. If you want
-to use a file from the current directory, please precede it with "./" prefix,
-in order to avoid confusion with a nickname.
+The default format "PEM", and can be changed with
+CURLOPT_PROXY_SSLCERTTYPE(3).
 
 When using a client certificate, you most likely also need to provide a
 private key with CURLOPT_PROXY_SSLKEY(3).
@@ -51,9 +46,14 @@ private key with CURLOPT_PROXY_SSLKEY(3).
 The application does not have to keep the string around after setting this
 option.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -62,23 +62,23 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
-    curl_easy_setopt(curl, CURLOPT_PROXY, "https://proxy");
+    curl_easy_setopt(curl, CURLOPT_PROXY, "https://proxy.example");
     curl_easy_setopt(curl, CURLOPT_PROXY_SSLCERT, "client.pem");
     curl_easy_setopt(curl, CURLOPT_PROXY_SSLKEY, "key.pem");
     curl_easy_setopt(curl, CURLOPT_PROXY_KEYPASSWD, "s3cret");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.52.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if TLS enabled, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

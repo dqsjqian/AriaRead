@@ -11,6 +11,7 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 7.18.2
 ---
 
 # NAME
@@ -57,6 +58,8 @@ Furthermore if you wait on the socket and it tells you there is data to read,
 curl_easy_recv(3) may return **CURLE_AGAIN** if the only data that was
 read was for internal SSL processing, and no other data is available.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -64,30 +67,28 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     /* Do not do the transfer - only connect to host */
     curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(res == CURLE_OK) {
+    if(result == CURLE_OK) {
       char buf[256];
       size_t nread;
-      long sockfd;
+      curl_socket_t sockfd;
 
       /* Extract the socket from the curl handle - we need it for waiting. */
-      res = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sockfd);
+      result = curl_easy_getinfo(curl, CURLINFO_ACTIVESOCKET, &sockfd);
 
       /* read data */
-      res = curl_easy_recv(curl, buf, sizeof(buf), &nread);
+      result = curl_easy_recv(curl, buf, sizeof(buf), &nread);
     }
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.18.2.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
@@ -101,5 +102,5 @@ system facilities to wait until data can be read, and retry.
 
 Reading exactly 0 bytes indicates a closed connection.
 
-If there is no socket available to use from the previous transfer, this function
-returns **CURLE_UNSUPPORTED_PROTOCOL**.
+If there is no socket available to use from the previous transfer, this
+function returns **CURLE_UNSUPPORTED_PROTOCOL**.

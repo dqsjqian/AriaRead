@@ -11,6 +11,7 @@ See-also:
   - CURLOPT_STREAM_DEPENDS_E (3)
 Protocol:
   - HTTP
+Added-in: 7.46.0
 ---
 
 # NAME
@@ -47,8 +48,9 @@ streams).
 
 # DEFAULT
 
-If nothing is set, the HTTP/2 protocol itself uses its own default which is
-16.
+16
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -65,15 +67,16 @@ int main(void)
     curl_easy_setopt(curl2, CURLOPT_URL, "https://example.com/two");
     curl_easy_setopt(curl2, CURLOPT_STREAM_WEIGHT, 20L);
 
-    /* then add both to a multi handle and transfer them! */
+    /* then add both to a multi handle and transfer them */
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.46.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

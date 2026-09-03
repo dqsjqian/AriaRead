@@ -9,11 +9,12 @@ See-also:
   - CURLOPT_RESOLVE (3)
 Protocol:
   - All
+Added-in: 7.87.0
 ---
 
 # NAME
 
-CURLOPT_QUICK_EXIT - allow to exit quickly
+CURLOPT_QUICK_EXIT - allow libcurl to exit quickly
 
 # SYNOPSIS
 
@@ -37,6 +38,8 @@ possible (though short-lived) leak of associated resources.
 
 0
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -44,17 +47,18 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode ret;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
-    ret = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.87.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

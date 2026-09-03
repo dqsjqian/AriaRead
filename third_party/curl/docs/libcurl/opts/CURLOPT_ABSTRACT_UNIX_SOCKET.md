@@ -9,6 +9,7 @@ See-also:
   - unix (7)
 Protocol:
   - All
+Added-in: 7.53.0
 ---
 
 # NAME
@@ -42,7 +43,9 @@ share the same storage and therefore only one of them can be set per handle.
 
 # DEFAULT
 
-Default is NULL.
+NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -51,19 +54,22 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_ABSTRACT_UNIX_SOCKET, "/tmp/foo.sock");
     curl_easy_setopt(curl, CURLOPT_URL, "http://localhost/");
 
     /* Perform the request */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.53.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

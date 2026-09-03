@@ -10,11 +10,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 8.2.0
 ---
 
 # NAME
 
-CURLINFO_CONN_ID - get the ID of the last connection used by the handle
+CURLINFO_CONN_ID - ID of the last connection
 
 # SYNOPSIS
 
@@ -34,6 +35,8 @@ The connection id is unique among all connections using the same
 connection cache. This is implicitly the case for all connections in the
 same multi handle.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -41,17 +44,17 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
 
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* Perform the request */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(!res) {
+    if(result == CURLE_OK) {
       curl_off_t conn_id;
-      res = curl_easy_getinfo(curl, CURLINFO_CONN_ID, &conn_id);
-      if(!res) {
+      result = curl_easy_getinfo(curl, CURLINFO_CONN_ID, &conn_id);
+      if(result == CURLE_OK) {
         printf("Connection used: %" CURL_FORMAT_CURL_OFF_T "\n", conn_id);
       }
     }
@@ -59,10 +62,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 8.2.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -10,11 +10,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 7.4.1
 ---
 
 # NAME
 
-CURLINFO_NAMELOOKUP_TIME - get the name lookup time
+CURLINFO_NAMELOOKUP_TIME - name lookup time
 
 # SYNOPSIS
 
@@ -34,6 +35,8 @@ When a redirect is followed, the time from each request is added together.
 
 See also the TIMES overview in the curl_easy_getinfo(3) man page.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -41,13 +44,13 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     double namelookup;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
-    res = curl_easy_perform(curl);
-    if(CURLE_OK == res) {
-      res = curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &namelookup);
-      if(CURLE_OK == res) {
+    result = curl_easy_perform(curl);
+    if(result == CURLE_OK) {
+      result = curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &namelookup);
+      if(result == CURLE_OK) {
         printf("Time: %.1f", namelookup);
       }
     }
@@ -57,10 +60,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.4.1
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -22,28 +22,26 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-#
-#
 
 use strict;
 use warnings;
 
-# we may get the dir root pointed out
-my $root=$ARGV[0] || ".";
+# we may get the directory root pointed out
+my $root = $ARGV[0] || ".";
 
 my %error; # from the include file
 my %docs; # from libcurl-errors.3
 
 sub getdocserrors {
-    open(my $f, "<", "$root/docs/libcurl/libcurl-errors.3");
+    open(my $f, "<", "$root/docs/libcurl/libcurl-errors.md");
     while(<$f>) {
-        if($_ =~ /^.IP \"(CURL[EM]_[^ \t\"]*)/) {
+        if($_ =~ /^## (CURL[EM]_[^ ]*)/) {
             my ($symbol) = ($1);
             if($symbol =~ /OBSOLETE/) {
                 ;
             }
             else {
-                $docs{$symbol}=1;
+                $docs{$symbol} = 1;
             }
         }
     }
@@ -54,12 +52,12 @@ sub getincludeerrors {
     open(my $f, "<", "$root/docs/libcurl/symbols-in-versions");
     while(<$f>) {
         if($_ =~ /^(CURL[EM]_[^ \t]*)[ \t]*([0-9.]+)[ \t]*(.*)/) {
-            my ($symbol, $added, $rest) = ($1,$2,$3);
+            my ($symbol, $added, $rest) = ($1, $2, $3);
             if($rest =~ /^([0-9.]+)/) {
                 # removed!
             }
             else {
-                $error{$symbol}=$added;
+                $error{$symbol} = $added;
             }
         }
     }
@@ -71,7 +69,7 @@ getdocserrors();
 
 for(sort keys %error) {
     if($error{$_} && !$docs{$_}) {
-        print "$_ is not in libcurl-errors.3\n";
+        print "$_ is not in libcurl-errors.md\n";
     }
 }
 

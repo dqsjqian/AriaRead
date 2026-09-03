@@ -11,6 +11,7 @@ See-also:
   - RFC 7540
 Protocol:
   - HTTP
+Added-in: 7.44.0
 ---
 
 # NAME
@@ -35,17 +36,19 @@ libcurl itself, only passed on to the callback function.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
 #include <string.h>
 
 /* only allow pushes for filenames starting with "push-" */
-int push_callback(CURL *parent,
-                  CURL *easy,
-                  size_t num_headers,
-                  struct curl_pushheaders *headers,
-                  void *clientp)
+static int push_callback(CURL *parent,
+                         CURL *easy,
+                         size_t num_headers,
+                         struct curl_pushheaders *headers,
+                         void *clientp)
 {
   char *headp;
   int *transfers = (int *)clientp;
@@ -76,10 +79,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.44.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLM_OK if the option is supported, and CURLM_UNKNOWN_OPTION if not.
+curl_multi_setopt(3) returns a CURLMcode indicating success or error.
+
+CURLM_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -12,11 +12,12 @@ See-also:
   - libcurl-errors (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
 
-curl_easy_perform - perform a blocking file transfer
+curl_easy_perform - perform a blocking network transfer
 
 # SYNOPSIS
 
@@ -58,6 +59,8 @@ CURLOPT_POSTFIELDS(3).
 While the **easy_handle** is added to a multi handle, it cannot be used by
 curl_easy_perform(3).
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -65,21 +68,21 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLE_OK (0) means everything was OK, non-zero means an error occurred as
-*\<curl/curl.h\>* defines - see libcurl-errors(3). If CURLOPT_ERRORBUFFER(3)
-was set with curl_easy_setopt(3) there is an error message stored in the error
-buffer when non-zero is returned.
+This function returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3). If CURLOPT_ERRORBUFFER(3) was set with curl_easy_setopt(3)
+there can be an error message stored in the error buffer when non-zero is
+returned.

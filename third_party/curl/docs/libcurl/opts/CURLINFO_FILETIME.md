@@ -12,11 +12,12 @@ Protocol:
   - HTTP
   - FTP
   - SFTP
+Added-in: 7.5
 ---
 
 # NAME
 
-CURLINFO_FILETIME - get the remote time of the retrieved document
+CURLINFO_FILETIME - remote time of the retrieved document
 
 # SYNOPSIS
 
@@ -34,12 +35,13 @@ in number of seconds since January 1 1970 in the GMT/UTC time zone. If you get
 hide it or the server does not support the command that tells document time
 etc) and the time of the document is unknown.
 
-You must tell libcurl to collect this information before the transfer is made,
-by using the CURLOPT_FILETIME(3) option to curl_easy_setopt(3) or
-you this unconditionally gets a -1 back.
+You must ask libcurl to collect this information before the transfer is made,
+by using the CURLOPT_FILETIME(3) option or you unconditionally get a -1 back.
 
-Consider using CURLINFO_FILETIME_T(3) to be able to extract dates beyond
-the year 2038 on systems using 32 bit longs (Windows).
+Consider CURLINFO_FILETIME_T(3) instead to be able to extract dates beyond the
+year 2038 on systems using 32-bit longs (Windows).
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -48,15 +50,15 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     /* Ask for filetime */
     curl_easy_setopt(curl, CURLOPT_FILETIME, 1L);
-    res = curl_easy_perform(curl);
-    if(CURLE_OK == res) {
+    result = curl_easy_perform(curl);
+    if(result == CURLE_OK) {
       long filetime = 0;
-      res = curl_easy_getinfo(curl, CURLINFO_FILETIME, &filetime);
-      if((CURLE_OK == res) && (filetime >= 0)) {
+      result = curl_easy_getinfo(curl, CURLINFO_FILETIME, &filetime);
+      if((result == CURLE_OK) && (filetime != -1)) {
         time_t file_time = (time_t)filetime;
         printf("filetime: %s", ctime(&file_time));
       }
@@ -67,10 +69,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.5
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

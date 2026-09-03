@@ -11,6 +11,7 @@ See-also:
   - CURLOPT_URL (3)
 Protocol:
   - HTTP
+Added-in: 7.55.0
 ---
 
 # NAME
@@ -33,9 +34,17 @@ instead of the path as extracted from the URL.
 libcurl passes on the verbatim string in its request without any filter or
 other safe guards. That includes white space and control characters.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
+The application does not have to keep the string around after setting this
+option.
+
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -44,6 +53,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/*");
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "OPTIONS");
 
@@ -51,15 +61,17 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_REQUEST_TARGET, "*");
 
     /* Perform the request */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.55.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

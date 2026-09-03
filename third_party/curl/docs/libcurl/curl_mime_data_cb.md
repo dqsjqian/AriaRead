@@ -13,6 +13,7 @@ Protocol:
   - HTTP
   - IMAP
   - SMTP
+Added-in: 7.56.0
 ---
 
 # NAME
@@ -42,6 +43,8 @@ curl_mime_data_cb(3) sets the data source of a mime part's body content
 from a data read callback function.
 
 *part* is the part's to assign contents to.
+
+*datasize* is the number of bytes the read callback is expected to provide.
 
 *readfunc* is a pointer to a data read callback function, with a signature
 as shown by the above prototype. It may not be set to NULL.
@@ -97,6 +100,8 @@ the pointed item to be shared between the original and the copied handle. In
 particular, special attention should be given to the *freefunc* procedure
 code since it then gets called twice with the same argument.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 Sending a huge data string causes the same amount of memory to be allocated:
@@ -105,7 +110,7 @@ source to avoid data duplication. In this case, original data must be retained
 until after the transfer terminates.
 ~~~c
 #include <string.h> /* for memcpy */
-char hugedata[512000];
+static char hugedata[512000];
 
 struct ctl {
   char *buffer;
@@ -113,10 +118,11 @@ struct ctl {
   curl_off_t position;
 };
 
-size_t read_callback(char *buffer, size_t size, size_t nitems, void *arg)
+static size_t read_callback(char *buffer, size_t size, size_t nitems,
+                            void *arg)
 {
-  struct ctl *p = (struct ctl *) arg;
-  curl_off_t sz = p->size - p->position;
+  struct ctl *p = (struct ctl *)arg;
+  size_t sz = (size_t)(p->size - p->position);
 
   nitems *= size;
   if(sz > nitems)
@@ -127,7 +133,7 @@ size_t read_callback(char *buffer, size_t size, size_t nitems, void *arg)
   return sz;
 }
 
-int seek_callback(void *arg, curl_off_t offset, int origin)
+static int seek_callback(void *arg, curl_off_t offset, int origin)
 {
   struct ctl *p = (struct ctl *) arg;
 
@@ -137,6 +143,8 @@ int seek_callback(void *arg, curl_off_t offset, int origin)
     break;
   case SEEK_CUR:
     offset += p->position;
+    break;
+  default:
     break;
   }
 
@@ -157,16 +165,19 @@ int main(void)
     hugectl.buffer = hugedata;
     hugectl.size = sizeof(hugedata);
     hugectl.position = 0;
-    curl_mime_data_cb(part, hugectl.size, read_callback, seek_callback, NULL,
-                      &hugectl);
+    curl_mime_data_cb(part, hugectl.size, read_callback,
+                      seek_callback, NULL, &hugectl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-As long as at least one of HTTP, SMTP or IMAP is enabled. Added in 7.56.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-CURLE_OK or a CURL error code upon failure.
+This function returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3). If CURLOPT_ERRORBUFFER(3) was set with curl_easy_setopt(3)
+there can be an error message stored in the error buffer when non-zero is
+returned.

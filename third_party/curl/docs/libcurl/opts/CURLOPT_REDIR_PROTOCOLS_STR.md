@@ -12,6 +12,7 @@ See-also:
   - CURLOPT_REDIR_PROTOCOLS (3)
 Protocol:
   - HTTP
+Added-in: 7.85.0
 ---
 
 # NAME
@@ -32,8 +33,8 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_REDIR_PROTOCOLS_STR,
 Pass a pointer to a string that holds a comma-separated list of case
 insensitive protocol names (URL schemes). That list limits what protocols
 libcurl may use in a transfer that it follows to in a redirect when
-CURLOPT_FOLLOWLOCATION(3) is enabled. This option allows applications to
-limit specific transfers to only be allowed to use a subset of protocols in
+CURLOPT_FOLLOWLOCATION(3) is enabled. This option allows applications to limit
+specific transfers to only be allowed to use a subset of protocols in
 redirections.
 
 Protocols denied by CURLOPT_PROTOCOLS_STR(3) are not overridden by this
@@ -45,8 +46,8 @@ By default libcurl allows HTTP, HTTPS, FTP and FTPS on redirects (since
 These are the available protocols:
 
 DICT, FILE, FTP, FTPS, GOPHER, GOPHERS, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS,
-MQTT, POP3, POP3S, RTMP, RTMPE, RTMPS, RTMPT, RTMPTE, RTMPTS, RTSP, SCP, SFTP,
-SMB, SMBS, SMTP, SMTPS, TELNET, TFTP, WS, WSS
+MQTT, MQTTS, POP3, POP3S, RTSP, SCP, SFTP, SMB, SMBS, SMTP, SMTPS, TELNET,
+TFTP, WS, WSS
 
 You can set "ALL" as a short-cut to enable all protocols. Note that by setting
 all, you may enable protocols that were not supported the day you write this
@@ -55,20 +56,26 @@ but are introduced in a future libcurl version.
 If trying to set a non-existing protocol or if no matching protocol at all is
 set, it returns error.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to restore to internal default.
+
+The application does not have to keep the string around after setting this
+option.
+
 # DEFAULT
 
-HTTP, HTTPS, FTP and FTPS (Added in 7.65.2).
+HTTP, HTTPS, FTP and FTPS
 
-Older versions defaulted to all protocols except FILE, SCP and since 7.40.0
-SMB and SMBS.
+# %PROTOCOLS%
 
 # EXAMPLE
 
 ~~~c
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     /* pass in the URL from an external source */
     curl_easy_setopt(curl, CURLOPT_URL, argv[1]);
 
@@ -76,14 +83,13 @@ int main(int argc, char **argv)
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
 
     /* Perform the request */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.85.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 

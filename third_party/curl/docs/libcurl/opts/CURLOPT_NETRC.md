@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_USERPWD (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
@@ -28,10 +29,13 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_NETRC, long level);
 
 This parameter controls the preference *level* of libcurl between using
 usernames and passwords from your *~/.netrc* file, relative to usernames and
-passwords in the URL supplied with CURLOPT_URL(3).
+passwords in the URL supplied with CURLOPT_URL(3). If the `NETRC` environment
+variable is set, that filename is used as the netrc file. (Added in 8.16.0)
 
-On Windows, libcurl uses the file as *%HOME%/_netrc*. If *%HOME%* is
-not set on Windows, libcurl falls back to *%USERPROFILE%*.
+On Windows, libcurl primarily checks for *.netrc* in *%HOME%*. If *%HOME%* is
+not set on Windows, libcurl falls back to *%USERPROFILE%*. If the file does
+not exist, it falls back to check if there is instead a file named *_netrc* -
+using an underscore instead of period.
 
 You can also tell libcurl a different filename to use with
 CURLOPT_NETRC_FILE(3).
@@ -42,6 +46,14 @@ the options controlled by this parameter.
 
 Only machine name, username and password are taken into account (init macros
 and similar things are not supported).
+
+The netrc file provides credentials for a hostname independent of which
+protocol and port number that are used.
+
+When providing a username in the URL and a *.netrc* file, libcurl looks for
+and uses the password for that specific user for the given host if such an
+entry appears in the file before a "generic" `machine` entry without `login`
+specified.
 
 libcurl does not verify that the file has the correct properties set (as the
 standard Unix ftp client does). It should only be readable by user.
@@ -115,6 +127,8 @@ done with "macdef" that it finds.
 
 CURL_NETRC_IGNORED
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -122,18 +136,24 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode ret;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "ftp://example.com/");
     curl_easy_setopt(curl, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
-    ret = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Always
+**CURL_NETRC_*** enums became `long` types in 8.13.0, prior to this version
+a `long` cast was necessary when passed to curl_easy_setopt(3).
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

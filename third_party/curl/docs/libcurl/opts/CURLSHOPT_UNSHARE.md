@@ -11,6 +11,7 @@ See-also:
   - curl_share_setopt (3)
 Protocol:
   - All
+Added-in: 7.10.3
 ---
 
 # NAME
@@ -22,7 +23,7 @@ CURLSHOPT_UNSHARE - remove data to share
 ~~~c
 #include <curl/curl.h>
 
-CURLSHcode curl_share_setopt(CURLSH *share, CURLSHOPT_UNSHARE, long type);
+CURLSHcode curl_share_setopt(CURLSH *share, CURLSHOPT_UNSHARE, int type);
 ~~~
 
 # DESCRIPTION
@@ -34,6 +35,9 @@ shared object. The given *type* must be one of the values described
 below. You can set CURLSHOPT_UNSHARE(3) multiple times with different
 data arguments to remove multiple types from the shared object. Add data to
 share again with CURLSHOPT_SHARE(3).
+
+Do not remove types from a shared object that is being in use. Unshare them
+only between transfers.
 
 ## CURL_LOCK_DATA_COOKIE
 
@@ -58,6 +62,8 @@ The connection cache is no longer shared.
 
 The Public Suffix List is no longer shared.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -71,9 +77,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.10
+# %AVAILABILITY%
 
 # RETURN VALUE
 

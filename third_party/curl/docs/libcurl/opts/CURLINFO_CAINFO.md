@@ -12,11 +12,12 @@ Protocol:
   - TLS
 TLS-backend:
   - All
+Added-in: 7.84.0
 ---
 
 # NAME
 
-CURLINFO_CAINFO - get the default built-in CA certificate path
+CURLINFO_CAINFO - default built-in CA certificate path
 
 # SYNOPSIS
 
@@ -40,6 +41,8 @@ This is a path identifying a single file containing CA certificates.
 
 The **path** pointer is set to NULL if there is no default path.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -50,17 +53,18 @@ int main(void)
     char *cainfo = NULL;
     curl_easy_getinfo(curl, CURLINFO_CAINFO, &cainfo);
     if(cainfo) {
-      printf("default ca info path: %s\n", cainfo);
+      printf("default CA info path: %s\n", cainfo);
     }
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.84.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

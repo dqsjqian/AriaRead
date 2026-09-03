@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_WRITEFUNCTION (3)
 Protocol:
   - All
+Added-in: 7.9.7
 ---
 
 # NAME
@@ -35,26 +36,30 @@ to *fwrite(3)* when writing data.
 The internal CURLOPT_WRITEFUNCTION(3) writes the data to the FILE *
 given with this option, or to stdout if this option has not been set.
 
-If you are using libcurl as a Windows DLL, you **MUST** use a
+If you are using libcurl as a Windows DLL, you must also use
 CURLOPT_WRITEFUNCTION(3) if you set this option or you might experience
 crashes.
 
 # DEFAULT
 
-By default, this is a FILE * to stdout.
+stdout
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
 A common technique is to use the write callback to store the incoming data
 into a dynamically growing allocated buffer, and then this
-CURLOPT_WRITEDATA(3) is used to point to a struct or the buffer to store
-data in. Like in the getinmemory example:
+CURLOPT_WRITEDATA(3) is used to point to a struct or the buffer to store data
+in. Like in the *getinmemory* example:
 https://curl.se/libcurl/c/getinmemory.html
 
-# AVAILABILITY
+# HISTORY
 
-Available in all libcurl versions. This option was formerly known as
-CURLOPT_FILE, the name CURLOPT_WRITEDATA(3) was added in 7.9.7.
+This option was formerly known as CURLOPT_FILE, the name CURLOPT_WRITEDATA(3)
+was added in 7.9.7.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 

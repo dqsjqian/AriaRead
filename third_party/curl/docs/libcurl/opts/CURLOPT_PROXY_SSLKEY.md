@@ -17,6 +17,7 @@ TLS-backend:
   - mbedTLS
   - Schannel
   - wolfSSL
+Added-in: 7.52.0
 ---
 
 # NAME
@@ -38,16 +39,21 @@ the filename of your private key used for connecting to the HTTPS proxy. The
 default format is "PEM" and can be changed with
 CURLOPT_PROXY_SSLKEYTYPE(3).
 
-(Windows, iOS and Mac OS X) This option is ignored by Secure Transport and
-Schannel SSL backends because they expect the private key to be already
-present in the key chain or PKCS#12 file containing the certificate.
+This option is ignored by the Schannel backend because it expects the private
+key to be already present in the key chain or PKCS#12 file containing the
+certificate.
 
 The application does not have to keep the string around after setting this
 option.
 
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
+
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -56,25 +62,23 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
-    curl_easy_setopt(curl, CURLOPT_PROXY, "https://proxy");
+    curl_easy_setopt(curl, CURLOPT_PROXY, "https://proxy.example");
     curl_easy_setopt(curl, CURLOPT_PROXY_SSLCERT, "client.pem");
     curl_easy_setopt(curl, CURLOPT_PROXY_SSLKEY, "key.pem");
     curl_easy_setopt(curl, CURLOPT_PROXY_KEYPASSWD, "s3cret");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.52.0
-
-If built TLS enabled.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if TLS is supported, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

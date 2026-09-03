@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_WILDCARDMATCH (3)
 Protocol:
   - FTP
+Added-in: 7.21.0
 ---
 
 # NAME
@@ -33,13 +34,15 @@ CURLOPT_CHUNK_END_FUNCTION(3).
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
 #include <stdio.h>
 
 struct callback_data {
-   FILE *output;
+  FILE *output;
 };
 
 static long file_is_coming(struct curl_fileinfo *finfo,
@@ -78,7 +81,7 @@ static long file_is_coming(struct curl_fileinfo *finfo,
   return CURL_CHUNK_BGN_FUNC_OK;
 }
 
-int main()
+int main(void)
 {
   /* data for callback */
   struct callback_data callback_info;
@@ -91,10 +94,11 @@ int main()
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.21.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

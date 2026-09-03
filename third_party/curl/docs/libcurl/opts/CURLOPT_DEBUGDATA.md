@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_STDERR (3)
 Protocol:
   - All
+Added-in: 7.9.6
 ---
 
 # NAME
@@ -33,6 +34,8 @@ not used by libcurl, it is only passed to the callback.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -48,12 +51,13 @@ static int my_trace(CURL *handle, curl_infotype type,
   printf("our ptr: %p\n", mine->custom);
 
   /* output debug info */
+  return 0;
 }
 
 int main(void)
 {
   CURL *curl;
-  CURLcode res;
+  CURLcode result;
   struct data my_tracedata;
 
   curl = curl_easy_init();
@@ -66,7 +70,7 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* always cleanup */
     curl_easy_cleanup(curl);
@@ -75,10 +79,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

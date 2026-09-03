@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_SOCKOPTFUNCTION (3)
 Protocol:
   - All
+Added-in: 7.16.0
 ---
 
 # NAME
@@ -30,7 +31,9 @@ argument in the sockopt callback set with CURLOPT_SOCKOPTFUNCTION(3).
 
 # DEFAULT
 
-The default value of this parameter is NULL.
+NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -48,7 +51,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     int recvbuffersize = 256 * 1024;
 
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
@@ -57,16 +60,14 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
     curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, &recvbuffersize);
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.16.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 

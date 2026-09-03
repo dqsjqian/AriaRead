@@ -9,6 +9,7 @@ See-also:
   - curl_pushheader_byname (3)
 Protocol:
   - HTTP
+Added-in: 7.44.0
 ---
 
 # NAME
@@ -32,7 +33,10 @@ elsewhere and it has no function then.
 It returns the value for the header field at the given index **num**, for
 the incoming server push request or NULL. The data pointed to is freed by
 libcurl when this callback returns. The returned pointer points to a
-"name:value" string that gets freed when this callback returns.
+"name:value" string that gets freed when this callback returns; although
+not constrained by its type, this string may not be altered.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -44,13 +48,13 @@ static int push_cb(CURL *parent,
                    struct curl_pushheaders *headers,
                    void *clientp)
 {
-  int i = 0;
+  size_t i = 0;
   char *field;
   do {
-     field = curl_pushheader_bynum(headers, i);
-     if(field)
-       fprintf(stderr, "Push header: %s\n", field);
-     i++;
+    field = curl_pushheader_bynum(headers, i);
+    if(field)
+      fprintf(stderr, "Push header: %s\n", field);
+    i++;
   } while(field);
   return CURL_PUSH_OK; /* permission granted */
 }
@@ -62,9 +66,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.44.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 

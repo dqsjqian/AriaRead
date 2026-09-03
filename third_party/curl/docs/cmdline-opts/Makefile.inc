@@ -21,7 +21,7 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-# Shared between Makefile.am and CMakeLists.txt
+# Shared between CMakeLists.txt and Makefile.am
 
 SUPPORT = \
   _AUTHORS.md \
@@ -89,6 +89,7 @@ DPAGES = \
   doh-cert-status.md \
   doh-insecure.md \
   doh-url.md \
+  dump-ca-embed.md \
   dump-header.md \
   ech.md \
   egd-file.md \
@@ -100,6 +101,7 @@ DPAGES = \
   fail-with-body.md \
   fail.md \
   false-start.md \
+  follow.md \
   form-escape.md \
   form-string.md \
   form.md \
@@ -132,18 +134,24 @@ DPAGES = \
   http2.md \
   http3.md \
   http3-only.md \
+  httpsig-algo.md \
+  httpsig-headers.md \
+  httpsig-key.md \
+  httpsig-keyid.md \
   ignore-content-length.md \
-  include.md \
   insecure.md \
   interface.md \
+  ip-tos.md \
   ipfs-gateway.md \
   ipv4.md \
   ipv6.md \
   json.md \
   junk-session-cookies.md \
+  keepalive-cnt.md \
   keepalive-time.md \
   key-type.md \
   key.md \
+  knownhosts.md \
   krb.md \
   libcurl.md \
   limit-rate.md \
@@ -161,6 +169,7 @@ DPAGES = \
   max-redirs.md \
   max-time.md \
   metalink.md \
+  mptcp.md \
   negotiate.md \
   netrc-file.md \
   netrc-optional.md \
@@ -178,8 +187,10 @@ DPAGES = \
   ntlm.md \
   oauth2-bearer.md \
   output-dir.md \
+  out-null.md \
   output.md \
   parallel-immediate.md \
+  parallel-max-host.md \
   parallel-max.md \
   parallel.md \
   pass.md \
@@ -205,6 +216,7 @@ DPAGES = \
   proxy-digest.md \
   proxy-header.md \
   proxy-http2.md \
+  proxy-http3.md \
   proxy-insecure.md \
   proxy-key-type.md \
   proxy-key.md \
@@ -248,7 +260,10 @@ DPAGES = \
   sasl-ir.md \
   service-name.md \
   show-error.md \
+  show-headers.md \
   silent.md \
+  sigalgs.md \
+  skip-existing.md \
   socks4.md \
   socks4a.md \
   socks5-basic.md \
@@ -264,6 +279,7 @@ DPAGES = \
   ssl-no-revoke.md \
   ssl-reqd.md \
   ssl-revoke-best-effort.md \
+  ssl-sessions.md \
   ssl.md \
   sslv2.md \
   sslv3.md \
@@ -276,6 +292,7 @@ DPAGES = \
   tftp-blksize.md \
   tftp-no-options.md \
   time-cond.md \
+  tls-earlydata.md \
   tls-max.md \
   tls13-ciphers.md \
   tlsauthtype.md \
@@ -294,6 +311,7 @@ DPAGES = \
   trace.md \
   unix-socket.md \
   upload-file.md \
+  upload-flags.md \
   url.md \
   url-query.md \
   use-ascii.md \
@@ -302,5 +320,6 @@ DPAGES = \
   variable.md \
   verbose.md \
   version.md \
+  vlan-priority.md \
   write-out.md \
   xattr.md

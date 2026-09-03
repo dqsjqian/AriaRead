@@ -22,10 +22,12 @@
 # * SPDX-License-Identifier: curl
 # *
 # ***************************************************************************
+use strict;
+use warnings;
 
 use POSIX qw(strftime);
 my @ts;
-if (defined($ENV{SOURCE_DATE_EPOCH})) {
+if(defined($ENV{SOURCE_DATE_EPOCH})) {
     @ts = localtime($ENV{SOURCE_DATE_EPOCH});
 } else {
     @ts = localtime;
@@ -35,7 +37,7 @@ my $year = strftime "%Y", @ts;
 
 print <<HEADER
 ---
-c: Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+c: Copyright (C) Daniel Stenberg, <daniel\@haxx.se>, et al.
 SPDX-License-Identifier: curl
 Title: libcurl-symbols
 Section: 3
@@ -48,6 +50,7 @@ See-also:
   - libcurl-multi (3)
   - libcurl-security (3)
   - libcurl-thread (3)
+Added-in: n/a
 ---
 # libcurl symbols
 
@@ -60,14 +63,14 @@ since that version no new code should be written to use the symbol as it is
 marked for getting removed in a future.
 
 The last version that featured the specific symbol. Using the symbol in source
-code will make it no longer compile error-free after that specified version.
+code makes it no longer compile error-free after that specified version.
 
 This man page is automatically generated from the symbols-in-versions file.
 HEADER
     ;
 
 sub nameref {
-    my ($n)=@_;
+    my ($n) = @_;
     if($n =~ /^CURLOPT_/) {
         if($n eq "CURLOPT_RTSPHEADER") {
             $n = "CURLOPT_HTTPHEADER";
@@ -286,7 +289,7 @@ sub nameref {
 
 while(<STDIN>) {
     if($_ =~ /^(CURL[A-Z0-9_.]*) *(.*)/i) {
-        my ($symbol, $rest)=($1,$2);
+        my ($symbol, $rest) = ($1, $2);
         my ($intro, $dep, $rem);
         if($rest =~ s/^([0-9.]*) *//) {
            $intro = $1;

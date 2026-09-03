@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# QuickJS 2025-09-13 (Official)
+# QuickJS 2026-06-04 (Official)
 # 移除了 bignum 扩展，不再需要 libbf.c / CONFIG_BIGNUM
 # ──────────────────────────────────────────────
 
@@ -28,11 +28,11 @@ if(NOT MSVC)
     target_compile_options(quickjs PRIVATE -w)
     target_compile_definitions(quickjs PRIVATE
         _GNU_SOURCE
-        CONFIG_VERSION="2025-09-13"
+        CONFIG_VERSION="2026-06-04"
     )
 else()
     target_compile_definitions(quickjs PRIVATE
-        CONFIG_VERSION="2025-09-13"
+        CONFIG_VERSION="2026-06-04"
     )
 endif()
 

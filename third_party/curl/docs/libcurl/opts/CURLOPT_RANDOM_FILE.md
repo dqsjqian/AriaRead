@@ -10,6 +10,7 @@ Protocol:
   - TLS
 TLS-backend:
   - OpenSSL
+Added-in: 7.7
 ---
 
 # NAME
@@ -32,10 +33,15 @@ Deprecated option. It serves no purpose anymore.
 
 NULL, not used
 
-# AVAILABILITY
+# DEPRECATED
 
-This option was deprecated in 7.84.0.
+Deprecated since 7.84.0.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

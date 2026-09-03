@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_HTTPHEADER (3)
 Protocol:
   - All
+Added-in: 7.37.0
 ---
 
 # NAME
@@ -38,11 +39,17 @@ NOT a header and cannot be replaced using this option. Only the lines
 following the request-line are headers. Adding this method line in this list
 of headers causes your request to send an invalid header.
 
-Pass a NULL to this to reset back to no custom headers.
+Using this option multiple times makes the last set list override the previous
+ones. Set it to NULL to disable its use again.
+
+libcurl does not copy the list, it needs to be kept around until after the
+transfer has completed.
 
 # DEFAULT
 
 NULL
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -54,6 +61,7 @@ int main(void)
   struct curl_slist *list;
 
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_PROXY, "http://proxy.example.com:80");
 
@@ -62,17 +70,19 @@ int main(void)
 
     curl_easy_setopt(curl, CURLOPT_PROXYHEADER, list);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_slist_free_all(list); /* free the list again */
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.37.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

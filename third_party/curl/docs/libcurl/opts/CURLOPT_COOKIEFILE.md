@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_COOKIESESSION (3)
 Protocol:
   - HTTP
+Added-in: 7.1
 ---
 
 # NAME
@@ -28,7 +29,7 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_COOKIEFILE, char *filename);
 
 Pass a pointer to a null-terminated string as parameter. It should point to
 the filename of your file holding cookie data to read. The cookie data can be
-in either the old Netscape / Mozilla cookie data format or just regular HTTP
+in either the old Netscape / Mozilla cookie data format or regular HTTP
 headers (Set-Cookie style) dumped to a file.
 
 It also enables the cookie engine, making libcurl parse and send cookies on
@@ -36,27 +37,29 @@ subsequent requests with this handle.
 
 By passing the empty string ("") to this option, you enable the cookie engine
 without reading any initial cookies. If you tell libcurl the filename is "-"
-(just a single minus sign), libcurl instead reads from stdin.
+(a single minus sign), libcurl instead reads from stdin.
 
-This option only **reads** cookies. To make libcurl write cookies to file,
-see CURLOPT_COOKIEJAR(3).
+This option only **reads** cookies. To make libcurl write cookies to file, see
+CURLOPT_COOKIEJAR(3).
 
-If you read cookies from a plain HTTP headers file and it does not specify a
-domain in the Set-Cookie line, then the cookie is not sent since the cookie
-domain cannot match the target URL's. To address this, set a domain in
-Set-Cookie line (doing that includes subdomains) or preferably: use the
-Netscape format.
-
-If you use this option multiple times, you add more files to read cookies
-from.
+If you read cookies from a plain HTTP headers file, make sure each
+`Set-Cookie` line specifies a `Domain` attribute. Without an explicit domain,
+libcurl cannot reliably associate the cookie with a host and it may be applied
+in unexpected ways. We suggest using the Netscape file format instead.
 
 The application does not have to keep the string around after setting this
 option.
 
-Setting this option to NULL (since 7.77.0) explicitly disables the cookie
-engine and clears the list of files to read cookies from.
+If you use this option multiple times, you add more files to read cookies
+from. Setting this option to NULL disables the cookie engine and clears the
+list of files to read cookies from.
 
-# SECURITY
+The cookies are loaded from the specified file(s) when the transfer starts,
+not when this option is set.
+
+libcurl ignores filenames which do not exist or point to a directory.
+
+# SECURITY CONCERNS
 
 This document previously mentioned how specifying a non-existing file can also
 enable the cookie engine. While true, we strongly advise against using that
@@ -67,6 +70,8 @@ run.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -74,13 +79,13 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/foo.bin");
 
     /* get cookies from an existing file */
     curl_easy_setopt(curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt");
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     curl_easy_cleanup(curl);
   }
@@ -92,10 +97,11 @@ int main(void)
 The cookie file format and general cookie concepts in curl are described
 online here: https://curl.se/docs/http-cookies.html
 
-# AVAILABILITY
-
-As long as HTTP is supported
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if HTTP is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

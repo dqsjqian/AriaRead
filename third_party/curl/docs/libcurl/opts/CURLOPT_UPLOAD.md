@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_READFUNCTION (3)
 Protocol:
   - All
+Added-in: 7.1
 ---
 
 # NAME
@@ -27,23 +28,25 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_UPLOAD, long upload);
 # DESCRIPTION
 
 The long parameter *upload* set to 1 tells the library to prepare for and
-perform an upload. The CURLOPT_READDATA(3) and
-CURLOPT_INFILESIZE(3) or CURLOPT_INFILESIZE_LARGE(3) options are
-also interesting for uploads. If the protocol is HTTP, uploading means using
-the PUT request unless you tell libcurl otherwise.
+perform an upload. The CURLOPT_READDATA(3) and CURLOPT_INFILESIZE(3) or
+CURLOPT_INFILESIZE_LARGE(3) options are also interesting for uploads. If the
+protocol is HTTP, uploading means using the PUT request unless you tell
+libcurl otherwise.
 
 Using PUT with HTTP 1.1 implies the use of a "Expect: 100-continue" header.
 You can disable this header with CURLOPT_HTTPHEADER(3) as usual.
 
 If you use PUT to an HTTP 1.1 server, you can upload data without knowing the
 size before starting the transfer. The library enables this by adding a header
-"Transfer-Encoding: chunked". With HTTP 1.0 or if you prefer not to use chunked
-transfer, you must specify the size of the data with
+"Transfer-Encoding: chunked". With HTTP 1.0 or if you prefer not to use
+chunked transfer, you must specify the size of the data with
 CURLOPT_INFILESIZE(3) or CURLOPT_INFILESIZE_LARGE(3).
 
 # DEFAULT
 
-0, default is download
+0
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -62,8 +65,9 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     FILE *src = fopen("local-file", "r");
-    curl_off_t fsize; /* set this to the size of the input file */
+    curl_off_t fsize = 1234; /* set this to the size of the input file */
 
     /* we want to use our own read function */
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_cb);
@@ -80,16 +84,18 @@ int main(void)
     /* Set the size of the file to upload */
     curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)fsize);
 
-    /* Now run off and do what you have been told! */
-    curl_easy_perform(curl);
+    /* Now run off and do what you have been told */
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Always
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

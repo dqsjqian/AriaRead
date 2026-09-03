@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_PROXY (3)
   - CURLOPT_PROXYAUTH (3)
   - CURLOPT_PROXYTYPE (3)
+Added-in: 7.19.4
 ---
 
 # NAME
@@ -40,15 +41,21 @@ proxy for all hostnames, even if there is an environment variable set for it.
 Enter IPv6 numerical addresses in the list of hostnames without enclosing
 brackets:
 
- "example.com,::1,localhost"
+    "example.com,::1,localhost"
 
-Since 7.86.0, IP addresses specified to this option can be provided using CIDR
-notation: an appended slash and number specifies the number of "network bits"
-out of the address to use in the comparison. For example "192.168.0.0/16"
-would match all addresses starting with "192.168".
+IP addresses specified to this option can be provided using CIDR notation: an
+appended slash and number specifies the number of "network bits" out of the
+address to use in the comparison. For example "192.168.0.0/16" would match all
+addresses starting with "192.168".
+
+To use international hostnames in this list, add the punycode version of the
+hostname.
 
 The application does not have to keep the string around after setting this
 option.
+
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to disable its use again.
 
 # Environment variables
 
@@ -60,6 +67,8 @@ the same way.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -67,22 +76,28 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     /* accept various URLs */
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     /* use this proxy */
-    curl_easy_setopt(curl, CURLOPT_PROXY, "http://proxy:80");
-    /* ... but make sure this host name is not proxied */
+    curl_easy_setopt(curl, CURLOPT_PROXY, "http://proxy.example:80");
+    /* ... but make sure this hostname is not proxied */
     curl_easy_setopt(curl, CURLOPT_NOPROXY, "www.example.com");
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Added in 7.19.4
+CIDR format support was added in 7.86.0.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

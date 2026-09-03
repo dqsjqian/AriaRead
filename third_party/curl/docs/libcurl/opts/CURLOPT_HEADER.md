@@ -13,6 +13,7 @@ Protocol:
 See-also:
   - CURLOPT_HEADERFUNCTION (3)
   - CURLOPT_HTTPHEADER (3)
+Added-in: 7.1
 ---
 
 # NAME
@@ -47,11 +48,13 @@ It is often better to use CURLOPT_HEADERFUNCTION(3) to get the header
 data separately.
 
 While named confusingly similar, CURLOPT_HTTPHEADER(3) is used to set
-custom HTTP headers!
+custom HTTP headers.
 
 # DEFAULT
 
 0
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -60,19 +63,22 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Provided in all libcurl versions.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -10,6 +10,7 @@ See-also:
   - CURLOPT_VERBOSE (3)
 Protocol:
   - All
+Added-in: 7.10.3
 ---
 
 # NAME
@@ -35,36 +36,42 @@ never does anything with this data.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
-struct private {
+struct private_data {
   void *custom;
 };
 
 int main(void)
 {
   CURL *curl = curl_easy_init();
-  struct private secrets;
+  struct private_data secrets;
   if(curl) {
-    struct private *extracted;
+    CURLcode result;
+    struct private_data *extracted;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
-    /* store a pointer to our private struct */
+    /* store a pointer to our private_data struct */
     curl_easy_setopt(curl, CURLOPT_PRIVATE, &secrets);
 
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    /* we can extract the private pointer again too */
+    /* we can extract the private_data pointer again too */
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &extracted);
+
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.10.3
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

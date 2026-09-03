@@ -10,11 +10,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - All
+Added-in: 7.6.1
 ---
 
 # NAME
 
-CURLINFO_CONTENT_LENGTH_UPLOAD - get the specified size of the upload
+CURLINFO_CONTENT_LENGTH_UPLOAD - specified size of the upload
 
 # SYNOPSIS
 
@@ -33,6 +34,8 @@ Pass a pointer to a double to receive the specified size of the upload. Since
 CURLINFO_CONTENT_LENGTH_UPLOAD_T(3) is a newer replacement that returns a
 more sensible variable type.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -40,17 +43,17 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* Perform the upload */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(!res) {
+    if(result == CURLE_OK) {
       /* check the size */
       double cl;
-      res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_UPLOAD, &cl);
-      if(!res) {
+      result = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_UPLOAD, &cl);
+      if(result == CURLE_OK) {
         printf("Size: %.0f\n", cl);
       }
     }
@@ -58,10 +61,15 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
+# DEPRECATED
 
-Added in 7.6.1. Deprecated since 7.55.0.
+Deprecated since 7.55.0.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

@@ -12,11 +12,12 @@ Protocol:
   - TLS
 TLS-backend:
   - OpenSSL
+Added-in: 7.12.3
 ---
 
 # NAME
 
-CURLINFO_SSL_ENGINES - get an slist of OpenSSL crypto-engines
+CURLINFO_SSL_ENGINES - an slist of OpenSSL crypto-engines
 
 # SYNOPSIS
 
@@ -36,6 +37,8 @@ available at runtime. **NOTE:** you must call curl_slist_free_all(3)
 on the list pointer once you are done with it, as libcurl does not free this
 data for you.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -43,10 +46,10 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     struct curl_slist *engines;
-    res = curl_easy_getinfo(curl, CURLINFO_SSL_ENGINES, &engines);
-    if((res == CURLE_OK) && engines) {
+    result = curl_easy_getinfo(curl, CURLINFO_SSL_ENGINES, &engines);
+    if((result == CURLE_OK) && engines) {
       /* we have a list, free it when done using it */
       curl_slist_free_all(engines);
     }
@@ -56,10 +59,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.12.3. Available in OpenSSL builds with "engine" support.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

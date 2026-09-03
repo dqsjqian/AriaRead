@@ -6,12 +6,13 @@ Short: H
 Arg: <header/@file>
 Help: Pass custom header(s) to server
 Protocols: HTTP IMAP SMTP
-Category: http imap smtp
+Category: important http imap smtp
 Added: 5.0
 Multi: append
 See-also:
   - user-agent
   - referer
+  - proxy-header
 Example:
   - -H "X-First-Name: Joe" $URL
   - -H "User-Agent: yes-please/2000" $URL
@@ -46,19 +47,23 @@ other safe guards. That includes white space and control characters.
 
 This option can take an argument in @filename style, which then adds a header
 for each line in the input file. Using @- makes curl read the header file from
-stdin. Added in 7.55.0.
+stdin. (Added in 7.55.0)
 
 Please note that most anti-spam utilities check the presence and value of
 several MIME mail headers: these are `From:`, `To:`, `Date:` and `Subject:`
 among others and should be added with this option.
 
-You need --proxy-header to send custom headers intended for an HTTP
-proxy. Added in 7.37.0.
+You need --proxy-header to send custom headers intended for an HTTP proxy.
+(Added in 7.37.0)
 
-Passing on a "Transfer-Encoding: chunked" header when doing an HTTP request
+Passing on a `Transfer-Encoding: chunked` header when doing an HTTP request
 with a request body, makes curl send the data using chunked encoding.
 
 **WARNING**: headers set with this option are set in all HTTP requests - even
 after redirects are followed, like when told with --location. This can lead to
 the header being sent to other hosts than the original host, so sensitive
 headers should be used with caution combined with following redirects.
+
+`Authorization:` and `Cookie:` headers are explicitly *not* passed on in HTTP
+requests when following redirects to other origins, unless --location-trusted
+is used.

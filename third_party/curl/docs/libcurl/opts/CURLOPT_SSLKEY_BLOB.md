@@ -11,6 +11,8 @@ Protocol:
   - TLS
 TLS-backend:
   - OpenSSL
+  - wolfSSL
+Added-in: 7.71.0
 ---
 
 # NAME
@@ -43,6 +45,8 @@ filename as input.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -57,7 +61,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     struct curl_blob blob;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     blob.data = certificateData;
@@ -71,17 +75,17 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_SSLKEY_BLOB, &blob);
     curl_easy_setopt(curl, CURLOPT_KEYPASSWD, "s3cret");
     curl_easy_setopt(curl, CURLOPT_SSLKEYTYPE, "PEM");
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.71.0. This option is supported by the OpenSSL backends.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if TLS enabled, CURLE_UNKNOWN_OPTION if not, or
-CURLE_OUT_OF_MEMORY if there was insufficient heap space.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

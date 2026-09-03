@@ -8,6 +8,7 @@ See-also:
   - CURLOPT_PROXY (3)
 Protocol:
   - All
+Added-in: 7.60.0
 ---
 
 # NAME
@@ -32,11 +33,17 @@ send this header.
 This option is primarily useful when sending test requests to a service that
 expects this header.
 
+Note that the HAProxy protocol message is only is sent over a freshly setup
+connection. A subsequent transfer that reuses a previous connection does not
+send it again.
+
 Most applications do not need this option.
 
 # DEFAULT
 
 0, do not send any HAProxy PROXY protocol header
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -45,18 +52,19 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode ret;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com/");
     curl_easy_setopt(curl, CURLOPT_HAPROXYPROTOCOL, 1L);
-    ret = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
-
-Along with HTTP. Added in 7.60.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if HTTP is enabled, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

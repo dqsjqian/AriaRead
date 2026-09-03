@@ -6,14 +6,15 @@ Section: 3
 Source: libcurl
 See-also:
   - curl_easy_escape (3)
-  - curl_free (3)
+  - curl_url_get (3)
 Protocol:
   - All
+Added-in: 7.15.4
 ---
 
 # NAME
 
-curl_easy_unescape - URL decodes the given string
+curl_easy_unescape - URL decode a string
 
 # SYNOPSIS
 
@@ -29,7 +30,8 @@ char *curl_easy_unescape(CURL *curl, const char *input,
 This function converts the URL encoded string **input** to a "plain string"
 and returns that in an allocated memory area. All input characters that are URL
 encoded (%XX where XX is a two-digit hexadecimal number) are converted to their
-binary versions.
+binary versions. Although not constrained by its type, the returned data may
+not be altered.
 
 If the **length** argument is set to 0 (zero), curl_easy_unescape(3)
 uses strlen() on **input** to find out the size.
@@ -46,6 +48,8 @@ TPF, but it was otherwise ignored.
 
 You must curl_free(3) the returned string when you are done with it.
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -56,7 +60,7 @@ int main(void)
     int decodelen;
     char *decoded = curl_easy_unescape(curl, "%63%75%72%6c", 12, &decodelen);
     if(decoded) {
-      /* do not assume printf() works on the decoded data! */
+      /* do not assume printf() works on the decoded data */
       printf("Decoded: ");
       /* ... */
       curl_free(decoded);
@@ -66,9 +70,7 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.15.4 and replaces the old curl_unescape(3) function.
+# %AVAILABILITY%
 
 # RETURN VALUE
 

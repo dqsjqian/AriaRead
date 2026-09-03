@@ -9,7 +9,8 @@ See-also:
 Protocol:
   - TLS
 TLS-backend:
-  - Secure Transport
+  - none
+Added-in: 7.42.0
 ---
 
 # NAME
@@ -37,6 +38,8 @@ when performing a full handshake.
 
 0
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -44,19 +47,24 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_SSL_FALSESTART, 1L);
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# DEPRECATED
 
-Added in 7.42.0. This option is currently only supported by the Secure
-Transport (on iOS 7.0 or later, or OS X 10.9 or later) TLS backend.
+Deprecated since 8.15.0.
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if false start is supported by the SSL backend, otherwise
-returns CURLE_NOT_BUILT_IN.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

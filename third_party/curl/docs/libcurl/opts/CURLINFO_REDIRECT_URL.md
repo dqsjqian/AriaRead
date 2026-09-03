@@ -12,11 +12,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - HTTP
+Added-in: 7.18.2
 ---
 
 # NAME
 
-CURLINFO_REDIRECT_URL - get the URL a redirect would go to
+CURLINFO_REDIRECT_URL - URL a redirect would go to
 
 # SYNOPSIS
 
@@ -28,14 +29,16 @@ CURLcode curl_easy_getinfo(CURL *handle, CURLINFO_REDIRECT_URL, char **urlp);
 
 # DESCRIPTION
 
-Pass a pointer to a char pointer to receive the URL a redirect *would*
-take you to if you would enable CURLOPT_FOLLOWLOCATION(3). This can come
-handy if you think using the built-in libcurl redirect logic is not good enough
-for you but you would still prefer to avoid implementing all the magic of
-figuring out the new URL.
+Pass a pointer to a char pointer to receive the URL a redirect *would* take
+you to if you would enable CURLOPT_FOLLOWLOCATION(3). This can come handy if
+you think using the built-in libcurl redirect logic is not good enough for you
+but you would still prefer to avoid implementing all the logic of figuring out
+the new URL.
 
-This URL is also set if the CURLOPT_MAXREDIRS(3) limit prevented a
-redirect to happen (since 7.54.1).
+This URL is also set if the CURLOPT_MAXREDIRS(3) limit prevented a redirect to
+happen.
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -44,10 +47,10 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-    res = curl_easy_perform(curl);
-    if(res == CURLE_OK) {
+    result = curl_easy_perform(curl);
+    if(result == CURLE_OK) {
       char *url = NULL;
       curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL, &url);
       if(url)
@@ -58,10 +61,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.18.2
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

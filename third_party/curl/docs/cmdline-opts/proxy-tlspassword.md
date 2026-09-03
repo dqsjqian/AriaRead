@@ -11,9 +11,17 @@ See-also:
   - proxy
   - proxy-tlsuser
 Example:
-  - --proxy-tlspassword passwd -x https://proxy $URL
+  - --proxy-tlspassword passwd -x https://proxy.example $URL
 ---
 
 # `--proxy-tlspassword`
 
-Same as --tlspassword but used in HTTPS proxy context.
+Deprecated option. This has no functionality since 8.22.0.
+
+Set password to use with the TLS authentication method specified with
+--proxy-tlsauthtype when using HTTPS proxy. Requires that --proxy-tlsuser is
+set.
+
+This option does not work with TLS 1.3.
+
+Equivalent to --tlspassword but used in HTTPS proxy context.

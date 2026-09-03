@@ -9,6 +9,7 @@ See-also:
   - CURLOPT_WRITEFUNCTION (3)
 Protocol:
   - HTTP
+Added-in: 7.64.0
 ---
 
 # NAME
@@ -31,6 +32,8 @@ Data pointer to be passed to the HTTP trailer callback function.
 
 NULL
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -48,10 +51,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-This option was added in curl 7.64.0 and is present if HTTP support is enabled
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

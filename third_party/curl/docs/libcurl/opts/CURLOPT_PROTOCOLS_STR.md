@@ -12,6 +12,7 @@ See-also:
   - curl_version_info (3)
 Protocol:
   - All
+Added-in: 7.85.0
 ---
 
 # NAME
@@ -41,28 +42,34 @@ set, it returns error.
 These are the available protocols:
 
 DICT, FILE, FTP, FTPS, GOPHER, GOPHERS, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS,
-MQTT, POP3, POP3S, RTMP, RTMPE, RTMPS, RTMPT, RTMPTE, RTMPTS, RTSP, SCP, SFTP,
-SMB, SMBS, SMTP, SMTPS, TELNET, TFTP, WS, WSS
+MQTT, MQTTS, POP3, POP3S, RTSP, SCP, SFTP, SMB, SMBS, SMTP, SMTPS, TELNET,
+TFTP, WS, WSS
 
 You can set "ALL" as a short-cut to enable all protocols. Note that by setting
 all, you may enable protocols that were not supported the day you write this
 but are introduced in a future libcurl version.
 
-curl_version_info(3) can be used to get a list of all supported
-protocols in the current libcurl. CURLINFO_SCHEME(3) is the recommended
-way to figure out the protocol used in a previous transfer.
+curl_version_info(3) can be used to get a list of all supported protocols in
+the current libcurl. CURLINFO_SCHEME(3) is the recommended way to figure out
+the protocol used in a previous transfer.
+
+Using this option multiple times makes the last set string override the
+previous ones. Set it to NULL to restore to the internal default.
 
 # DEFAULT
 
 All protocols built-in
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     /* pass in the URL from an external source */
     curl_easy_setopt(curl, CURLOPT_URL, argv[1]);
 
@@ -70,14 +77,17 @@ int main(int argc, char **argv)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,tftp,sftp");
 
     /* Perform the request */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Added in 7.85.0
+RTMP and its related protocol schemes are not supported since curl 8.20.0
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 

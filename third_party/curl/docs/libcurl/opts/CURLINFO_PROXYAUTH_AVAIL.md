@@ -10,11 +10,12 @@ See-also:
   - curl_easy_setopt (3)
 Protocol:
   - HTTP
+Added-in: 7.10.8
 ---
 
 # NAME
 
-CURLINFO_PROXYAUTH_AVAIL - get available HTTP proxy authentication methods
+CURLINFO_PROXYAUTH_AVAIL - HTTP proxy authentication methods
 
 # SYNOPSIS
 
@@ -29,8 +30,9 @@ CURLcode curl_easy_getinfo(CURL *handle, CURLINFO_PROXYAUTH_AVAIL,
 
 Pass a pointer to a long to receive a bitmask indicating the authentication
 method(s) available according to the previous response. The meaning of the
-bits is explained in the CURLOPT_PROXYAUTH(3) option for
-curl_easy_setopt(3).
+bits is explained in the CURLOPT_PROXYAUTH(3) option for curl_easy_setopt(3).
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -39,25 +41,25 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
-    CURLcode res;
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
     curl_easy_setopt(curl, CURLOPT_PROXY, "http://127.0.0.1:80");
 
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
-    if(!res) {
+    if(result == CURLE_OK) {
       /* extract the available proxy authentication types */
       long auth;
-      res = curl_easy_getinfo(curl, CURLINFO_PROXYAUTH_AVAIL, &auth);
-      if(!res) {
+      result = curl_easy_getinfo(curl, CURLINFO_PROXYAUTH_AVAIL, &auth);
+      if(result == CURLE_OK) {
         if(!auth)
           printf("No proxy auth available, perhaps no 407?\n");
         else {
           printf("%s%s%s%s\n",
-                 auth & CURLAUTH_BASIC ? "Basic ":"",
-                 auth & CURLAUTH_DIGEST ? "Digest ":"",
-                 auth & CURLAUTH_NEGOTIATE ? "Negotiate ":"",
-                 auth % CURLAUTH_NTLM ? "NTLM ":"");
+                 (unsigned long)auth & CURLAUTH_BASIC ? "Basic " : "",
+                 (unsigned long)auth & CURLAUTH_DIGEST ? "Digest " : "",
+                 (unsigned long)auth & CURLAUTH_NEGOTIATE ? "Negotiate " : "",
+                 (unsigned long)auth & CURLAUTH_NTLM ? "NTLM " : "");
         }
       }
     }
@@ -66,11 +68,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added RFC 2617 in 7.10.8
-Added RFC 7616 in 7.57.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_getinfo(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

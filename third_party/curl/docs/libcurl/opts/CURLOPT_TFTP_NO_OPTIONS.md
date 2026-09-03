@@ -8,6 +8,7 @@ See-also:
   - CURLOPT_TFTP_BLKSIZE (3)
 Protocol:
   - TFTP
+Added-in: 7.48.0
 ---
 
 # NAME
@@ -35,10 +36,12 @@ CURLOPT_TFTP_BLKSIZE(3) is ignored.
 
 0
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
-size_t write_callback(char *ptr, size_t size, size_t nmemb, void *fp)
+static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *fp)
 {
   return fwrite(ptr, size, nmemb, (FILE *)fp);
 }
@@ -47,6 +50,7 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result = CURLE_OK;
     FILE *fp = fopen("foo.bin", "wb");
     if(fp) {
       curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)fp);
@@ -58,7 +62,7 @@ int main(void)
       curl_easy_setopt(curl, CURLOPT_TFTP_NO_OPTIONS, 1L);
 
       /* Perform the request */
-      curl_easy_perform(curl);
+      result = curl_easy_perform(curl);
 
       fclose(fp);
     }
@@ -67,10 +71,11 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.48.0
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

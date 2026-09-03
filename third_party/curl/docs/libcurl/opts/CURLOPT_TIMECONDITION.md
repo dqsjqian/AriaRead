@@ -9,6 +9,9 @@ See-also:
   - CURLOPT_TIMEVALUE (3)
 Protocol:
   - HTTP
+  - FILE
+  - FTP
+Added-in: 7.1
 ---
 
 # NAME
@@ -25,19 +28,21 @@ CURLcode curl_easy_setopt(CURL *handle, CURLOPT_TIMECONDITION, long cond);
 
 # DESCRIPTION
 
-Pass a long as parameter. This defines how the CURLOPT_TIMEVALUE(3) time
-value is treated. You can set this parameter to *CURL_TIMECOND_IFMODSINCE*
-or *CURL_TIMECOND_IFUNMODSINCE*.
+Pass a long as parameter. This defines how the CURLOPT_TIMEVALUE(3) time value
+is treated. You can set this parameter to *CURL_TIMECOND_IFMODSINCE* or
+*CURL_TIMECOND_IFUNMODSINCE*.
 
 The last modification time of a file is not always known and in such instances
 this feature has no effect even if the given time condition would not have
-been met. curl_easy_getinfo(3) with the *CURLINFO_CONDITION_UNMET*
-option can be used after a transfer to learn if a zero-byte successful
-"transfer" was due to this condition not matching.
+been met. curl_easy_getinfo(3) with the *CURLINFO_CONDITION_UNMET* option can
+be used after a transfer to learn if a zero-byte successful "transfer" was due
+to this condition not matching.
 
 # DEFAULT
 
 CURL_TIMECOND_NONE (0)
+
+# %PROTOCOLS%
 
 # EXAMPLE
 
@@ -46,25 +51,32 @@ int main(void)
 {
   CURL *curl = curl_easy_init();
   if(curl) {
+    CURLcode result;
     curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
     /* January 1, 2020 is 1577833200 */
     curl_easy_setopt(curl, CURLOPT_TIMEVALUE, 1577833200L);
 
     /* If-Modified-Since the above time stamp */
-    curl_easy_setopt(curl, CURLOPT_TIMECONDITION,
-                     (long)CURL_TIMECOND_IFMODSINCE);
+    curl_easy_setopt(curl, CURLOPT_TIMECONDITION, CURL_TIMECOND_IFMODSINCE);
 
     /* Perform the request */
-    curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
   }
 }
 ~~~
 
-# AVAILABILITY
+# HISTORY
 
-Always
+**CURL_TIMECOND_*** enums became `long` types in 8.13.0, prior to this version
+a `long` cast was necessary when passed to curl_easy_setopt(3).
+
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-Returns CURLE_OK
+curl_easy_setopt(3) returns a CURLcode indicating success or error.
+
+CURLE_OK (0) means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).

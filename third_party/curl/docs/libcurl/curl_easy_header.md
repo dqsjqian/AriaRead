@@ -12,6 +12,7 @@ See-also:
   - libcurl-errors (3)
 Protocol:
   - HTTP
+Added-in: 7.83.0
 ---
 
 # NAME
@@ -25,7 +26,7 @@ curl_easy_header - get an HTTP header
 
 CURLHcode curl_easy_header(CURL *easy,
                            const char *name,
-                           size_t index,
+                           size_t nameindex,
                            unsigned int origin,
                            int request,
                            struct curl_header **hout);
@@ -37,10 +38,10 @@ curl_easy_header(3) returns a pointer to a "curl_header" struct in **hout**
 with data for the HTTP response header *name*. The case insensitive
 null-terminated header name should be specified without colon.
 
-*index* 0 means asking for the first instance of the header. If the returned
-header struct has **amount** set larger than 1, it means there are more
-instances of the same header name available to get. Asking for a too big index
-makes **CURLHE_BADINDEX** get returned.
+*nameindex* 0 means asking for the first instance of the header. If the
+returned header struct has **amount** set larger than 1, it means there are
+more instances of the same header name available to get. Asking for a too big
+index makes **CURLHE_BADINDEX** get returned.
 
 The *origin* argument is for specifying which headers to receive, as a single
 HTTP transfer might provide headers from several different places and they may
@@ -64,7 +65,7 @@ does not have to bother about multiple headers used wrongly.
 
 The memory for the returned struct is associated with the easy handle and
 subsequent calls to curl_easy_header(3) clobber the struct used in the
-previous calls for the same easy handle. Applications need to copy the data if
+previous calls for the same easy handle. The application needs to copy the data if
 it wants to keep it around. The memory used for the struct gets freed with
 calling curl_easy_cleanup(3) of the easy handle.
 
@@ -80,12 +81,12 @@ the time it is called.
 
 ~~~c
 struct curl_header {
-   char *name;
-   char *value;
-   size_t amount;
-   size_t index;
-   unsigned int origin;
-   void *anchor;
+  char *name;
+  char *value;
+  size_t amount;
+  size_t index;
+  unsigned int origin;
+  void *anchor;
 };
 ~~~
 
@@ -136,6 +137,8 @@ response that might happen before the "real" response.
 
 The header is an HTTP/2 or HTTP/3 pseudo header
 
+# %PROTOCOLS%
+
 # EXAMPLE
 
 ~~~c
@@ -153,10 +156,10 @@ int main(void)
 }
 ~~~
 
-# AVAILABILITY
-
-Added in 7.83.0. Officially supported since 7.84.0.
+# %AVAILABILITY%
 
 # RETURN VALUE
 
-This function returns a CURLHcode indicating success or error.
+This function returns a CURLHcode indicating success or error. CURLHE_OK (0)
+means everything was OK, non-zero means an error occurred, see
+libcurl-errors(3).
