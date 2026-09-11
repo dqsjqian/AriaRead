@@ -115,6 +115,14 @@ public:
     /// 设置栈大小限制（字节）
     void setStackSize(size_t bytes);
 
+    /// 设置脚本执行超时（毫秒，默认 10000，必须为正数）。
+    /// 中断 JS 执行；同步原生回调仍需自行设置超时。
+    void setExecutionTimeout(int timeoutMs);
+
+    /// 设置执行前及执行中的中断检查；返回 true 或抛出异常时中断本次脚本。
+    /// 传入空回调可清除检查；同步原生回调仍需自行响应取消。
+    void setInterruptCallback(std::function<bool()> callback);
+
     /// 获取原始 JSContext（高级用法，供 JsEvalSelector 使用）
     void* rawContext() const;
 

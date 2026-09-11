@@ -6,6 +6,7 @@
 let _debugEvtSource = null;
 
 function renderDebugPanel() {
+    stopSourceDebug();
     const el = document.getElementById('results');
     if (!el) return;
 
@@ -14,7 +15,7 @@ function renderDebugPanel() {
     const optionsHtml = available.map(s => {
         const latency = typeof s.latency === 'number' ? ` · ${s.latency}ms` : '';
         const grade = s.validity ? ` [${s.validity}]` : '';
-        return `<option value="${esc2(s.name)}">${esc(s.name)}${latency}${grade}</option>`;
+        return `<option value="${esc2(s.url)}">${esc2(s.name)}${latency}${esc2(grade)}</option>`;
     }).join('');
 
     el.innerHTML = `
@@ -58,9 +59,9 @@ function _debugAppendStep(title, bodyHtml, color) {
 }
 
 async function runSourceDebug() {
-    const sourceName = document.getElementById('debugSourceSelect')?.value;
+    const sourceUrl = document.getElementById('debugSourceSelect')?.value;
     const keyword = (document.getElementById('debugKeyword')?.value || '').trim() || '我';
-    if (!sourceName) { toast('请先选择一个书源', 'error'); return; }
+    if (!sourceUrl) { toast('请先选择一个书源', 'error'); return; }
 
     // 清空旧结果
     const root = document.getElementById('debugSteps');
@@ -70,11 +71,12 @@ async function runSourceDebug() {
     const btn = document.getElementById('debugStopBtn');
     if (btn) btn.style.display = '';
 
-    const url = `${API}/api/source/debug?source_name=${encodeURIComponent(sourceName)}&q=${encodeURIComponent(keyword)}`;
+    const url = `${API}/api/source/debug?source_url=${encodeURIComponent(sourceUrl)}&q=${encodeURIComponent(keyword)}`;
     const es = new EventSource(url);
     _debugEvtSource = es;
 
     es.addEventListener('debug_info', (e) => {
+        if (_debugEvtSource !== es) return;
         const d = JSON.parse(e.data);
         _debugAppendStep('ℹ️ 书源信息',
             `<div><b>名称：</b>${esc(d.sourceName || '')}</div>
@@ -83,7 +85,16 @@ async function runSourceDebug() {
             'var(--blue)');
     });
 
+    es.addEventListener('debug_http', (e) => {
+        if (_debugEvtSource !== es) return;
+        const d = JSON.parse(e.data);
+        _debugAppendStep('HTTP 请求',
+            `<pre>${esc2(d.method || 'GET')} ${esc2(d.url || '')}\n状态：${esc2(String(d.status))} · ${esc2(String(d.elapsedMs))}ms · ${esc2(String(d.bytes))} 字节${d.error ? '\n' + esc2(d.error) : ''}</pre>`,
+            d.error ? 'var(--red)' : 'var(--blue)');
+    });
+
     es.addEventListener('debug_search', (e) => {
+        if (_debugEvtSource !== es) return;
         const d = JSON.parse(e.data);
         if (d.error) {
             _debugAppendStep('❌ 搜索失败', `<pre>${esc(d.error)}</pre>`, 'var(--red)');
@@ -99,6 +110,7 @@ async function runSourceDebug() {
     });
 
     es.addEventListener('debug_catalog', (e) => {
+        if (_debugEvtSource !== es) return;
         const d = JSON.parse(e.data);
         if (d.error) {
             _debugAppendStep('❌ 目录获取失败', `<pre>${esc(d.error)}</pre>`, 'var(--red)');
@@ -114,28 +126,34 @@ async function runSourceDebug() {
     });
 
     es.addEventListener('debug_content', (e) => {
+        if (_debugEvtSource !== es) return;
         const d = JSON.parse(e.data);
         if (d.error) {
             _debugAppendStep('❌ 正文获取失败', `<pre>${esc(d.error)}</pre>`, 'var(--red)');
             return;
         }
-        _debugAppendStep(`📖 正文（${esc(d.chapterTitle || '')}，${d.length} 字，${d.elapsedMs}ms）`,
-            `<pre style="max-height:280px;overflow:auto;white-space:pre-wrap">${esc(d.preview || '')}…</pre>`,
+        _debugAppendStep(`正文（${esc2(d.chapterTitle || '')}，${d.length} 字节，${d.elapsedMs}ms）`,
+            `<pre style="max-height:280px;overflow:auto;white-space:pre-wrap">${esc2(d.preview || '')}${d.truncated ? '…' : ''}</pre>`,
             'var(--green)');
     });
 
     es.addEventListener('debug_done', () => {
+        if (_debugEvtSource !== es) return;
         _debugAppendStep('✅ 调试完成', '<div style="color:var(--text2)">全部步骤已执行</div>', 'var(--green)');
         stopSourceDebug();
     });
 
     es.addEventListener('debug_error', (e) => {
+        if (_debugEvtSource !== es) return;
         const d = JSON.parse(e.data);
-        _debugAppendStep('❌ 调试出错', `<pre>${esc(d.error || '未知错误')}</pre>`, 'var(--red)');
+        const stages = {debug_search: '搜索', debug_catalog: '目录', debug_content: '正文'};
+        _debugAppendStep(`${stages[d.stage] || '调试'}失败`, `<pre>${esc2(d.error || '未知错误')}</pre>`, 'var(--red)');
         stopSourceDebug();
     });
 
     es.onerror = () => {
+        if (_debugEvtSource !== es) return;
+        _debugAppendStep('连接中断', '<div>调试连接已中断，请检查服务状态或重新选择书源。</div>', 'var(--red)');
         stopSourceDebug();
     };
 }

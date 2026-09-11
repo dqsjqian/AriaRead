@@ -3,6 +3,7 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
+#include "source_debug.h"
 #include "openread/engine_impl.h"
 
 #include <atomic>
@@ -38,6 +39,40 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
                     {"totalCount", result.totalCount},
                     {"stats", stats},
                 });
+            });
+        });
+
+    // ── 单源调试（SSE 分阶段输出，不修改全局选源/数据库）─────────────
+    svr.Get("/api/source/debug",
+        [&engine](const httplib::Request& req, httplib::Response& res) {
+            with_error_handling(res, [&] {
+                const auto url = param(req, "source_url");
+                const auto name = param(req, "source_name");
+                auto keyword = param(req, "q");
+                if (keyword.empty()) keyword = "我";
+                if (url.empty() && name.empty()) {
+                    json_error(res, 400, "Missing source_url or source_name");
+                    return;
+                }
+                const auto& sources = engine.sources();
+                auto found = std::find_if(sources.begin(), sources.end(), [&](const BookSource& source) {
+                    return !url.empty() ? source.url == url : source.name == name;
+                });
+                if (found == sources.end()) { json_error(res, 404, "Source not found"); return; }
+                if (keyword.size() > 1024) { json_error(res, 400, "Query exceeds 1024 bytes"); return; }
+                res.set_header("Cache-Control", "no-cache");
+                res.set_header("X-Accel-Buffering", "no");
+                res.set_chunked_content_provider("text/event-stream",
+                    [source = *found, keyword](std::size_t, httplib::DataSink& sink) {
+                        runSourceDebug(source, keyword,
+                            [&](const std::string& event, const json& data) {
+                                const auto text = "event: " + event + "\ndata: " + safeDump(data) + "\n\n";
+                                return sink.write(text.data(), text.size());
+                            },
+                            [&] { return g_running.load() && sink.is_writable(); });
+                        sink.done();
+                        return true;
+                    });
             });
         });
 

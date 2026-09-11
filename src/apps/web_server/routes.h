@@ -26,7 +26,8 @@ namespace openread::web {
 ///   /api/sources/*       — 书源管理
 ///   /api/rss/*           — RSS 管理
 ///   /api/url_history     — URL 历史
-///   /api/eval            — JS 调试（未实现）
+///   /api/eval            — JS 调试（隔离执行，资源限制）
+///   /api/source/debug    — 单源搜索/目录/正文诊断（SSE）
 ///   /api/shutdown        — 优雅关闭
 void register_routes(
     httplib::Server& svr,

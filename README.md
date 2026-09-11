@@ -29,7 +29,7 @@
 ```bash
 mkdir -p build && cd build
 cmake .. -DOPENREAD_BUILD_TESTS=ON
-cmake --build . --target openread-tests
+cmake --build .
 ctest --output-on-failure
 ```
 
@@ -61,7 +61,26 @@ OpenRead/
 
 ## 测试
 
-109 个测试全部通过。
+从仓库根目录配置、构建并运行测试：
+
+```bash
+cmake -S . -B build -DOPENREAD_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+CTest 会注册引擎和可用的 ViewModel 测试，并在找到 Node.js 18+、Python 3.8+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DOPENREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
+
+```bash
+# 仅运行调试回归
+ctest --test-dir build -R openread-debug --output-on-failure
+
+# 也可独立运行；无需安装 npm 或 pip 包
+node tests/test_debug_ui.cjs
+python3 tests/test_debug_http.py --server build/bin/openread_web_server
+```
+
+HTTP 测试只使用本地模拟书源和内存数据库，覆盖控制台输入校验与运行限制、SSE 成功及失败阶段、响应和 gzip 解压大小限制、端口占用保护。服务路径也可通过 `OPENREAD_WEB_SERVER` 环境变量指定；使用其他构建目录或多配置生成器时，将路径改为对应的可执行文件。
 
 ## 开源准备
 

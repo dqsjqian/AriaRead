@@ -29,7 +29,7 @@ One C++ core drives two web shapes side by side:
 ```bash
 mkdir -p build && cd build
 cmake .. -DOPENREAD_BUILD_TESTS=ON
-cmake --build . --target openread-tests
+cmake --build .
 ctest --output-on-failure
 ```
 
@@ -61,7 +61,26 @@ OpenRead/
 
 ## Tests
 
-All 109 tests pass.
+Configure, build, and run the tests from the repository root:
+
+```bash
+cmake -S . -B build -DOPENREAD_BUILD_TESTS=ON
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+CTest registers engine tests and available ViewModel tests. It also registers the relevant debug regressions when Node.js 18+, Python 3.8+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DOPENREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
+
+```bash
+# Run only the debug regressions
+ctest --test-dir build -R openread-debug --output-on-failure
+
+# Or run them directly; no npm or pip packages are needed
+node tests/test_debug_ui.cjs
+python3 tests/test_debug_http.py --server build/bin/openread_web_server
+```
+
+HTTP tests use local mock sources and an in-memory database to cover console validation and execution limits, successful and failed SSE stages, response limits including gzip decompression, and occupied-port protection. The server path can also be set with the `OPENREAD_WEB_SERVER` environment variable. For another build directory or a multi-configuration generator, use the corresponding executable path.
 
 ## Release checklist
 

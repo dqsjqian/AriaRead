@@ -40,6 +40,13 @@ public:
     /// 设置 HTTP 客户端实现（完整版，含状态码和响应头）
     void setHttpClient(HttpClientFunc func);
 
+    /// 为单源同步搜索/目录/正文设置协作式取消或期限检查。
+    /// HTTP、规则执行前后调用；抛异常会终止操作，JS 执行期间也会检查。
+    /// 回调应快速返回；原生 HTTP/选择器仍需自行限制执行时间。
+    /// 必须在操作开始前配置，空回调清除检查；不影响并发搜索/校验 worker。
+    /// 首次取消异常会保留，直到再次调用本方法重置检查。
+    void setOperationCheck(std::function<void()> check);
+
     /// 设置 JS 日志回调（console.log 输出定向）
     void setJsLogCallback(JsLogFunc func);
 

@@ -46,7 +46,7 @@ target_link_libraries(openread-tests
 
 # 注册测试
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
-doctest_discover_tests(openread-tests)
+doctest_discover_tests(openread-tests PROPERTIES TIMEOUT 60)
 
 # ──────────────────────────────────────────────
 # ViewModel 测试（仅当 Aria + openread_vm 可用时构建）
@@ -84,4 +84,39 @@ if(TARGET openread_vm)
 
     include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
     doctest_discover_tests(openread-vm-tests)
+endif()
+
+# Optional Web regressions use only Node.js / Python standard libraries.
+option(OPENREAD_BUILD_WEB_TESTS "Register local Web UI and HTTP regression tests" ON)
+if(OPENREAD_BUILD_WEB_TESTS)
+    find_program(OPENREAD_NODE_EXECUTABLE NAMES node nodejs)
+    if(OPENREAD_NODE_EXECUTABLE)
+        execute_process(
+            COMMAND "${OPENREAD_NODE_EXECUTABLE}" -e
+                "process.exit(Number(process.versions.node.split('.')[0]) >= 18 ? 0 : 1)"
+            RESULT_VARIABLE OPENREAD_NODE_VERSION_OK
+            OUTPUT_QUIET ERROR_QUIET TIMEOUT 5
+        )
+    endif()
+    if(OPENREAD_NODE_EXECUTABLE AND OPENREAD_NODE_VERSION_OK EQUAL 0)
+        add_test(NAME openread-debug-ui
+            COMMAND "${OPENREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_ui.cjs")
+        set_tests_properties(openread-debug-ui PROPERTIES TIMEOUT 20 LABELS "web;debug")
+    else()
+        message(STATUS "Skipping openread-debug-ui: Node.js 18 or newer was not found")
+    endif()
+
+    find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
+    if(NOT TARGET openread_web_server)
+        message(STATUS "Skipping openread-debug-http: openread_web_server target is unavailable")
+    elseif(NOT Python3_Interpreter_FOUND)
+        message(STATUS "Skipping openread-debug-http: Python 3.8 or newer was not found")
+    else()
+        add_test(NAME openread-debug-http
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_http.py"
+                --server "$<TARGET_FILE:openread_web_server>")
+        set_tests_properties(openread-debug-http PROPERTIES TIMEOUT 120 LABELS "web;debug")
+    endif()
+else()
+    message(STATUS "Skipping Web regressions: OPENREAD_BUILD_WEB_TESTS=OFF")
 endif()

@@ -23,6 +23,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <exception>
 #include <regex>
 #include <deque>
 #include <unordered_set>
@@ -197,6 +198,8 @@ public:
     std::unique_ptr<JsRuntime> js;
     HttpRequestFunc httpFunc;
     HttpClientFunc httpClientFunc;
+    std::function<void()> operationCheck;
+    mutable std::exception_ptr operationFailure;
     JsLogFunc logFunc;       ///< JS 日志回调
     JsLogFunc logCallback;   ///< 通用日志回调（引擎内部警告/错误）
     std::vector<BookSource> sources;
@@ -349,10 +352,21 @@ public:
     }
 
     /// 发送 HTTP 请求
+    void checkOperation() const {
+        if (operationFailure) std::rethrow_exception(operationFailure);
+        try {
+            if (operationCheck) operationCheck();
+        } catch (...) {
+            operationFailure = std::current_exception();
+            throw;
+        }
+    }
+
     std::string httpRequest(const std::string& url,
                             const std::string& method = "GET",
                             const std::string& headers = "{}",
                             const std::string& body = "") {
+        checkOperation();
         if (httpClientFunc) {
             HttpRequest req;
             req.url = url;
@@ -372,6 +386,7 @@ public:
             }
 
             auto resp = httpClientFunc(req);
+            checkOperation();
             if (resp.statusCode >= 200 && resp.statusCode < 400) {
                 return resp.body;
             }
@@ -380,7 +395,9 @@ public:
         }
 
         if (httpFunc) {
-            return httpFunc(url, method, headers, body);
+            auto response = httpFunc(url, method, headers, body);
+            checkOperation();
+            return response;
         }
 
         lastError = "HTTP callback not set";
@@ -392,9 +409,12 @@ public:
     /// 走完全一致的解析路径（三路分隔符、索引/排除、内嵌规则、JS、正则替换、缓存）。
     std::vector<std::string> applyRule(const std::string& content,
                                         const std::string& rule) {
-        return detail::applyRuleStatic(content, rule, js.get(),
+        checkOperation();
+        auto result = detail::applyRuleStatic(content, rule, js.get(),
                                        sources.empty() ? std::string()
                                                        : currentSource().url);
+        checkOperation();
+        return result;
     }
 
     /// 日志输出

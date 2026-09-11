@@ -69,6 +69,25 @@ void BookSourceEngine::setJsLogCallback(JsLogFunc func) {
     pImpl->js->setLogCallback(func);
 }
 
+void BookSourceEngine::setOperationCheck(std::function<void()> check) {
+    pImpl->operationCheck = std::move(check);
+    pImpl->operationFailure = nullptr;
+    if (!pImpl->operationCheck) {
+        pImpl->js->setInterruptCallback({});
+        return;
+    }
+    pImpl->js->setInterruptCallback([impl = pImpl.get()] {
+        try {
+            impl->checkOperation();
+            return false;
+        } catch (...) {
+            // QuickJS 的 C 回调只能返回中断标志；HTTP/规则后置检查重新报告原因。
+            impl->operationFailure = std::current_exception();
+            return true;
+        }
+    });
+}
+
 void BookSourceEngine::setLogCallback(JsLogFunc func) {
     pImpl->logCallback = func;
 }
@@ -294,6 +313,7 @@ std::vector<Book> BookSourceEngine::search(const std::string& keyword,
                                             bool matchName,
                                             bool matchAuthor,
                                             bool matchIntro) {
+    pImpl->checkOperation();
     std::vector<Book> results;
 
     if (pImpl->sources.empty()) {
@@ -394,6 +414,7 @@ std::vector<Book> BookSourceEngine::search(const std::string& keyword,
 // 获取目录
 // ──────────────────────────────────────────────
 std::vector<Chapter> BookSourceEngine::getCatalog(const std::string& bookUrl) {
+    pImpl->checkOperation();
     std::vector<Chapter> results;
 
     if (!pImpl->httpFunc && !pImpl->httpClientFunc) {
@@ -652,15 +673,21 @@ std::vector<Chapter> BookSourceEngine::getCatalogForSource(
         return {};
     }
 
-    auto result = getCatalog(bookUrl);
-    pImpl->currentSourceIndex = prev;
-    return result;
+    try {
+        auto result = getCatalog(bookUrl);
+        pImpl->currentSourceIndex = prev;
+        return result;
+    } catch (...) {
+        pImpl->currentSourceIndex = prev;
+        throw;
+    }
 }
 
 // ──────────────────────────────────────────────
 // 获取正文
 // ──────────────────────────────────────────────
 std::string BookSourceEngine::getContent(const std::string& chapterUrl) {
+    pImpl->checkOperation();
     if (!pImpl->httpFunc && !pImpl->httpClientFunc) {
         pImpl->lastError = "HTTP callback not set";
         return "";
@@ -760,9 +787,14 @@ std::string BookSourceEngine::getContentForSource(
         return "";
     }
 
-    auto result = getContent(chapterUrl);
-    pImpl->currentSourceIndex = prev;
-    return result;
+    try {
+        auto result = getContent(chapterUrl);
+        pImpl->currentSourceIndex = prev;
+        return result;
+    } catch (...) {
+        pImpl->currentSourceIndex = prev;
+        throw;
+    }
 }
 
 // ──────────────────────────────────────────────
@@ -854,7 +886,14 @@ std::string BookSourceEngine::getContentForRssSource(
     pImpl->sources.push_back(std::move(tempSource));
     pImpl->currentSourceIndex = pImpl->sources.size() - 1;
 
-    std::string html = pImpl->httpRequest(chapterUrl);
+    std::string html;
+    try {
+        html = pImpl->httpRequest(chapterUrl);
+    } catch (...) {
+        pImpl->sources.pop_back();
+        pImpl->currentSourceIndex = prevIdx;
+        throw;
+    }
 
     // 恢复
     pImpl->sources.pop_back();

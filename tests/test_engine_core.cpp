@@ -5,6 +5,8 @@
 #include "openread/engine.h"
 #include "openread/types.h"
 #include "openread/source_parser.h"
+#include "startup_runtime_cases.h"
+#include "debug_cases.h"
 
 #include <nlohmann/json.hpp>
 

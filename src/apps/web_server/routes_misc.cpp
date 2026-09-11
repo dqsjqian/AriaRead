@@ -3,6 +3,7 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
+#include "debug_console.h"
 #include "openread/version.h"
 
 #include <string>
@@ -37,14 +38,23 @@ void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engi
             g_running.store(false);
         });
 
-    // ── Eval (JS execution，C++ 后端不支持) ──────────────────────────
+    // ── Eval（隔离运行时，无网络/文件桥接）──────────────────────────
     svr.Post("/api/eval",
         [](const httplib::Request& req, httplib::Response& res) {
             with_error_handling(res, [&] {
-                json body = json::parse(req.body);
-                std::string code = body.value("code", "");
-                if (code.empty()) { json_error(res, 400, "Missing code"); return; }
-                json_ok(res, {{"error", "JS eval not supported in C++ backend"}, {"ok", false}});
+                if (req.body.size() > 512 * 1024) {
+                    json_error(res, 413, "Request exceeds 512 KiB");
+                    return;
+                }
+                try {
+                    json_ok(res, evaluateDebugScript(json::parse(req.body)));
+                } catch (const json::exception& error) {
+                    json_error(res, 400, error.what());
+                } catch (const std::invalid_argument& error) {
+                    json_error(res, 400, error.what());
+                } catch (const std::length_error& error) {
+                    json_error(res, 413, error.what());
+                }
             });
         });
 

@@ -22,7 +22,7 @@
 #include "aria/adapters/http/http_adapter.hpp"
 
 #include "json_helpers.h"
-#include "port_utils.h"
+#include "startup_options.h"
 #include "routes.h"
 
 #include <atomic>
@@ -65,32 +65,29 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, on_signal);
 
     // ── 命令行参数解析 ──────────────────────────────────────────────
-    std::uint16_t port = 9091;
-    std::string host = "127.0.0.1";
-
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if ((arg == "-p" || arg == "--port") && i + 1 < argc) {
-            port = static_cast<std::uint16_t>(std::stoi(argv[++i]));
-        } else if ((arg == "--host") && i + 1 < argc) {
-            host = argv[++i];
-        } else if (arg == "-h" || arg == "--help") {
-            std::cout << "OpenRead Web Server\n\n"
-                      << "Usage: openread [options]\n\n"
-                      << "Options:\n"
-                      << "  -p, --port PORT   Listen port (default: 9091)\n"
-                      << "  --host HOST       Listen address (default: 127.0.0.1)\n"
-                      << "  --db PATH         Database path (default: $HOME/.openread/openread.db)\n"
-                      << "  --web-root PATH   Frontend static files directory\n"
-                      << "  -h, --help        Show this help\n";
-            return 0;
-        } else if (arg.find_first_not_of("0123456789") == std::string::npos && !arg.empty()) {
-            port = static_cast<std::uint16_t>(std::stoi(arg));
-        }
+    openread::web::StartupOptions options;
+    try {
+        options = openread::web::parseStartupOptions(argc, argv);
+    } catch (const std::invalid_argument& error) {
+        std::cerr << error.what() << "\nUse --help for usage.\n";
+        return 1;
     }
+    if (options.help) {
+        std::cout << "OpenRead Web Server\n\n"
+                  << "Usage: openread [options] [port] [static_root] [db_path]\n\n"
+                  << "Options:\n"
+                  << "  -p, --port PORT   Listen port (1-65535, default: 9091)\n"
+                  << "  --host HOST       Listen address (default: 127.0.0.1)\n"
+                  << "  --db PATH         Database path (default: $HOME/.openread/openread.db)\n"
+                  << "  --web-root PATH   Frontend static files directory\n"
+                  << "  -h, --help        Show this help\n";
+        return 0;
+    }
+    const auto port = options.port;
+    const auto& host = options.host;
 
     // 静态资源目录解析
-    std::string static_root;
+    std::string static_root = options.web_root;
     std::string exe_dir;
 #if defined(_WIN32)
     {
@@ -117,11 +114,8 @@ int main(int argc, char** argv) {
         if (last_sep != std::string::npos) exe_dir = exe_dir.substr(0, last_sep);
     }
 
-    if (argc > 2) {
-        static_root = argv[2];
-    }
 #ifdef OPENREAD_WEB_ROOT
-    else {
+    if (static_root.empty()) {
         static_root = OPENREAD_WEB_ROOT;
     }
 #endif
@@ -142,13 +136,7 @@ int main(int argc, char** argv) {
     }
 
     // 数据库路径
-    std::string db_path;
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if ((arg == "--db") && i + 1 < argc) {
-            db_path = argv[++i];
-        }
-    }
+    std::string db_path = options.db_path;
     if (db_path.empty()) {
         const char* home = std::getenv("HOME");
 #ifdef _WIN32
@@ -215,22 +203,9 @@ int main(int argc, char** argv) {
     binding_engine.bind_int_oneway(svm.found_count, v_found);
     binding_engine.bind_bool_oneway(svm.is_searching(), v_loading);
 
-    // ── 0. 端口占用自检 ──────────────────────────────────────────────
-    if (openread::web::isPortInUse(host, port)) {
-        std::cerr << "[OpenRead] port " << port
-                  << " is busy, killing the previous instance...\n";
-        openread::web::killProcessOnPort(port);
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-        if (openread::web::isPortInUse(host, port)) {
-            std::cerr << "[OpenRead] port " << port
-                      << " still busy after kill attempt; bind may fail\n";
-        } else {
-            std::cerr << "[OpenRead] port " << port << " released\n";
-        }
-    }
-
     if (!adapter->start()) {
-        std::cerr << "Failed to start HTTP server on port " << port << "\n";
+        std::cerr << "Failed to start HTTP server on " << host << ":" << port
+                  << ". The address may be unavailable or already in use.\n";
         return 1;
     }
 

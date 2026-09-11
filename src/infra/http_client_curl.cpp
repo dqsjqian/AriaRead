@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -36,11 +37,31 @@ inline std::string trimCopy(const std::string& s) {
 }
 
 #ifdef OPENREAD_HAS_CURL
+struct ResponseBuffer {
+    std::string body;
+    size_t limit;
+    bool exceeded = false;
+    bool allocationFailed = false;
+};
+
 size_t writeBodyCallback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     if (!userdata) return 0;
+    auto& out = *static_cast<ResponseBuffer*>(userdata);
+    if (size != 0 && nmemb > std::numeric_limits<size_t>::max() / size) {
+        out.exceeded = true;
+        return 0;
+    }
     const size_t n = size * nmemb;
-    auto* out = static_cast<std::string*>(userdata);
-    out->append(ptr, n);
+    if (n > out.limit - out.body.size()) {
+        out.exceeded = true;
+        return 0;
+    }
+    try {
+        out.body.append(ptr, n);
+    } catch (...) {
+        out.allocationFailed = true;
+        return 0;
+    }
     return n;
 }
 
@@ -193,7 +214,7 @@ HttpResponse performCurlRequest(const HttpRequest& req) {
     // 配置 SSL 证书验证（OpenSSL 后端需要手动指定 CA bundle）
     configureSslCerts(curl.get());
 
-    std::string responseBody;
+    ResponseBuffer responseBody{{}, req.maxResponseBytes > 0 ? req.maxResponseBytes : size_t{32 * 1024 * 1024}};
     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeBodyCallback);
     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &responseBody);
 
@@ -232,7 +253,13 @@ HttpResponse performCurlRequest(const HttpRequest& req) {
     }
 
     if (code != CURLE_OK) {
-        resp.error = curl_easy_strerror(code);
+        if (responseBody.exceeded) {
+            resp.error = "Response body exceeds " + std::to_string(responseBody.limit) + " bytes";
+        } else if (responseBody.allocationFailed) {
+            resp.error = "Failed to allocate response buffer";
+        } else {
+            resp.error = curl_easy_strerror(code);
+        }
         resp.statusCode = 0;
         return resp;
     }
@@ -241,7 +268,7 @@ HttpResponse performCurlRequest(const HttpRequest& req) {
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
 
     resp.statusCode = static_cast<int>(status);
-    resp.body = std::move(responseBody);
+    resp.body = std::move(responseBody.body);
     return resp;
 }
 #endif

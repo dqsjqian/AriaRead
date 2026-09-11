@@ -1,6 +1,7 @@
 #include "openread/js_runtime.h"
 #include <quickjs.h>
 #include <nlohmann/json.hpp>
+#include <chrono>
 #include <cstring>
 #include <cstdio>
 #include <stdexcept>
@@ -20,6 +21,60 @@ public:
     JSContext* ctx = nullptr;
     std::string lastError;
     JsLogFunc logFunc;
+    std::chrono::milliseconds executionTimeout{10000};
+    std::chrono::steady_clock::time_point deadline;
+    unsigned int executionDepth = 0;
+    bool timedOut = false;
+    bool interrupted = false;
+    std::function<bool()> interruptCallback;
+
+    static int interruptHandler(JSRuntime*, void* opaque) {
+        auto* impl = static_cast<Impl*>(opaque);
+        if (impl->executionDepth == 0) return 0;
+        if (std::chrono::steady_clock::now() >= impl->deadline) {
+            impl->timedOut = true;
+        }
+        if (!impl->timedOut && !impl->interrupted && impl->interruptCallback) {
+            try {
+                impl->interrupted = impl->interruptCallback();
+            } catch (...) {
+                impl->interrupted = true;
+            }
+        }
+        return impl->timedOut || impl->interrupted ? 1 : 0;
+    }
+
+    struct ExecutionScope {
+        Impl& impl;
+        explicit ExecutionScope(Impl& runtime) : impl(runtime) {
+            if (impl.executionDepth++ == 0) {
+                impl.deadline = std::chrono::steady_clock::now() + impl.executionTimeout;
+                impl.timedOut = false;
+                impl.interrupted = false;
+                impl.lastError.clear();
+            }
+        }
+        ~ExecutionScope() { --impl.executionDepth; }
+    };
+
+    std::string interruptionError() const {
+        return timedOut ? "JavaScript execution timed out"
+                        : "JavaScript execution interrupted";
+    }
+
+    void captureException() {
+        JSValue exception = JS_GetException(ctx);
+        const char* str = (timedOut || interrupted) ? nullptr : JS_ToCString(ctx, exception);
+        lastError = (timedOut || interrupted) ? interruptionError()
+                                             : (str ? str : "Unknown JS error");
+        JS_FreeCString(ctx, str);
+        JS_FreeValue(ctx, exception);
+        // An exception can itself throw (or time out) while being converted to text.
+        if (JS_HasException(ctx)) {
+            JSValue formattingException = JS_GetException(ctx);
+            JS_FreeValue(ctx, formattingException);
+        }
+    }
 
     // 真实绑定
     JsRuntime::HttpFunc httpFunc;
@@ -48,6 +103,7 @@ public:
         JS_SetMemoryLimit(rt, 256 * 1024 * 1024);  // 256MB
         JS_SetMaxStackSize(rt, 4 * 1024 * 1024);    // 4MB
 
+        JS_SetInterruptHandler(rt, interruptHandler, this);
         JS_SetContextOpaque(ctx, this);
         registerNativeLog();
         registerNativeBridges();
@@ -224,11 +280,17 @@ public:
         if (JS_IsNull(v) || JS_IsUndefined(v)) {
             return "";
         }
-        if (JS_IsArray(ctx, v) || JS_IsObject(v)) {
+        if (JS_IsObject(v)) {
             // 用 JSON.stringify 序列化（取全局 JSON.stringify）
             JSValue global = JS_GetGlobalObject(ctx);
             JSValue jsonObj = JS_GetPropertyStr(ctx, global, "JSON");
+            JS_FreeValue(ctx, global);
+            if (JS_IsException(jsonObj)) return "";
             JSValue stringify = JS_GetPropertyStr(ctx, jsonObj, "stringify");
+            if (JS_IsException(stringify)) {
+                JS_FreeValue(ctx, jsonObj);
+                return "";
+            }
             JSValue argv[1] = { JS_DupValue(ctx, v) };
             JSValue r = JS_Call(ctx, stringify, jsonObj, 1, argv);
             std::string out;
@@ -241,7 +303,6 @@ public:
             JS_FreeValue(ctx, r);
             JS_FreeValue(ctx, stringify);
             JS_FreeValue(ctx, jsonObj);
-            JS_FreeValue(ctx, global);
             return out;
         }
         // 数字 / 布尔等
@@ -264,21 +325,30 @@ JsRuntime::~JsRuntime() = default;
 // ──────────────────────────────────────────────
 std::string JsRuntime::eval(const std::string& code,
                              const std::string& filename) {
+    Impl::ExecutionScope scope(*pImpl);
+    if (Impl::interruptHandler(pImpl->rt, pImpl.get())) {
+        pImpl->lastError = pImpl->interruptionError();
+        return "";
+    }
     JSValue result = JS_Eval(pImpl->ctx, code.c_str(), code.length(),
                              filename.c_str(), JS_EVAL_TYPE_GLOBAL);
 
     if (JS_IsException(result)) {
-        JSValue exception = JS_GetException(pImpl->ctx);
-        const char* str = JS_ToCString(pImpl->ctx, exception);
-        pImpl->lastError = str ? str : "Unknown JS error";
-        JS_FreeCString(pImpl->ctx, str);
-        JS_FreeValue(pImpl->ctx, exception);
+        pImpl->captureException();
         JS_FreeValue(pImpl->ctx, result);
         return "";
     }
 
     std::string ret = pImpl->valueToString(result);
     JS_FreeValue(pImpl->ctx, result);
+    if (JS_HasException(pImpl->ctx)) {
+        pImpl->captureException();
+        return "";
+    }
+    if (Impl::interruptHandler(pImpl->rt, pImpl.get())) {
+        pImpl->lastError = pImpl->interruptionError();
+        return "";
+    }
 
     return ret;
 }
@@ -291,6 +361,7 @@ std::string JsRuntime::evalRuleJs(const std::string& jsCode,
                                   const std::string& baseUrl,
                                   const std::string& key,
                                   int page) {
+    Impl::ExecutionScope scope(*pImpl);
     if (jsCode.empty()) return result;
 
     // java / source —— 与 legado JsExtensions 行为对齐。
@@ -433,10 +504,12 @@ var cache = java.cache;
     // 第一步：注入上下文（全局变量在同一 ctx 中持久）
     pImpl->currentContent = result;   // java.getString/getElements 默认查询此内容
     eval(wrappedCtx, "<ruleJsCtx>");
+    if (!pImpl->lastError.empty()) return "";
 
     // 第二步：直接求值用户脚本。QuickJS GLOBAL 模式返回最后一个表达式/语句的值，
     // 因此 legado 风格的"最后一个表达式即结果"无需显式 return。
     std::string scriptOut = eval(jsCode, "<ruleJs>");
+    if (!pImpl->lastError.empty()) return "";
 
     // 第三步：优先级——脚本返回非空 > java.put('result',..) > 原 result
     if (!scriptOut.empty()) {
@@ -445,6 +518,7 @@ var cache = java.cache;
     std::string putResult = eval(
         "(__putResult !== undefined && __putResult !== null) ? ('' + __putResult) : ''",
         "<ruleJsPut>");
+    if (!pImpl->lastError.empty()) return "";
     if (!putResult.empty()) {
         return putResult;
     }
@@ -499,6 +573,17 @@ void JsRuntime::setStackSize(size_t bytes) {
     if (pImpl->rt) {
         JS_SetMaxStackSize(pImpl->rt, bytes);
     }
+}
+
+void JsRuntime::setExecutionTimeout(int timeoutMs) {
+    if (timeoutMs <= 0) {
+        throw std::invalid_argument("JavaScript execution timeout must be positive");
+    }
+    pImpl->executionTimeout = std::chrono::milliseconds(timeoutMs);
+}
+
+void JsRuntime::setInterruptCallback(std::function<bool()> callback) {
+    pImpl->interruptCallback = std::move(callback);
 }
 
 void* JsRuntime::rawContext() const {

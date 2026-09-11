@@ -131,6 +131,7 @@ async function shutdownServer() {
 // ──────────────────────────────────────────────
 
 function switchTab(name) {
+    if (name !== 'debug' && typeof stopSourceDebug === 'function') stopSourceDebug();
     currentActiveTab = name;
     // E6: 记住最后浏览的 Tab，刷新页面不回默认
     try { localStorage.setItem('openread_last_tab', name); } catch {}
@@ -185,8 +186,9 @@ function switchTab(name) {
     if (name === 'console') {
         document.getElementById('results').innerHTML = `
             <div class="section-title">⚡ JavaScript 控制台</div>
+            <p style="color:var(--text2)">独立 JS 环境，默认限时 1 秒、内存 32 MiB；不提供网络或文件访问。</p>
             <textarea class="console-input" id="jsInput" placeholder="// 输入 JS 代码"></textarea>
-            <button class="btn btn-primary" style="margin-top:8px" onclick="evalJs()">▶ 执行</button>
+            <button class="btn btn-primary" id="jsRunBtn" style="margin-top:8px" onclick="evalJs()">执行</button>
             <div class="console-output" id="jsOutput">// 输出</div>`;
     }
 
@@ -206,8 +208,12 @@ function switchTab(name) {
 // ──────────────────────────────────────────────
 
 async function evalJs() {
-    const code = document.getElementById('jsInput').value;
+    const code = document.getElementById('jsInput')?.value || '';
     const el = document.getElementById('jsOutput');
+    const button = document.getElementById('jsRunBtn');
+    if (!el || button?.disabled) return;
+    if (!code.trim()) { el.textContent = '请输入 JS 代码'; return; }
+    if (button) button.disabled = true;
     el.textContent = '执行中...';
     try {
         const r = await fetch(`${API}/api/eval`, {
@@ -215,8 +221,15 @@ async function evalJs() {
             body: JSON.stringify({code})
         });
         const d = await r.json();
-        el.textContent = d.result || d.error || '(undefined)';
+        const lines = Array.isArray(d.logs) ? [...d.logs] : [];
+        if (d.logsTruncated) lines.push('[日志已截断]');
+        lines.push(d.error ? `错误：${d.error}` : (d.result ?? '(undefined)'));
+        if (d.errorTruncated) lines.push('[错误已截断]');
+        if (d.resultTruncated) lines.push('[结果已截断]');
+        if (typeof d.elapsedMs === 'number') lines.push(`耗时：${d.elapsedMs}ms`);
+        el.textContent = lines.join('\n');
     } catch (e) { el.textContent = 'Error: ' + e.message; }
+    finally { if (button) button.disabled = false; }
 }
 
 // ──────────────────────────────────────────────

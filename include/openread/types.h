@@ -2,6 +2,7 @@
 /// @file types.h
 /// @brief OpenRead 核心数据类型定义
 
+#include <cstddef>
 #include <string>
 #include <vector>
 #include <map>
@@ -165,6 +166,7 @@ struct HttpRequest {
     std::string body;
     std::string charset;        ///< 编码（gbk/utf-8）
     int timeoutMs = 30000;
+    std::size_t maxResponseBytes = 32 * 1024 * 1024; ///< 解压后正文上限，0 使用默认 32 MiB
 };
 
 /// HTTP 请求回调（由 UI 层注入，实现跨平台网络）
