@@ -125,7 +125,6 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
                     std::atomic<int> invalidCount{0};
                     std::atomic<int> poorCount{0};
                     std::mutex sink_mu;
-                    std::condition_variable done_cv;
 
                     auto gradeStr = [](openread::SourceValidity v) -> std::string {
                         switch (v) {
@@ -181,21 +180,12 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
                                 write_sse("validate_done",
                                           {{"valid", valid}, {"invalid", invalid}, {"removed", removed}});
                             }
-                            done_cv.notify_one();
                         },
                         nullptr);
 
-                    {
-                        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(120);
-                        std::unique_lock<std::mutex> lk(sink_mu);
-                        while (g_running.load() &&
-                               doneCount.load() < totalCount &&
-                               std::chrono::steady_clock::now() < deadline) {
-                            done_cv.wait_for(lk, std::chrono::seconds(1), [&] {
-                                return doneCount.load() >= totalCount || !g_running.load();
-                            });
-                        }
-                    }
+                    // Validation joins its workers before returning. Sources without
+                    // search rules are skipped and do not emit progress callbacks.
+                    sink.done();
                     return true;
                 });
         });

@@ -386,6 +386,16 @@ class DebugHttpTests(unittest.TestCase):
         self.assertTrue(events[-1][1]['ok'])
         self.assertEqual(events[-1][1]['requests'], 3)
 
+    def test_source_validation_stream_finishes_with_skipped_sources(self):
+        self.request('DELETE', '/api/sources/clear')
+        source = {'bookSourceUrl': 'https://no-search.test', 'bookSourceName': 'No search rule'}
+        self.request('POST', '/api/sources/raw', json.dumps({'json': json.dumps([source])}))
+        status, raw, _ = self.request('GET', '/api/sources/validate', timeout=3)
+        self.assertEqual(status, 200, raw)
+        self.assertEqual(raw.count('event: validate_start'), 1, raw)
+        self.assertEqual(raw.count('event: validate_done'), 1, raw)
+        self.request('DELETE', '/api/sources/clear')
+
     def test_source_debug_invalid_inputs(self):
         source_url = self.load_source()
         for path, expected in [('/api/source/debug', 400),
