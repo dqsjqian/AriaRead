@@ -33,6 +33,24 @@ cmake --build .
 ctest --output-on-failure
 ```
 
+## 运行与分发
+
+构建和分发统一使用 `build/bin/`，服务构建目标会自动同步前端资源：
+
+```bash
+cmake --build build --target openread_web_server
+./build/bin/openread_web_server
+
+# 原一键打包命令仍可用，产物也在 build/bin
+bash scripts/build_web_release.sh
+```
+
+`build/bin/` 包含 `openread_web_server`、Aria 动态库和 `web/`，可整体复制到其他目录运行。默认读取程序旁的 `web/`；开发时可用 `--web-root bindings/web/openread/web` 显式指定源码资源。
+
+Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/openread_web_server.exe`。多配置生成器使用 `build/bin/Release/`（或所选配置），脚本可传 `--config Debug` / `-Config Debug`。`OPENREAD_BUILD_DIR` 可指定其他构建目录。
+
+项目不再使用 `release/` 目录；启动与分发均使用上述构建产物。
+
 ## 项目结构
 
 ```

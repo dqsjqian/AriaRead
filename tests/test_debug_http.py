@@ -9,6 +9,7 @@ import gzip
 import http.client
 import json
 import os
+import shutil
 from pathlib import Path
 import socket
 import subprocess
@@ -234,6 +235,75 @@ class DebugHttpTests(unittest.TestCase):
         self.assertIsInstance(result['elapsedMs'], int)
         _, raw, _ = self.request('POST', '/api/eval', json.dumps({'code': 'typeof saved'}))
         self.assertEqual(json.loads(raw)['result'], 'undefined')
+
+    def test_source_debug_fragment_base_and_relative_search(self):
+        origin = f'http://127.0.0.1:{self.source_server.server_port}'
+        source_url = origin + '#作者标记'
+        source = {
+            'bookSourceName': '带作者标记的本地源', 'bookSourceUrl': source_url,
+            'searchUrl': '/ok/search?q={{key}}',
+            'ruleSearch': {'bookList': '$.books[*]', 'name': '$.name', 'bookUrl': '$.url'},
+            'ruleToc': {'chapterList': '$.chapters[*]', 'chapterName': '$.title', 'chapterUrl': '$.url'},
+            'ruleContent': {'content': '$.text'},
+        }
+        status, raw, _ = self.request('POST', '/api/sources/raw', json.dumps({'json': json.dumps(source)}))
+        self.assertEqual(status, 200, raw)
+        status, stream, _ = self.request('GET', '/api/source/debug?' + urlencode({
+            'source_url': source_url, 'q': '我'}))
+        self.assertEqual(status, 200, stream)
+        events = [(frame.splitlines()[0][7:], json.loads(frame.splitlines()[1][6:]))
+                  for frame in stream.strip().split('\n\n')]
+        self.assertEqual(events[-1][0], 'debug_done', stream)
+        self.assertEqual(events[0][1]['sourceUrl'], source_url)
+        requests = [data for event, data in events if event == 'debug_http']
+        self.assertEqual(len(requests), 3)
+        self.assertEqual(requests[0]['url'], origin + '/ok/search?q=%E6%88%91')
+        self.assertTrue(all(request['status'] == 200 for request in requests))
+        self.assertIn(CONTENT, stream)
+
+    def test_relocated_runtime_uses_adjacent_assets(self):
+        runtime_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(runtime_temp.cleanup)
+        runtime_dir = Path(runtime_temp.name)
+        # Copy only the distributable runtime; no build tree or source-tree assets.
+        binary = runtime_dir / SERVER_BINARY.name
+        shutil.copy2(SERVER_BINARY, binary)
+        for pattern in ('*.dylib', '*.so*', '*.dll'):
+            for library in SERVER_BINARY.parent.glob(pattern):
+                if library.is_file():
+                    shutil.copy2(library, runtime_dir / library.name)
+        shutil.copytree(SERVER_BINARY.parent / 'web', runtime_dir / 'web')
+        marker = 'This asset is only in the relocated runtime.'
+        (runtime_dir / 'web/runtime-probe.txt').write_text(marker)
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            port = probe.getsockname()[1]
+        output = tempfile.TemporaryFile()
+        self.addCleanup(output.close)
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in ('DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH')}
+        process = subprocess.Popen([str(binary), '--port', str(port), '--db', ':memory:'],
+                                   cwd=runtime_dir.parent, env=environment,
+                                   stdout=output, stderr=output)
+        self.addCleanup(stop_process, process)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                output.seek(0)
+                self.fail(output.read().decode(errors='replace'))
+            try:
+                status, body, _ = http_request(port, 'GET', '/runtime-probe.txt', timeout=0.2)
+                if status == 200:
+                    self.assertEqual(body, marker)
+                    break
+            except (OSError, http.client.HTTPException):
+                pass
+            time.sleep(0.05)
+        else:
+            self.fail('Relocated runtime did not serve its adjacent assets')
+        status, body, _ = http_request(port, 'GET', '/debug.js')
+        self.assertEqual(status, 200)
+        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text())
 
     def test_console_invalid_inputs(self):
         bodies = ['{', '[]', 'null', '{}', '{"code":42}', '{"code":null}', '{"code":""}']

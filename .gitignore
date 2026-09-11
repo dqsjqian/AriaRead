@@ -56,17 +56,6 @@ tests/data/*.json
 tmp/
 temp/
 
-# Release 打包产物
-release/web/openread
-release/web/install.sh
-release/web/*.dylib
-release/web/*.dll
-release/web/web/
-release/android/
-release/ios/
-release/win/
-release/mac/
-
 # 个人书源数据与备份文件（不入库）
 tests/rss*.json
 *.bak

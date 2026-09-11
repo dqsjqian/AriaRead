@@ -472,6 +472,15 @@ std::string AnalyzeUrl::getAbsoluteURL(const std::string& baseUrl,
         cleanBase = cleanBase.substr(0, m.position());
     }
 
+    if (trimmed.empty()) return cleanBase;
+    // 书源常用 #作者 标记区分同站点；query/fragment 都不属于 authority 或路径。
+    const auto fragmentStart = cleanBase.find('#');
+    const auto baseWithoutFragment = cleanBase.substr(0, fragmentStart);
+    const auto baseLocation = baseWithoutFragment.substr(0, baseWithoutFragment.find('?'));
+    if (trimmed[0] == '#') return baseWithoutFragment + trimmed;
+    if (trimmed[0] == '?') return baseLocation + trimmed;
+    cleanBase = baseLocation;
+
     // 解析 base 的 scheme://authority 与 path
     // 对齐 legado 的 URL(base, rel) 语义：正确处理协议相对 // 、绝对路径 / 、
     // 相对路径与 ../、避免 host 重复（如 //m.zol.com.cn/m.zol.com.cn/...）。
@@ -521,8 +530,6 @@ std::string AnalyzeUrl::getAbsoluteURL(const std::string& baseUrl,
         return out;
     };
 
-    if (trimmed.empty()) return cleanBase;
-
     // 协议相对 URL：//host/path → 继承 base 的 scheme
     if (trimmed.size() >= 2 && trimmed[0] == '/' && trimmed[1] == '/') {
         if (!scheme.empty()) return scheme + ":" + trimmed;
@@ -541,9 +548,14 @@ std::string AnalyzeUrl::getAbsoluteURL(const std::string& baseUrl,
 
     std::string origin = scheme + "://" + authority;
 
+    // 只规范化路径，避免查询参数或 fragment 中的 /../ 被当作路径段消除。
+    const auto suffixStart = trimmed.find_first_of("?#");
+    const auto path = trimmed.substr(0, suffixStart);
+    const auto suffix = suffixStart == std::string::npos ? std::string() : trimmed.substr(suffixStart);
+
     // 绝对路径：/path → origin + 规范化(path)
     if (trimmed[0] == '/') {
-        return origin + normalizePath(trimmed);
+        return origin + normalizePath(path) + suffix;
     }
 
     // 相对路径：基于 base 的目录拼接，再规范化 ../
@@ -551,7 +563,7 @@ std::string AnalyzeUrl::getAbsoluteURL(const std::string& baseUrl,
     size_t lastSlash = dir.rfind('/');
     if (lastSlash != std::string::npos) dir = dir.substr(0, lastSlash + 1);
     else dir = "/";
-    return origin + normalizePath(dir + trimmed);
+    return origin + normalizePath(dir + path) + suffix;
 }
 
 std::string AnalyzeUrl::urlEncode(const std::string& value, const std::string& charset) {
@@ -575,7 +587,7 @@ std::string AnalyzeUrl::extractBaseUrl(const std::string& url) {
     if (schemeEnd == std::string::npos) return "";
 
     size_t hostStart = schemeEnd + 3;
-    size_t pathStart = url.find('/', hostStart);
+    size_t pathStart = url.find_first_of("/?#", hostStart);
     if (pathStart != std::string::npos) {
         return url.substr(0, pathStart);
     }

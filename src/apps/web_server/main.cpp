@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
 #  ifdef __APPLE__
         if (len <= 0) {
             uint32_t sz = sizeof(exe_buf);
-            if (_NSGetExecutablePath(exe_buf, &sz) == 0) len = sz - 1;
+            if (_NSGetExecutablePath(exe_buf, &sz) == 0) len = std::char_traits<char>::length(exe_buf);
         }
 #  endif
         if (len > 0) exe_dir = std::string(exe_buf, len);
@@ -114,11 +114,6 @@ int main(int argc, char** argv) {
         if (last_sep != std::string::npos) exe_dir = exe_dir.substr(0, last_sep);
     }
 
-#ifdef OPENREAD_WEB_ROOT
-    if (static_root.empty()) {
-        static_root = OPENREAD_WEB_ROOT;
-    }
-#endif
     if (static_root.empty()) {
         if (!exe_dir.empty()) {
             std::string candidate = exe_dir + "/web";

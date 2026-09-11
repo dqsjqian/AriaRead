@@ -338,6 +338,30 @@ TEST_CASE("getAbsoluteURL - 绝对路径 /") {
           == "https://a.com/d/e.html");
 }
 
+TEST_CASE("getAbsoluteURL - 书源作者标记和查询参数不属于主机或路径") {
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://www.shubl.com#乃星", "/index/get_search_book_list/我")
+          == "https://www.shubl.com/index/get_search_book_list/我");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com?from=/wrong/dir#作者", "search")
+          == "https://a.com/search");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com/books/page?next=/wrong/dir#作者", "../chapter")
+          == "https://a.com/chapter");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com#作者/目录", "search")
+          == "https://a.com/search");
+    AnalyzeUrl analyzer("/search?q={{key}}", "https://a.com#作者", "我");
+    CHECK(analyzer.result().url == "https://a.com/search?q=%E6%88%91");
+}
+
+TEST_CASE("getAbsoluteURL - 查询与锚点单独解析且不规范化参数内容") {
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com/books/page?old=1#old", "?page=2")
+          == "https://a.com/books/page?page=2");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com/books/page?old=1#old", "#new")
+          == "https://a.com/books/page?old=1#new");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com/books/page", "../search?next=/a/../b#c/../d")
+          == "https://a.com/search?next=/a/../b#c/../d");
+    CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com#作者", "/search?next=/a/../b")
+          == "https://a.com/search?next=/a/../b");
+}
+
 TEST_CASE("getAbsoluteURL - 相对路径与 ../") {
     CHECK(AnalyzeUrl::getAbsoluteURL("https://a.com/b/c/page.html", "img.jpg")
           == "https://a.com/b/c/img.jpg");

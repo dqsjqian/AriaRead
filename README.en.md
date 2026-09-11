@@ -33,6 +33,24 @@ cmake --build .
 ctest --output-on-failure
 ```
 
+## Running and distributing
+
+Builds and distributions use the same `build/bin/` directory. Building the server also synchronizes its Web assets:
+
+```bash
+cmake --build build --target openread_web_server
+./build/bin/openread_web_server
+
+# The existing packaging command writes to the same directory
+bash scripts/build_web_release.sh
+```
+
+`build/bin/` contains `openread_web_server`, the Aria libraries, and `web/`. Copy this directory as a unit to run elsewhere. Assets are loaded beside the executable by default; use `--web-root bindings/web/openread/web` explicitly for source-tree assets during development.
+
+On Windows, use `scripts/build_web_release.ps1` and run `build/bin/openread_web_server.exe`. Multi-config generators use `build/bin/Release/` (or the selected configuration); pass `--config Debug` / `-Config Debug` to the scripts. `OPENREAD_BUILD_DIR` selects another build directory.
+
+The project no longer uses a `release/` directory; run and distribute the build output above.
+
 ## Project layout
 
 ```

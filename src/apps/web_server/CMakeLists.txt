@@ -45,11 +45,32 @@ target_include_directories(openread_web_server
 
 target_compile_features(openread_web_server PRIVATE cxx_std_20)
 
-# 把前端静态资源目录路径作为编译期常量传入
-# 指向 bindings/web/openread/web/（完整前端）
-target_compile_definitions(openread_web_server PRIVATE
-    OPENREAD_WEB_ROOT="${CMAKE_SOURCE_DIR}/bindings/web/openread/web"
+# 每次构建服务时同步资源，包括仅修改 JS/CSS、没有触发重新链接的情况。
+# 多配置生成器将资源放到 bin/<配置>/web，与可执行文件、Aria DLL 同目录。
+set(OPENREAD_WEB_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+if(CMAKE_CONFIGURATION_TYPES)
+    string(APPEND OPENREAD_WEB_OUTPUT_DIR "/$<CONFIG>")
+endif()
+add_custom_target(openread_web_assets
+    COMMAND "${CMAKE_COMMAND}"
+        "-DOPENREAD_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
+        "-DOPENREAD_OUTPUT_DIR=${OPENREAD_WEB_OUTPUT_DIR}"
+        "-DOPENREAD_MINGW=${MINGW}"
+        "-DOPENREAD_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+        -P "${CMAKE_SOURCE_DIR}/cmake/SyncWebRuntime.cmake"
+    COMMENT "Syncing Web runtime in ${OPENREAD_WEB_OUTPUT_DIR}"
+    VERBATIM
 )
+add_dependencies(openread_web_server openread_web_assets)
+
+# 构建目录本身就是可分发目录，加载同目录动态库，不依赖开发机绝对路径。
+if(APPLE)
+    set_target_properties(openread_web_server PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path")
+elseif(UNIX)
+    set_target_properties(openread_web_server PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "$ORIGIN")
+endif()
 
 # 抑制 sqlite_modern_cpp / httplib 的弃用警告
 if(NOT MSVC)
