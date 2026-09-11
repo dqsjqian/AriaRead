@@ -6,7 +6,7 @@
     <title>OpenRead - 书源调试器</title>
     <!-- E6: 内嵌 SVG favicon（书本图标），不依赖外部文件，打包分发也能显示 -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260911">
 </head>
 <body>
     <div class="header">
@@ -47,6 +47,7 @@
             </div>
         </div>
         <div class="header-right">
+            <button class="btn" id="sidebarToggle" type="button" aria-controls="sourceSidebar" aria-expanded="true" onclick="toggleSourceSidebar()">◀ 收起书源</button>
             <div class="dot" id="statusDot"></div>
             <span id="statusText">连接中...</span>
             <button class="shutdown-btn" id="shutdownBtn" onclick="shutdownServer()" title="关闭服务">
@@ -60,7 +61,7 @@
 
     <div class="main">
         <!-- 侧边栏：书源列表 -->
-        <div class="sidebar">
+        <div class="sidebar" id="sourceSidebar">
             <div class="sidebar-header">
                 <h2>
                     <span class="title-row">📚 书源列表</span>

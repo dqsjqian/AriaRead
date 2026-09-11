@@ -157,6 +157,7 @@ struct HttpResponse {
     std::string body;
     std::map<std::string, std::string> headers;
     std::string error;
+    std::string effectiveUrl;   ///< Final URL after redirects (optional for custom clients)
 };
 
 struct HttpRequest {
@@ -423,6 +424,12 @@ struct RssArticle {
     int64_t createdAt = 0;       ///< 入库时间
 };
 
+struct RssContentResult {
+    std::string content;
+    std::string error;
+    std::string originalUrl;
+};
+
 struct RssFetchResult {
     int count = 0;       ///< 解析到的文章总数
     int inserted = 0;    ///< 新插入数量
@@ -435,6 +442,7 @@ struct RssArticleListResult {
     int total = 0;                      ///< 总数
     int page = 1;                       ///< 当前页
     int pageSize = 50;                  ///< 每页大小
+    std::string error;                 ///< 加载失败原因；已有缓存仍可展示
 };
 
 // ──────────────────────────────────────────────

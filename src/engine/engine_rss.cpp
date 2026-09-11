@@ -34,18 +34,8 @@ std::string extractFirstImage(const std::string& html) {
 
 /// 拼接相对 URL
 std::string joinUrl(const std::string& base, const std::string& relative) {
-    if (relative.empty()) return "";
-    if (relative.find("http://") == 0 || relative.find("https://") == 0) {
-        return relative;
-    }
-    if (relative.empty()) return base;
-    if (!base.empty() && base.back() == '/' && !relative.empty() && relative.front() == '/') {
-        return base + relative.substr(1);
-    }
-    if (!base.empty() && base.back() != '/' && !relative.empty() && relative.front() != '/') {
-        return base + "/" + relative;
-    }
-    return base + relative;
+    if (detail::isBlank(relative)) return "";
+    return AnalyzeUrl::getAbsoluteURL(base, detail::stripCdata(detail::decodeHtmlEntities(relative)));
 }
 
 /// 解析 RSS 2.0 / Atom feed XML
@@ -76,10 +66,17 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
 
             std::smatch m;
             if (std::regex_search(entry, m, titleRe)) {
-                art.title = detail::decodeHtmlEntities(m[1].str());
+                art.title = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             }
-            if (std::regex_search(entry, m, linkRe)) {
-                art.link = detail::stripCdata(m[1].str());
+            const std::regex relRe(R"(\brel\s*=\s*["']([^"']+)["'])");
+            for (auto link = std::sregex_iterator(entry.begin(), entry.end(), linkRe);
+                 link != std::sregex_iterator(); ++link) {
+                std::smatch rel;
+                const auto tag = link->str();
+                if (!std::regex_search(tag, rel, relRe) || rel[1] == "alternate") {
+                    art.link = (*link)[1].str();
+                    break;
+                }
             }
             // 尝试 published，fallback 到 updated
             std::string dateStr;
@@ -111,22 +108,22 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                 } catch (...) {}
             }
             if (std::regex_search(entry, m, contentRe)) {
-                art.content = detail::decodeHtmlEntities(m[1].str());
+                art.content = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             } else if (std::regex_search(entry, m, summaryRe)) {
-                art.description = detail::decodeHtmlEntities(m[1].str());
+                art.description = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             }
             if (art.content.empty() && art.description.empty()) {
                 // 尝试从 entry 中找 description
                 std::regex descRe2(R"(<description[^>]*>([\s\S]*?)</description>)");
                 if (std::regex_search(entry, m, descRe2)) {
-                    art.description = detail::decodeHtmlEntities(m[1].str());
+                    art.description = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
                 }
             }
 
             // 提取图片
             std::string imgHtml = art.content.empty() ? art.description : art.content;
             art.image = extractFirstImage(imgHtml);
-            if (!art.image.empty() && art.image.front() == '/') {
+            if (!art.image.empty()) {
                 art.image = joinUrl(sourceUrl, art.image);
             }
 
@@ -154,7 +151,7 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
 
             std::smatch m;
             if (std::regex_search(item, m, titleRe)) {
-                art.title = detail::decodeHtmlEntities(m[1].str());
+                art.title = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             }
             if (std::regex_search(item, m, linkRe)) {
                 art.link = detail::decodeHtmlEntities(m[1].str());
@@ -191,10 +188,10 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                 }
             }
             if (std::regex_search(item, m, contentEncodedRe)) {
-                art.content = detail::decodeHtmlEntities(m[1].str());
+                art.content = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             }
             if (std::regex_search(item, m, descRe)) {
-                art.description = detail::decodeHtmlEntities(m[1].str());
+                art.description = detail::decodeHtmlEntities(detail::stripCdata(m[1].str()));
             }
 
             // media:content / enclosure
@@ -209,7 +206,7 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                 std::string imgHtml = art.content.empty() ? art.description : art.content;
                 art.image = extractFirstImage(imgHtml);
             }
-            if (!art.image.empty() && art.image.front() == '/') {
+            if (!art.image.empty()) {
                 art.image = joinUrl(sourceUrl, art.image);
             }
 
@@ -219,6 +216,10 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
         }
     }
 
+    for (auto& article : articles) {
+        article.link = joinUrl(sourceUrl, article.link);
+        article.image = joinUrl(sourceUrl, article.image);
+    }
     return articles;
 }
 
@@ -320,7 +321,7 @@ RssArticle parseRssArticleByRule(const std::string& itemHtml,
                 return detail::applyRuleStatic(content, r, js, baseUrl);
             });
     }
-    art.link = detail::resolveUrlWithBase(detail::stripCdata(rawLink), baseUrl, js);
+    art.link = joinUrl(baseUrl, rawLink);
     if (art.link.empty()) {
         art.link = detail::extractHrefFallback(itemHtml, baseUrl, js);
     }
@@ -337,7 +338,7 @@ RssArticle parseRssArticleByRule(const std::string& itemHtml,
     if (art.image.empty()) {
         std::string imgHtml = art.description.empty() ? itemHtml : art.description;
         std::string img = extractFirstImage(imgHtml);
-        if (!img.empty() && img.front() == '/') img = joinUrl(baseUrl, img);
+        if (!img.empty()) img = joinUrl(baseUrl, img);
         art.image = img;
     }
     return art;
@@ -349,71 +350,134 @@ inline bool isRuleSource(const RssSource& src) {
     return !detail::isBlank(src.ruleArticles);
 }
 
-/// 下载 RSS feed。
-/// @param requireFeedMarkers true=要求响应含 <rss>/<feed> 等 XML 标志（标准 feed 场景）；
-///        false=任意非空响应都接受（规则源/JSON 源/网页源场景，对齐 legado 不做 feed 校验）。
-std::string downloadRss(const std::string& url, HttpClientFunc httpClientFunc,
-                        HttpRequestFunc httpFunc, bool requireFeedMarkers = true,
-                        const std::string& extraHeadersJson = "") {
-    auto doRequest = [&](HttpClientFunc client) -> std::string {
-        HttpRequest req;
-        req.url = url;
-        req.method = "GET";
-        req.timeoutMs = 15000;
-        // 完整浏览器 UA，降低被反爬拦截的概率
-        req.headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-        req.headers["Accept"] = "application/rss+xml,application/atom+xml,application/xml,text/xml,text/html,*/*";
-        req.headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8";
-        req.headers["Accept-Encoding"] = "identity";  // 禁用压缩，避免 libcurl 无 zlib 时拿到二进制数据
-        // 订阅源自定义 header 覆盖默认值
-        if (!extraHeadersJson.empty()) {
-            try {
-                auto h = json::parse(extraHeadersJson);
-                if (h.is_object()) {
-                    for (auto it = h.begin(); it != h.end(); ++it) {
-                        if (it.value().is_string())
-                            req.headers[it.key()] = it.value().get<std::string>();
-                    }
-                }
-            } catch (...) {}
-        }
-        auto resp = client(req);
-        if (resp.statusCode >= 200 && resp.statusCode < 400) {
-            // 编码转换：确保返回 UTF-8
-            std::string body = detail::ensureUtf8(resp.body);
-            if (!requireFeedMarkers) {
-                return body;  // 规则源：任意非空响应都交给规则引擎解析
-            }
-            // 标准 feed：简单校验，有效 RSS/Atom 至少包含一个标志性标签
-            if (body.find("<rss") != std::string::npos ||
-                body.find("<feed") != std::string::npos ||
-                body.find("<channel") != std::string::npos ||
-                body.find("<item>") != std::string::npos ||
-                body.find("<entry>") != std::string::npos) {
-                return body;
-            }
-            // 返回空但保留诊断信息（由调用方通过 lastError 或其他方式输出）
-            return "";
-        }
-        return "";
-    };
+// Each operation owns its JS context: globals, headers and AJAX callbacks cannot leak
+// between sources or outlive captured stack variables.
+class RssPipeline {
+public:
+    JsRuntime js;
+    RssSource source;
+    HttpClientFunc client;
+    HttpRequestFunc legacy;
+    std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    int requests = 0;
+    std::string failure;
+    std::map<std::string, std::string> headers;
 
-    if (httpClientFunc) {
-        return doRequest(httpClientFunc);
+    RssPipeline(const RssSource& src, HttpClientFunc http, HttpRequestFunc old)
+        : source(src), client(std::move(http)), legacy(std::move(old)) {
+        js.setMemoryLimit(64 * 1024 * 1024);
+        js.setStackSize(2 * 1024 * 1024);
+        js.setExecutionTimeout(3000);
+        js.setInterruptCallback([this] { return !failure.empty() || std::chrono::steady_clock::now() >= deadline; });
+        js.setSelectorFunc([](const std::string& body, const std::string& rule) {
+            return detail::applyRuleStatic(body, rule, nullptr, "");
+        });
+        js.putVariable("source_sourceComment", src.sourceComment);
+        js.putVariable("source_sourceUrl", src.sourceUrl);
+        js.setHttpFunc([this](const std::string& url, const std::string& method,
+                              const std::string& h, const std::string& body) {
+            HttpRequest req;
+            req.url = AnalyzeUrl::getAbsoluteURL(source.sourceUrl, url);
+            req.method = method.empty() ? "GET" : method;
+            req.body = body;
+            mergeHeaders(req.headers, h);
+            return send(req).body;
+        });
+        std::string header = src.header;
+        if (header.rfind("@js:", 0) == 0) header = js.eval(header.substr(4));
+        mergeHeaders(headers, header);
+        if (!detail::isBlank(src.jsLib)) {
+            js.eval(src.jsLib);
+            if (!js.getLastError().empty()) throw std::runtime_error("RSS jsLib: " + js.getLastError());
+        }
     }
-    if (httpFunc) {
-        // 修复：httpFunc 分支此前直接返回原始 body，未做编码转换，
-        // 导致 GBK/GB2312 网页（如 mmonly.cc）标题/正文乱码。统一经 ensureUtf8。
-        std::string body = httpFunc(
-            url, "GET",
-            "{\"User-Agent\":\"Mozilla/5.0\",\"Accept\":\"application/rss+xml,*/*\"}", "");
-        return detail::ensureUtf8(body);
+
+    static void mergeHeaders(std::map<std::string, std::string>& target, const std::string& text) {
+        if (detail::isBlank(text)) return;
+        auto j = json::parse(text);
+        if (!j.is_object()) throw std::runtime_error("RSS 请求头必须为 JSON 对象");
+        for (auto it = j.begin(); it != j.end(); ++it) {
+            if (it.value().is_string()) target[it.key()] = it.value().get<std::string>();
+        }
     }
-    auto client = createDefaultHttpClient();
-    if (client) {
-        return doRequest(client);
+
+    HttpResponse send(HttpRequest req) {
+        try {
+            check();
+            if (++requests > 20) throw std::runtime_error("RSS 请求超过 20 次限制");
+            if (req.url.rfind("http://", 0) != 0 && req.url.rfind("https://", 0) != 0)
+                throw std::runtime_error("RSS 链接不是可请求的 HTTP/HTTPS 地址");
+            auto overrides = req.headers;
+            req.headers = {{"User-Agent", "Mozilla/5.0"}, {"Accept", "application/rss+xml,application/atom+xml,text/html,*/*"},
+                           {"Accept-Encoding", "identity"}};
+            for (const auto& [k, v] : headers) req.headers[k] = v;
+            for (const auto& [k, v] : overrides) req.headers[k] = v;
+            req.timeoutMs = std::max(1, std::min(10000, static_cast<int>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count())));
+            req.maxResponseBytes = 4 * 1024 * 1024;
+            HttpResponse response;
+            if (client) response = client(req);
+            else if (legacy) { response.statusCode = 200; response.body = legacy(req.url, req.method, json(req.headers).dump(), req.body); }
+            else {
+                auto http = createDefaultHttpClient();
+                if (!http) throw std::runtime_error("HTTP 客户端不可用");
+                response = http(req);
+            }
+            if (!response.error.empty()) throw std::runtime_error(response.error);
+            if (response.statusCode < 200 || response.statusCode >= 300)
+                throw std::runtime_error("HTTP " + std::to_string(response.statusCode));
+            if (response.body.size() > req.maxResponseBytes) throw std::runtime_error("RSS 响应超过 4 MiB 限制");
+            response.body = detail::ensureUtf8(response.body);
+            if (detail::isBlank(response.body)) throw std::runtime_error("服务器返回空内容");
+            if (response.effectiveUrl.empty()) response.effectiveUrl = req.url;
+            check();
+            return response;
+        } catch (const std::exception& error) {
+            failure = error.what();
+            throw;
+        }
     }
-    return "";
+
+    HttpResponse fetch(const std::string& url, const std::string& base) {
+        auto ruleUrl = url;
+        if (ruleUrl.rfind("@js:", 0) == 0 || ruleUrl.rfind("<js>", 0) == 0) {
+            auto script = ruleUrl.substr(4);
+            if (ruleUrl.rfind("<js>", 0) == 0) {
+                const auto end = script.rfind("</js>");
+                if (end != std::string::npos) script.resize(end);
+            }
+            ruleUrl = js.evalRuleJs(script, "", base);
+            check();
+            if (!js.getLastError().empty()) throw std::runtime_error("RSS URL 规则: " + js.getLastError());
+            if (detail::isBlank(ruleUrl)) throw std::runtime_error("RSS URL 规则返回空地址");
+        }
+        AnalyzeUrl analyzer(ruleUrl, base, "", 1, &js);
+        check();
+        if (!js.getLastError().empty()) throw std::runtime_error("RSS URL 规则: " + js.getLastError());
+        const auto& parsed = analyzer.result();
+        HttpRequest req;
+        req.url = parsed.url; req.method = parsed.method; req.body = parsed.body;
+        req.headers = parsed.headers; req.charset = parsed.charset;
+        return send(req);
+    }
+
+    std::vector<std::string> apply(const std::string& body, const std::string& rule, const std::string& base) {
+        auto result = detail::applyRuleStatic(body, rule, &js, base);
+        check();
+        if (!js.getLastError().empty()) throw std::runtime_error("RSS 规则: " + js.getLastError());
+        return result;
+    }
+
+    void check() const {
+        if (!failure.empty()) throw std::runtime_error(failure);
+        if (std::chrono::steady_clock::now() >= deadline) throw std::runtime_error("RSS 操作超过 30 秒限制");
+    }
+};
+
+std::string downloadRss(const std::string& url, HttpClientFunc client, HttpRequestFunc legacy) {
+    RssSource source; source.sourceUrl = url;
+    RssPipeline pipeline(source, std::move(client), std::move(legacy));
+    return pipeline.fetch(url, url).body;
 }
 
 /// 从完整网页 HTML 中提取「正文主体」HTML（轻量可读性提取）。
@@ -421,47 +485,7 @@ std::string downloadRss(const std::string& url, HttpClientFunc httpClientFunc,
 /// 同时剔除 script/style/nav/header/footer/aside 等非正文噪声，并把相对资源 URL 绝对化，
 /// 保留 img/video/iframe 等富媒体标签，供前端 iframe 沙箱渲染完整原文（图文+视频）。
 /// 对齐 legado「ruleContent 为空时点进去看原文网页」的体验。
-std::string extractReadableHtml(const std::string& html, const std::string& baseUrl) {
-    if (html.empty()) return "";
-
-    auto pickBlock = [&](const std::string& tag) -> std::string {
-        std::regex re("<" + tag + "[^>]*>([\\s\\S]*?)</" + tag + ">",
-                      std::regex::icase);
-        std::smatch m;
-        // 取最长的一个匹配（正文容器通常最大）
-        std::string best;
-        auto it = std::sregex_iterator(html.begin(), html.end(), re);
-        auto end = std::sregex_iterator();
-        for (; it != end; ++it) {
-            std::string cand = it->str(1);
-            if (cand.size() > best.size()) best = cand;
-        }
-        return best;
-    };
-
-    std::string body = pickBlock("article");
-    if (body.size() < 200) {
-        std::string mainBlk = pickBlock("main");
-        if (mainBlk.size() > body.size()) body = mainBlk;
-    }
-    if (body.size() < 200) {
-        // 退到 <body>
-        std::string b = pickBlock("body");
-        if (b.size() > body.size()) body = b;
-    }
-    if (body.empty()) body = html;
-
-    // 剔除噪声标签（含内容）
-    static const char* dropTags[] = {"script", "style", "noscript", "nav",
-                                     "header", "footer", "aside", "form"};
-    for (const char* t : dropTags) {
-        std::regex re(std::string("<") + t + "[^>]*>[\\s\\S]*?</" + t + ">",
-                      std::regex::icase);
-        body = std::regex_replace(body, re, "");
-    }
-    // 剔除注释
-    body = std::regex_replace(body, std::regex("<!--[\\s\\S]*?-->"), "");
-
+std::string normalizeRssHtml(std::string body, const std::string& baseUrl) {
     // 懒加载图片回填：许多图片站把真实地址放在 data-src/data-original/realsrc/
     // data-lazy-src 等属性，src 只是占位（loading.gif）。把首个懒加载属性回填到 src，
     // 否则前端渲染只会看到占位图或空白（tuiimg.com / mmonly.cc 等）。
@@ -481,9 +505,9 @@ std::string extractReadableHtml(const std::string& html, const std::string& base
             if (std::regex_search(tag, lm, lazyAttr)) {
                 std::string realUrl = lm[2].str();
                 // 用真实地址覆盖/插入 src
-                std::regex srcAttr(R"(\bsrc\s*=\s*(["'])[^"']*\1)", std::regex::icase);
+                std::regex srcAttr(R"(\ssrc\s*=\s*(["'])[^"']*\1)", std::regex::icase);
                 if (std::regex_search(tag, srcAttr)) {
-                    tag = std::regex_replace(tag, srcAttr, "src=\"" + realUrl + "\"");
+                    tag = std::regex_replace(tag, srcAttr, " src=\"" + realUrl + "\"");
                 } else {
                     tag.insert(4, " src=\"" + realUrl + "\"");  // 紧跟 "<img"
                 }
@@ -495,22 +519,210 @@ std::string extractReadableHtml(const std::string& html, const std::string& base
         body.swap(rebuilt);
     }
 
-    // 相对 URL 绝对化：src=/.. 与 href=/.. 补全为 baseUrl 的 origin
-    std::string origin;
-    {
-        size_t schemeEnd = baseUrl.find("://");
-        if (schemeEnd != std::string::npos) {
-            size_t hostEnd = baseUrl.find('/', schemeEnd + 3);
-            origin = (hostEnd == std::string::npos) ? baseUrl : baseUrl.substr(0, hostEnd);
+    // Resolve both root-relative and directory-relative media/link URLs.
+    const std::regex attr(R"((\s)(src|href|poster)\s*=\s*(?:(["'])([^"']*)\3|([^\s"'=<>`]+)))", std::regex::icase);
+    std::string resolved;
+    size_t last = 0;
+    for (auto it = std::sregex_iterator(body.begin(), body.end(), attr); it != std::sregex_iterator(); ++it) {
+        resolved.append(body, last, it->position() - last);
+        auto url = joinUrl(baseUrl, (*it)[4].matched ? (*it)[4].str() : (*it)[5].str());
+        resolved += " " + (*it)[2].str() + "=\"";
+        for (char c : url) {
+            if (c == '&') resolved += "&amp;";
+            else if (c == '\"') resolved += "&quot;";
+            else if (c == '<') resolved += "&lt;";
+            else resolved += c;
+        }
+        resolved += "\"";
+        last = it->position() + it->length();
+    }
+    resolved.append(body, last, std::string::npos);
+    return resolved;
+}
+
+std::string extractReadableHtml(const std::string& html, const std::string& baseUrl) {
+    if (html.empty()) return "";
+
+    auto pickBlock = [&](const std::string& tag) -> std::string {
+        std::regex re("<" + tag + "[^>]*>([\\s\\S]*?)</" + tag + ">",
+                      std::regex::icase);
+        std::smatch m;
+        // 取最长的一个匹配（正文容器通常最大）
+        std::string best;
+        auto it = std::sregex_iterator(html.begin(), html.end(), re);
+        auto end = std::sregex_iterator();
+        for (; it != end; ++it) {
+            std::string cand = it->str(1);
+            if (cand.size() > best.size()) best = cand;
+        }
+        return best;
+    };
+
+    std::string body = pickBlock("article");
+    if (body.empty()) {
+        std::string mainBlk = pickBlock("main");
+        if (mainBlk.size() > body.size()) body = mainBlk;
+    }
+    if (body.empty()) {
+        // 退到 <body>
+        std::string b = pickBlock("body");
+        if (b.size() > body.size()) body = b;
+    }
+    if (body.empty()) body = html;
+
+    // 剔除噪声标签（含内容）
+    static const char* dropTags[] = {"script", "style", "noscript", "nav",
+                                     "header", "footer", "aside", "form"};
+    for (const char* t : dropTags) {
+        std::regex re(std::string("<") + t + "[^>]*>[\\s\\S]*?</" + t + ">",
+                      std::regex::icase);
+        body = std::regex_replace(body, re, "");
+    }
+    // 剔除注释
+    body = std::regex_replace(body, std::regex("<!--[\\s\\S]*?-->"), "");
+
+    return normalizeRssHtml(body, baseUrl);
+}
+
+bool hasReadableContent(const std::string& html) {
+    auto clean = std::regex_replace(html, std::regex(R"(<(script|style|head|noscript)\b[^>]*>[\s\S]*?</\1>)", std::regex::icase), "");
+    auto text = std::regex_replace(clean, std::regex("<[^>]*>"), "");
+    text = detail::decodeHtmlEntities(text);
+    return !detail::isBlank(text) || std::regex_search(clean, std::regex(R"(<(img|video|audio|source)\b[^>]*\s(src|poster)\s*=\s*["']\s*[^\s"'][^"']*["'])", std::regex::icase));
+}
+
+bool hasPasswordField(const std::string& html) {
+    static const std::regex input(R"(<input\b[^>]*type\s*=\s*["']?password\b)", std::regex::icase);
+    return std::regex_search(html, input);
+}
+
+bool hasPublicArticleBlock(const std::string& html) {
+    static const std::regex block(R"(<(article|main)\b[^>]*>([\s\S]*?)</\1>)", std::regex::icase);
+    for (auto it = std::sregex_iterator(html.begin(), html.end(), block); it != std::sregex_iterator(); ++it) {
+        const auto content = it->str(2);
+        if (!hasPasswordField(content) && hasReadableContent(content)) return true;
+    }
+    return false;
+}
+
+std::vector<RssArticle> collectRssArticles(RssPipeline& pipeline, std::string& diagnostic) {
+    const auto& src = pipeline.source;
+    std::vector<RssArticle> articles;
+    int64_t order = 0;
+    auto sort = src.sortUrl;
+    if (sort.rfind("@js:", 0) == 0 || sort.rfind("<js>", 0) == 0) {
+        auto script = sort.substr(4);
+        if (sort.rfind("<js>", 0) == 0) {
+            const auto end = script.rfind("</js>");
+            if (end != std::string::npos) script.resize(end);
+        }
+        sort = pipeline.js.evalRuleJs(script, "", src.sourceUrl);
+        if (!pipeline.js.getLastError().empty()) throw std::runtime_error("RSS 分类规则: " + pipeline.js.getLastError());
+    }
+    const auto channels = parseSortUrls(sort, src.sourceUrl);
+    for (const auto& [name, url] : channels) {
+        try {
+            auto response = pipeline.fetch(url, src.sourceUrl);
+            std::vector<RssArticle> parsed;
+            if (isRuleSource(src)) {
+                auto rule = src.ruleArticles;
+                const bool reverse = rule[0] == '-';
+                if (reverse) rule.erase(0, 1);
+                auto items = pipeline.apply(response.body, rule, response.effectiveUrl);
+                if (items.size() == 1) {
+                    auto array = json::parse(items[0], nullptr, false);
+                    if (array.is_array()) {
+                        items.clear();
+                        for (const auto& item : array) items.push_back(item.is_string() ? item.get<std::string>() : item.dump());
+                    }
+                }
+                for (const auto& item : items) {
+                    auto article = parseRssArticleByRule(item, src, response.effectiveUrl, &pipeline.js);
+                    pipeline.check();
+                    if (!pipeline.js.getLastError().empty()) throw std::runtime_error(pipeline.js.getLastError());
+                    if (detail::isBlank(article.title)) continue;
+                    parsed.push_back(std::move(article));
+                }
+                if (reverse) std::reverse(parsed.begin(), parsed.end());
+            } else {
+                parsed = parseRssFeed(response.body, response.effectiveUrl);
+            }
+            if (parsed.empty()) throw std::runtime_error(isRuleSource(src) ? "列表规则未解析到有效文章，请检查列表与标题规则" : "未解析到 RSS/Atom 文章（空订阅或响应格式不匹配）");
+            for (auto& article : parsed) {
+                article.sourceUrl = src.sourceUrl;
+                article.order = ++order;
+                if (detail::isBlank(article.link)) article.link = src.sourceUrl + "#item-" + std::to_string(order);
+                articles.push_back(std::move(article));
+            }
+        } catch (const std::exception& error) {
+            if (!diagnostic.empty()) diagnostic += "; ";
+            diagnostic += (name.empty() ? "订阅列表" : name) + ": " + error.what();
+            // A failed channel must not poison independent later channels.
+            pipeline.failure.clear();
         }
     }
-    if (!origin.empty()) {
-        // src="/x" / src='/x'  →  origin + /x （避免匹配 // 协议相对与 http）
-        std::regex relAttr(R"((src|href|data-src|poster)\s*=\s*(["'])(/[^/"'][^"']*)\2)",
-                           std::regex::icase);
-        body = std::regex_replace(body, relAttr, "$1=$2" + origin + "$3$2");
+    return articles;
+}
+
+RssContentResult loadRssContent(RssPipeline& pipeline, const RssArticle& article) {
+    RssContentResult result;
+    const auto& src = pipeline.source;
+    const bool placeholder = article.link.empty() || article.link.find("#item-") != std::string::npos;
+    if (!placeholder) {
+        AnalyzeUrl url(article.link, src.sourceUrl, "", 1, &pipeline.js);
+        if (url.result().url.rfind("http://", 0) == 0 || url.result().url.rfind("https://", 0) == 0)
+            result.originalUrl = url.result().url;
     }
-    return body;
+    const auto inlineBase = result.originalUrl.empty() ? src.sourceUrl : result.originalUrl;
+    const auto inlineContent = normalizeRssHtml(article.content, inlineBase);
+    const auto inlineDescription = normalizeRssHtml(article.description, inlineBase);
+    if (hasReadableContent(inlineContent)) { result.content = inlineContent; return result; }
+    // Legado descriptions can be complete inline content. Explicit content rules take
+    // precedence over a summary, while standard feeds do not need a second download.
+    if (detail::isBlank(src.ruleContent) && hasReadableContent(inlineDescription)) {
+        result.content = inlineDescription; return result;
+    }
+    if (placeholder && detail::isBlank(src.ruleContent) && !article.image.empty()) {
+        result.content = normalizeRssHtml("<img src=\"" + article.image + "\">", inlineBase);
+        if (hasReadableContent(result.content)) return result;
+        result.content.clear();
+    }
+    std::string downloaded;
+    std::string downloadedUrl;
+    bool requiresLogin = false;
+    try {
+        if (placeholder && detail::isBlank(src.ruleContent)) throw std::runtime_error("文章没有正文或有效原文链接");
+        auto response = pipeline.fetch(placeholder ? src.sourceUrl : article.link, src.sourceUrl);
+        if (!placeholder) result.originalUrl = response.effectiveUrl;
+        downloaded = response.body;
+        downloadedUrl = response.effectiveUrl;
+        // A site-wide login widget does not make a public article login-only.
+        requiresLogin = hasPasswordField(downloaded) && !hasPublicArticleBlock(downloaded);
+        if (!detail::isBlank(src.ruleContent)) {
+            auto parts = pipeline.apply(response.body, src.ruleContent, response.effectiveUrl);
+            for (const auto& part : parts) { if (!result.content.empty()) result.content += "\n"; result.content += part; }
+        } else {
+            result.content = extractReadableHtml(response.body, response.effectiveUrl);
+        }
+        result.content = normalizeRssHtml(result.content, response.effectiveUrl);
+        // An explicit article selector can identify public content in non-semantic
+        // containers, but a broad body rule containing the login form cannot.
+        if (!detail::isBlank(src.ruleContent) && hasReadableContent(result.content) && !hasPasswordField(result.content))
+            requiresLogin = false;
+        if (requiresLogin) throw std::runtime_error("页面要求登录，请在原网页中查看");
+        if (!hasReadableContent(result.content)) {
+            result.content.clear();
+            throw std::runtime_error("未提取到正文，可能需要登录、浏览器脚本或更新正文规则");
+        }
+    } catch (const std::exception& error) {
+        result.error = std::string("正文加载失败: ") + error.what();
+        result.content = hasReadableContent(inlineDescription) ? inlineDescription : "";
+        if (result.content.empty() && !downloaded.empty() && !requiresLogin) {
+            auto fallback = extractReadableHtml(downloaded, downloadedUrl);
+            if (hasReadableContent(fallback)) result.content = std::move(fallback);
+        }
+    }
+    return result;
 }
 
 } // anonymous namespace
@@ -602,137 +814,38 @@ void BookSourceEngine::checkRssSourcesRated(
     int total = static_cast<int>(sources.size());
     if (total == 0) return;
 
-    // 预热 JS 对象池（每个工作线程需要一个独立的 JsRuntime）
-    pImpl->warmUpJsPool(16);
-
     std::atomic<int> doneCount{0};
     std::mutex dbMutex;
-    const int concurrency = 16;
-
-    // 评级阈值（毫秒）：优<1000 良<3000 差<5000 否则无效。
-    // 5 秒内抓不到内容（超时或解析不出）一律评 invalid，对齐用户要求。
-    auto rate = [](bool ok, int latencyMs) -> std::string {
-        if (!ok) return "invalid";
-        if (latencyMs < 1000) return "excellent";
-        if (latencyMs < 3000) return "good";
-        if (latencyMs < 5000) return "poor";
-        return "invalid";
-    };
-
-    detail::parallelForEach(sources.size(), concurrency, [&](std::size_t i) {
-            auto s = sources[i];
-
-            bool ok = false;
-            bool contentUnreachable = false;
-            int latencyMs = -1;
-            auto t0 = std::chrono::steady_clock::now();
-
-            if (pImpl->httpClientFunc) {
-                // 每个工作线程从对象池获取独立的 JsRuntime
-                auto threadJs = pImpl->acquireJsRuntime();
-                // 透传 sourceComment（覆盖写入，避免对象池复用残留污染）
-                threadJs->putVariable("source_sourceComment", s.sourceComment);
-
-                // 规则源：抓取首个通道并尝试解析（更贴近真实可用性）；
-                // 标准源：GET + 解析文章。
-                HttpRequest req;
-                // 规则源用 sortUrl 首通道，否则用 sourceUrl
-                std::string probeUrl = s.sourceUrl;
-                if (!s.sortUrl.empty()) {
-                    auto chans = parseSortUrls(s.sortUrl, s.sourceUrl);
-                    if (!chans.empty()) {
-                        AnalyzeUrl au(chans[0].second, s.sourceUrl, "", 1, threadJs.get());
-                        auto an = au.result();
-                        probeUrl = an.url.empty() ? chans[0].second : an.url;
-                    }
-                }
-                req.url = probeUrl;
-                req.method = "GET";
-                req.timeoutMs = 5000;
-                req.headers["User-Agent"] =
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-                // 关键：与 downloadRss 保持一致的请求头，否则评级口径与抓取口径不一。
-                // Accept-Encoding: identity 禁用压缩——libcurl 无 zlib 时 gzip 响应会变成
-                // 二进制乱码，解析必然失败，导致「抓取正常但评级 invalid」（如 36氪）。
-                req.headers["Accept"] =
-                    "application/rss+xml,application/atom+xml,application/xml,"
-                    "text/xml,text/html,*/*";
-                req.headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8";
-                req.headers["Accept-Encoding"] = "identity";
-                auto resp = pImpl->httpClientFunc(req);
-                bool http2xx = (resp.statusCode >= 200 && resp.statusCode < 400);
-                if (http2xx && !resp.body.empty()) {
-                    if (isRuleSource(s)) {
-                        // 规则源：能切出至少一个条目才算有效
-                        auto items = detail::applyRuleStatic(resp.body, s.ruleArticles,
-                                                             threadJs.get(), probeUrl);
-                        ok = !items.empty();
-                    } else {
-                        // 标准 feed：尝试解析，能解析出文章才算有效
-                        auto articles = parseRssFeed(resp.body, probeUrl);
-                        ok = !articles.empty();
-                        // 抽样点开校验：解析成功 ≠ 文章页可读。取首篇真实 http(s) link
-                        // 探一次，确认正文页可达，避免「评优质却点不开」。
-                        // 仅对存在真实外链的标准 feed 生效（含 #item- 占位的跳过）。
-                        if (ok) {
-                            std::string firstLink;
-                            for (const auto& a : articles) {
-                                if (!a.link.empty() &&
-                                    (a.link.rfind("http://", 0) == 0 ||
-                                     a.link.rfind("https://", 0) == 0) &&
-                                    a.link.find("#item-") == std::string::npos) {
-                                    firstLink = a.link;
-                                    break;
-                                }
-                            }
-                            if (!firstLink.empty()) {
-                                HttpRequest creq;
-                                creq.url = firstLink;
-                                creq.method = "GET";
-                                creq.timeoutMs = 5000;
-                                creq.headers["User-Agent"] = req.headers["User-Agent"];
-                                creq.headers["Accept-Encoding"] = "identity";
-                                auto cresp = pImpl->httpClientFunc(creq);
-                                bool cok = (cresp.statusCode >= 200 && cresp.statusCode < 400)
-                                           && !cresp.body.empty();
-                                // 文章页不可达：feed 本身可用，但点开会失败 → 降级为 poor，
-                                // 不再误评 excellent/good。
-                                contentUnreachable = !cok;
-                            }
-                        }
-                    }
-                }
-
-                // 归还 JsRuntime 到对象池
-                pImpl->releaseJsRuntime(std::move(threadJs));
+    detail::parallelForEach(sources.size(), 4, [&](std::size_t i) {
+        auto source = sources[i];
+        const auto start = std::chrono::steady_clock::now();
+        bool hasArticles = false;
+        bool readable = false;
+        try {
+            RssPipeline pipeline(source, pImpl->httpClientFunc, pImpl->httpFunc);
+            std::string diagnostic;
+            auto articles = collectRssArticles(pipeline, diagnostic);
+            hasArticles = !articles.empty();
+            readable = hasArticles && diagnostic.empty();
+            // Sample the first two entries through the same path the reader uses.
+            for (size_t n = 0; n < std::min<size_t>(2, articles.size()); ++n) {
+                RssPipeline reader(source, pImpl->httpClientFunc, pImpl->httpFunc);
+                reader.deadline = pipeline.deadline;
+                auto content = loadRssContent(reader, articles[n]);
+                if (!content.error.empty() || !hasReadableContent(content.content)) readable = false;
             }
-
-            auto t1 = std::chrono::steady_clock::now();
-            latencyMs = static_cast<int>(
-                std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
-
-            std::string validity = rate(ok, latencyMs);
-            // 文章页不可达：feed 解析成功也只评「差」，让「优质」名副其实
-            if (ok && contentUnreachable &&
-                (validity == "excellent" || validity == "good")) {
-                validity = "poor";
-            }
-
-            // 持久化评级
-            s.validity = validity;
-            s.latencyMs = ok ? latencyMs : -1;
-            {
-                std::lock_guard<std::mutex> lk(dbMutex);
-                try { pImpl->db->upsertRssSource(s); } catch (...) {}
-            }
-
-            int done = ++doneCount;
-            if (progressCallback) {
-                std::string displayName = s.sourceName.empty() ? s.sourceUrl : s.sourceName;
-                progressCallback(done, total, detail::sanitizeUtf8(displayName),
-                                 validity, s.latencyMs);
-            }
+        } catch (...) { readable = false; }
+        source.latencyMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start).count());
+        source.validity = !hasArticles ? "invalid" : !readable ? "poor" :
+            source.latencyMs < 1000 ? "excellent" : source.latencyMs < 3000 ? "good" : "poor";
+        {
+            std::lock_guard<std::mutex> lock(dbMutex);
+            pImpl->db->upsertRssSource(source);
+        }
+        const int done = ++doneCount;
+        if (progressCallback) progressCallback(done, total, source.sourceName.empty() ? source.sourceUrl : source.sourceName,
+                                               source.validity, source.latencyMs);
     });
 }
 
@@ -753,218 +866,30 @@ int BookSourceEngine::clearInvalidRssSources() {
 
 RssFetchResult BookSourceEngine::fetchRssSource(const std::string& sourceUrl) {
     RssFetchResult result;
-    if (!pImpl->db) {
-        result.error = "Database not initialized";
-        return result;
-    }
-
-    // 0. 取出完整订阅源（含 Legado 规则字段）
-    RssSource src;
-    bool found = false;
-    for (const auto& s : pImpl->db->getAllRssSources()) {
-        if (s.sourceUrl == sourceUrl) { src = s; found = true; break; }
-    }
-    if (!found) {
-        // 容错：DB 里没有就构造一个仅含 URL 的源，按标准 feed 处理
-        src.sourceUrl = sourceUrl;
-    }
-
-    int64_t now = static_cast<int64_t>(
-        std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
-
-    // ── 分支 A：Legado 规则订阅源（ruleArticles 非空） ──
-    if (isRuleSource(src)) {
-        auto articles = fetchRssByRule(src, result);
-        if (articles.empty() && !result.error.empty()) {
-            return result;  // fetchRssByRule 已填好 error
-        }
-        for (auto& art : articles) {
-            try {
-                pImpl->db->upsertRssArticle(art);
-                ++result.inserted;
-            } catch (...) {
-                ++result.skipped;
-            }
+    if (!pImpl->db) { result.error = "Database not initialized"; return result; }
+    try {
+        auto source = pImpl->db->getRssSourceByUrl(sourceUrl);
+        if (!source) { result.error = "订阅源不存在"; return result; }
+        RssPipeline pipeline(*source, pImpl->httpClientFunc, pImpl->httpFunc);
+        auto articles = collectRssArticles(pipeline, result.error);
+        for (auto& article : articles) {
+            pImpl->db->upsertRssArticle(article);
+            ++result.inserted;
         }
         result.count = static_cast<int>(articles.size());
-        pImpl->db->updateRssSourceLastUpdateTime(sourceUrl, now);
-        return result;
-    }
-
-    // ── 分支 B：标准 RSS/Atom feed（singleUrl 或无规则源） ──
-    // 1. 下载 RSS
-    std::string xmlText = downloadRss(sourceUrl, pImpl->httpClientFunc, pImpl->httpFunc,
-                                      /*requireFeedMarkers=*/true, src.header);
-    if (xmlText.empty()) {
-        result.error = "下载 RSS 失败，请检查 URL 和网络";
-        return result;
-    }
-
-    // 2. 解析
-    auto articles = parseRssFeed(xmlText, sourceUrl);
-    if (articles.empty()) {
-        std::string preview = detail::sanitizeUtf8(xmlText.substr(0, 500));
-        // 去掉换行方便一行显示
-        for (auto& c : preview) { if (c == '\n' || c == '\r') c = ' '; }
-        result.error = "未能解析到文章。内容长度=" + std::to_string(xmlText.size()) +
-                      "，前500字节=[" + preview + "]";
-        return result;
-    }
-
-    // 3. 写入数据库
-    int64_t seq = 0;
-    for (auto& art : articles) {
-        // 序号递增，保留 feed 原始顺序
-        art.order = ++seq;
-        // 空 link 兜底：用 (源URL#序号) 占位，避免空 link 互相覆盖
-        if (art.link.empty()) {
-            art.link = sourceUrl + "#item-" + std::to_string(art.order);
+        if (!articles.empty()) {
+            const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            pImpl->db->updateRssSourceLastUpdateTime(sourceUrl, now);
         }
-        try {
-            pImpl->db->upsertRssArticle(art);
-            ++result.inserted;
-        } catch (...) {
-            ++result.skipped;
-        }
-    }
-    result.count = static_cast<int>(articles.size());
-
-    // 4. 更新源的最后更新时间
-    pImpl->db->updateRssSourceLastUpdateTime(sourceUrl, now);
-
+    } catch (const std::exception& error) { result.error = error.what(); }
     return result;
-}
-
-// ──────────────────────────────────────────────
-// 规则订阅源抓取（对齐 legado RssParserByRule + Rss.getArticles）
-// ──────────────────────────────────────────────
-std::vector<RssArticle> BookSourceEngine::fetchRssByRule(const RssSource& src,
-                                                         RssFetchResult& result) {
-    std::vector<RssArticle> all;
-
-    if (!pImpl->httpFunc && !pImpl->httpClientFunc) {
-        result.error = "HTTP callback not set";
-        return all;
-    }
-
-    // 从对象池获取独立的 JsRuntime（RSS 规则源需要独立的 httpFunc）
-    auto threadJs = pImpl->acquireJsRuntime();
-
-    // 透传 sourceComment：legado 复杂源（如壁纸喵）依赖 source.sourceComment
-    // 中预定义的核心变量，规则 JS 首句 eval(String(source.sourceComment))。
-    threadJs->putVariable("source_sourceComment", src.sourceComment);
-
-    // 设置 RSS 源的 httpFunc（使用 src.header 而非 currentSource().headers）
-    auto httpFunc = pImpl->httpFunc;
-    auto httpClientFunc = pImpl->httpClientFunc;
-    std::string srcHeader = src.header;
-    threadJs->setHttpFunc([&srcHeader, httpFunc, httpClientFunc](const std::string& url,
-                                                                   const std::string& method,
-                                                                   const std::string& headersJson,
-                                                                   const std::string& body) -> std::string {
-        // 合并 RSS 源的自定义 headers
-        HttpRequest req;
-        req.url = url;
-        req.method = method.empty() ? "GET" : method;
-        req.body = body;
-        req.timeoutMs = 15000;
-
-        try {
-            auto h = json::parse(headersJson.empty() ? "{}" : headersJson);
-            for (auto it = h.begin(); it != h.end(); ++it) {
-                if (it.value().is_string())
-                    req.headers[it.key()] = it.value().get<std::string>();
-            }
-        } catch (...) {}
-
-        // 合并 RSS 源的自定义 headers
-        if (!srcHeader.empty()) {
-            try {
-                auto h = json::parse(srcHeader);
-                for (auto it = h.begin(); it != h.end(); ++it) {
-                    if (it.value().is_string())
-                        req.headers[it.key()] = it.value().get<std::string>();
-                }
-            } catch (...) {}
-        }
-
-        if (httpClientFunc) {
-            auto resp = httpClientFunc(req);
-            if (resp.statusCode >= 200 && resp.statusCode < 400) {
-                return detail::ensureUtf8(resp.body);
-            }
-            return "";
-        }
-        if (httpFunc) {
-            return httpFunc(url, method, headersJson, body);
-        }
-        return "";
-    });
-
-    // 解析 sortUrl 通道（无则单通道 = sourceUrl）
-    auto channels = parseSortUrls(src.sortUrl, src.sourceUrl);
-
-    std::string diag;
-    // 全局序号：对齐 legado RssArticle.order（保留抓取顺序，且作为空 link 文章的去重保险）
-    int64_t seq = 0;
-    for (const auto& ch : channels) {
-        const std::string& channelUrl = ch.second;
-
-        // 用 AnalyzeUrl 处理 {{page}}/{{key}}/@js: 等模板（page=1，key 空）
-        AnalyzeUrl analyzer(channelUrl, src.sourceUrl, "", 1, threadJs.get());
-        auto analyzed = analyzer.result();
-        std::string reqUrl = analyzed.url.empty() ? channelUrl : analyzed.url;
-
-        // 下载（规则源不做 feed 校验）
-        std::string body = downloadRss(reqUrl, httpClientFunc, httpFunc,
-                                       /*requireFeedMarkers=*/false, src.header);
-        if (body.empty()) {
-            diag += "[通道 " + detail::sanitizeUtf8(ch.first.empty() ? reqUrl : ch.first) + " 下载为空] ";
-            continue;
-        }
-
-        // 用 ruleArticles 切出列表
-        auto items = detail::applyRuleStatic(body, src.ruleArticles,
-                                             threadJs.get(), reqUrl);
-        if (items.empty()) {
-            std::string preview = detail::sanitizeUtf8(body.substr(0, 200));
-            for (auto& c : preview) { if (c == '\n' || c == '\r') c = ' '; }
-            diag += "[通道 " + detail::sanitizeUtf8(ch.first.empty() ? reqUrl : ch.first) +
-                    " ruleArticles 无结果, len=" + std::to_string(body.size()) +
-                    ", 前200=" + preview + "] ";
-            continue;
-        }
-
-        for (auto& item : items) {
-            RssArticle art = parseRssArticleByRule(item, src, reqUrl, threadJs.get());
-            // 给标题/链接都空的条目兜底剔除
-            if (art.title.empty() && art.link.empty()) continue;
-            // 序号递增，保留抓取顺序（对齐 legado order）
-            art.order = ++seq;
-            // 空 link 兜底：生成稳定唯一占位键，避免同源多篇空 link 文章
-            // 因 UNIQUE(source_url, link) 互相 ON CONFLICT 覆盖塌缩成 1 条。
-            if (art.link.empty()) {
-                art.link = src.sourceUrl + "#item-" + std::to_string(art.order);
-            }
-            all.push_back(std::move(art));
-        }
-    }
-
-    // 归还 JsRuntime 到对象池
-    pImpl->releaseJsRuntime(std::move(threadJs));
-
-    if (all.empty()) {
-        result.error = "规则订阅源未解析到文章。" +
-                       (diag.empty() ? std::string("（请检查 ruleArticles / sortUrl）") : detail::sanitizeUtf8(diag));
-    }
-    return all;
 }
 
 RssArticleListResult BookSourceEngine::getRssArticles(const std::string& sourceUrl, int page, int pageSize) {
     RssArticleListResult result;
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
+        result.error = pImpl->lastError;
         return result;
     }
     page = std::max(1, page);
@@ -972,6 +897,17 @@ RssArticleListResult BookSourceEngine::getRssArticles(const std::string& sourceU
     result.articles = pImpl->db->getRssArticles(sourceUrl, page, pageSize, result.total);
     result.page = page;
     result.pageSize = pageSize;
+    return result;
+}
+
+RssArticleListResult BookSourceEngine::loadRssArticles(const std::string& sourceUrl, int page, int pageSize) {
+    auto result = getRssArticles(sourceUrl, page, pageSize);
+    // Imported update timestamps do not prove that this device has cached articles.
+    // An empty later page must not trigger another network refresh.
+    if (!result.error.empty() || result.total > 0 || sourceUrl.empty()) return result;
+    const auto fetched = fetchRssSource(sourceUrl);
+    result = getRssArticles(sourceUrl, page, pageSize);
+    result.error = fetched.error;
     return result;
 }
 
@@ -985,119 +921,19 @@ RssArticle BookSourceEngine::getRssArticle(int64_t id) {
 
 /// 获取单篇文章的正文内容（懒加载：点击时才抓取）
 std::string BookSourceEngine::getRssArticleContent(int64_t articleId) {
-    if (!pImpl->db) return "";
+    return getRssArticleContentResult(articleId).content;
+}
+
+RssContentResult BookSourceEngine::getRssArticleContentResult(int64_t articleId) {
+    if (!pImpl->db) return {"", "Database not initialized", ""};
     auto article = pImpl->db->getRssArticle(articleId);
-    if (article.content.empty() && article.link.empty()) return "";
-
-    // 如果已有内容，直接返回
-    if (!article.content.empty()) return article.content;
-
-    // 查找对应的源，获取 ruleContent
-    RssSource src;
-    for (const auto& s : pImpl->db->getAllRssSources()) {
-        if (s.sourceUrl == article.sourceUrl) { src = s; break; }
-    }
-
-    bool canHttp = pImpl->httpClientFunc || pImpl->httpFunc;
-    bool isPlaceholder = article.link.empty() ||
-                         article.link.find("#item-") != std::string::npos;
-
-    // 规范化文章链接：legado 风格 link 可能带 ",{options}" 选项后缀（如 webView），
-    // 或为相对/模板 URL。用 AnalyzeUrl 解析出真实可下载 URL，否则下载必然失败
-    // （©痴汉等源 link 形如 https://x/a.html,{"webView":true}）。
-    std::string fetchUrl;
-    if (!isPlaceholder && canHttp) {
-        auto njs = pImpl->acquireJsRuntime();
-        AnalyzeUrl au(article.link, article.sourceUrl, "", 1, njs.get());
-        auto an = au.result();
-        pImpl->releaseJsRuntime(std::move(njs));
-        fetchUrl = an.url.empty() ? article.link : an.url;
-        // 去掉残留的 ",{...}" / ",\{...}" 选项后缀兜底（legado URL 选项语法，
-        // 入库时引号可能被转义为 ,\{\"...）
-        auto comma = fetchUrl.find(",{");
-        if (comma == std::string::npos) comma = fetchUrl.find(",\\{");
-        if (comma != std::string::npos) fetchUrl = fetchUrl.substr(0, comma);
-    }
-    bool hasFetchUrl = !fetchUrl.empty() &&
-                       (fetchUrl.rfind("http://", 0) == 0 || fetchUrl.rfind("https://", 0) == 0);
-
-    // 分支 1：无 ruleContent（标准 feed / 普通网页源）
-    //   有真实链接 → 下载原文页，提取正文主体 HTML（图文/视频齐全，前端 iframe 渲染）；
-    //   提取失败时回退到原始 HTML（让前端 iframe 加载，对齐 legado WebView 行为）；
-    //   无链接则回退 description。
-    if (detail::isBlank(src.ruleContent)) {
-        if (hasFetchUrl) {
-            std::string body = detail::ensureUtf8(
-                downloadRss(fetchUrl, pImpl->httpClientFunc, pImpl->httpFunc,
-                            false, src.header));
-            if (!body.empty()) {
-                // 优先尝试提取可读正文
-                std::string readable = extractReadableHtml(body, fetchUrl);
-                if (readable.size() > 200) return readable;
-                // 提取失败（SPA / 懒加载 / 正文在 JS 中）：不要把整页离散 HTML 塞进
-                // iframe srcdoc —— 其相对资源/脚本会因缺失原始 origin + CSP 而白屏，
-                // 表现为「点不开但原址能打开」。改为返回一段带「打开原文」按钮的提示页，
-                // 锚点在浏览器中以完整 origin 打开，行为与 legado WebView 一致。
-                fprintf(stderr, "[RSS] extractReadableHtml too short (%zu bytes), returning open-original fallback\n",
-                        readable.size());
-                std::string safeUrl = fetchUrl;
-                // 转义引号，避免破坏 href 属性
-                std::string escUrl;
-                for (char c : safeUrl) {
-                    if (c == '"') escUrl += "&quot;";
-                    else if (c == '<') escUrl += "&lt;";
-                    else if (c == '>') escUrl += "&gt;";
-                    else escUrl += c;
-                }
-                return "<div style=\"padding:32px;text-align:center;font-family:sans-serif;color:#444\">"
-                       "<p style=\"font-size:15px;margin-bottom:8px\">该文章正文需在原网页中查看"
-                       "（页面依赖脚本渲染，无法在阅读器内直接呈现）。</p>"
-                       "<p style=\"margin:18px 0\"><a href=\"" + escUrl + "\" target=\"_blank\" rel=\"noopener\" "
-                       "style=\"display:inline-block;padding:10px 22px;background:#2563eb;color:#fff;"
-                       "border-radius:8px;text-decoration:none;font-size:14px\">在浏览器中打开原文 ↗</a></p>"
-                       "</div>";
-            } else {
-                fprintf(stderr, "[RSS] downloadRss failed for fetchUrl='%s'\n", fetchUrl.c_str());
-            }
-        }
-        return article.description;
-    }
-
-    // 分支 2：规则源（有 ruleContent）
-    if (!canHttp) return article.description;
-
-    // 决定用哪个页面 URL 喂给 ruleContent：
-    //   - 有真实文章 link → 用文章页 URL（下载文章页）
-    //   - 占位 link（图片源频道，无单篇真实链接）→ 用源/频道 URL，
-    //     让 ruleContent 中的 JS 基于 baseUrl 自行渲染瀑布流（对齐 legado）。
-    std::string pageUrl = hasFetchUrl ? fetchUrl : src.sourceUrl;
-    std::string body = detail::ensureUtf8(
-        downloadRss(pageUrl, pImpl->httpClientFunc, pImpl->httpFunc,
-                    false, src.header));
-    // 占位 link 场景下，body 可能是频道 JSON/HTML；即使为空也继续，
-    // 因为 ruleContent 的 JS 经常自己再发请求（java.ajax）。
-    if (body.empty() && hasFetchUrl) return article.description;
-
-    // DEBUG: 临时日志
-    fprintf(stderr, "[DEBUG] articleId=%lld ruleContent='%s' pageUrl='%s' bodyLen=%zu bodyStart='%.20s'\n",
-            articleId, src.ruleContent.c_str(), pageUrl.c_str(), body.size(), body.c_str());
-
-    auto threadJs = pImpl->acquireJsRuntime();
-    // 透传 sourceComment，供 ruleContent 中的引导 JS 使用
-    threadJs->putVariable("source_sourceComment", src.sourceComment);
-    auto parts = detail::applyRuleStatic(body, src.ruleContent, threadJs.get(), pageUrl);
-    pImpl->releaseJsRuntime(std::move(threadJs));
-
-    fprintf(stderr, "[DEBUG] parts.size()=%zu\n", parts.size());
-    if (parts.empty()) return article.description;
-
-    // 合并所有提取的片段
-    std::string content;
-    for (const auto& p : parts) {
-        if (!content.empty()) content += "\n\n";
-        content += detail::decodeHtmlEntities(p);
-    }
-    return content;
+    if (!article.id) return {"", "文章不存在", ""};
+    auto source = pImpl->db->getRssSourceByUrl(article.sourceUrl);
+    if (!source) return {article.content, "订阅源不存在", ""};
+    try {
+        RssPipeline pipeline(*source, pImpl->httpClientFunc, pImpl->httpFunc);
+        return loadRssContent(pipeline, article);
+    } catch (const std::exception& error) { return {"", error.what(), ""}; }
 }
 
 void BookSourceEngine::clearAllRss() {

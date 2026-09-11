@@ -104,7 +104,9 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
             int page = int_param(req, "page", 1);
             int pageSize = int_param(req, "page_size", 50);
             with_error_handling(res, [&] {
-                auto result = engine.getRssArticles(sourceUrl, page, pageSize);
+                auto result = param(req, "load") == "1"
+                    ? engine.loadRssArticles(sourceUrl, page, pageSize)
+                    : engine.getRssArticles(sourceUrl, page, pageSize);
                 json arr = json::array();
                 for (const auto& a : result.articles) {
                     // 占位 link（源URL#item-N，原文无真实外链）对外输出为空，
@@ -125,6 +127,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
                 json_ok(res, {
                     {"articles", arr},
                     {"total", result.total},
+                    {"error", sanitizeUtf8(result.error)},
                     {"page", page},
                     {"pageSize", pageSize},
                 });
@@ -139,16 +142,17 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
             with_error_handling(res, [&] {
                 int64_t id = std::stoll(idRaw);
                 auto a = engine.getRssArticle(id);
-                std::string content = a.content;
-                if (content.empty()) content = engine.getRssArticleContent(id);
-                std::string outLink =
-                    (a.link.find("#item-") != std::string::npos) ? "" : a.link;
+                if (!a.id) { json_error(res, 404, "文章不存在"); return; }
+                auto result = engine.getRssArticleContentResult(id);
+                const auto& content = result.content;
+                const auto& outLink = result.originalUrl;
                 json_ok(res, {
                     {"id", a.id},
                     {"title", sanitizeUtf8(a.title)},
                     {"url", sanitizeUtf8(outLink)},
                     {"link", sanitizeUtf8(outLink)},
                     {"content", sanitizeUtf8(content)},
+                    {"contentError", sanitizeUtf8(result.error)},
                     {"description", sanitizeUtf8(a.description)},
                     {"pubDate", a.pubDate},
                     {"sourceUrl", sanitizeUtf8(a.sourceUrl)},
@@ -219,6 +223,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
                     std::string sse = "event: check_done\ndata: " + safeDump(done_ev) + "\n\n";
                     std::lock_guard<std::mutex> lk(sink_mu);
                     sink.write(sse.data(), sse.size());
+                    sink.done();
                     return true;
                 });
         });

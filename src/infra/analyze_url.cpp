@@ -201,16 +201,8 @@ void AnalyzeUrl::replaceKeyPageJs() {
         } else if (inner == "page") {
             newUrl += std::to_string(page_);
         } else if (js_ && !inner.empty()) {
-            // 内嵌 JS 规则，执行
-            std::string wrappedJs =
-                "var baseUrl = " + json(baseUrl_).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + ";\n"
-                "var key = " + json(key_).dump(-1, ' ', false, nlohmann::json::error_handler_t::replace) + ";\n"
-                "var page = " + std::to_string(page_) + ";\n"
-                "var result = '';\n"
-                "var java = { put: function(k, v) { }, get: function(k) { return ''; } };\n"
-                + inner + "\n";
-
-            auto evalResult = js_->eval(wrappedJs);
+            // Use the same bindings as content rules (source variables and real AJAX).
+            auto evalResult = js_->evalRuleJs(inner, "", baseUrl_, key_, page_);
             if (!evalResult.empty()) {
                 // Double 整数格式化为无小数点
                 newUrl += evalResult;

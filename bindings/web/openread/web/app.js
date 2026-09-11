@@ -131,6 +131,7 @@ async function shutdownServer() {
 // ──────────────────────────────────────────────
 
 function switchTab(name) {
+    if (typeof invalidateRssNavigation === 'function') invalidateRssNavigation();
     if (name !== 'debug' && typeof stopSourceDebug === 'function') stopSourceDebug();
     currentActiveTab = name;
     // E6: 记住最后浏览的 Tab，刷新页面不回默认
@@ -236,7 +237,26 @@ async function evalJs() {
 // 初始化
 // ──────────────────────────────────────────────
 
+function setSourceSidebarCollapsed(collapsed) {
+    const sidebar = document.getElementById('sourceSidebar');
+    const toggle = document.getElementById('sidebarToggle');
+    if (!sidebar || !toggle) return;
+    sidebar.hidden = collapsed;
+    toggle.textContent = collapsed ? '▶ 展开书源' : '◀ 收起书源';
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.title = collapsed ? '展开书源列表' : '收起书源列表';
+    try { localStorage.setItem('openread_sidebar_collapsed', String(collapsed)); } catch {}
+}
+
+function toggleSourceSidebar() {
+    const sidebar = document.getElementById('sourceSidebar');
+    if (sidebar) setSourceSidebarCollapsed(!sidebar.hidden);
+}
+
 async function init() {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem('openread_sidebar_collapsed') === 'true'; } catch {}
+    setSourceSidebarCollapsed(collapsed);
     loadPrefs();
     try {
         const r = await fetch(`${API}/api/health`);

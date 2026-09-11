@@ -470,6 +470,7 @@ var java = {
 var source = { get: function(k){ try { return __varget('source_' + k); } catch(e){ return ''; } },
                put: function(k,v){ try { __varput('source_' + k, '' + v); } catch(e){} },
                getVariable: function(){ try { return __varget('source_variable'); } catch(e){ return ''; } },
+               setVariable: function(v){ try { __varput('source_variable', ''+v); } catch(e){} return ''; },
                key:'', bookSourceUrl:'', bookSourceName:'', sourceComment:'' };
 var cookie = java.cookie;
 var cache = java.cache;

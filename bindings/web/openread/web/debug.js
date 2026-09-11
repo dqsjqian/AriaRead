@@ -10,14 +10,6 @@ function renderDebugPanel() {
     const el = document.getElementById('results');
     if (!el) return;
 
-    // 从 sourcesData 过滤出有 searchUrl 的书源
-    const available = (sourcesData || []).filter(s => s.search_url);
-    const optionsHtml = available.map(s => {
-        const latency = typeof s.latency === 'number' ? ` · ${s.latency}ms` : '';
-        const grade = s.validity ? ` [${s.validity}]` : '';
-        return `<option value="${esc2(s.url)}">${esc2(s.name)}${latency}${esc2(grade)}</option>`;
-    }).join('');
-
     el.innerHTML = `
         <div class="section-title">🔧 书源调试</div>
         <p style="color:var(--text2);font-size:13px;margin-bottom:14px">
@@ -25,15 +17,45 @@ function renderDebugPanel() {
         </p>
         <div class="debug-toolbar">
             <select id="debugSourceSelect" class="debug-input">
-                <option value="">-- 选择书源 --</option>
-                ${optionsHtml}
+                <option value="">正在加载书源…</option>
             </select>
+            <button class="btn" onclick="loadDebugSources()">刷新书源</button>
             <input type="text" id="debugKeyword" class="debug-input" placeholder="测试关键词" value="我">
             <button class="btn btn-primary" onclick="runSourceDebug()">▶ 开始调试</button>
             <button class="btn" id="debugStopBtn" onclick="stopSourceDebug()" style="display:none">⏹ 停止</button>
         </div>
         <div id="debugSteps" style="display:flex;flex-direction:column;gap:12px"></div>
     `;
+    loadDebugSources();
+}
+
+let _debugSourcesRequest = 0;
+async function loadDebugSources() {
+    const select = document.getElementById('debugSourceSelect');
+    if (!select) return;
+    const request = ++_debugSourcesRequest;
+    const selected = select.value;
+    select.disabled = true;
+    select.innerHTML = '<option value="">正在加载书源…</option>';
+    try {
+        const response = await fetch(`${API}/api/sources`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        if (request !== _debugSourcesRequest || document.getElementById('debugSourceSelect') !== select) return;
+        const available = (data.sources || []).filter(source => source.search_url);
+        select.innerHTML = `<option value="">${available.length ? '-- 选择书源 --' : '暂无可搜索书源，请先导入'}</option>` +
+            available.map(source => {
+                const latency = typeof source.latency === 'number' && source.latency >= 0 ? ` · ${source.latency}ms` : '';
+                return `<option value="${esc2(source.url)}">${esc2(source.name)}${latency}${source.validity ? ` [${esc2(source.validity)}]` : ''}</option>`;
+            }).join('');
+        if (available.some(source => source.url === selected)) select.value = selected;
+    } catch (error) {
+        if (request !== _debugSourcesRequest || document.getElementById('debugSourceSelect') !== select) return;
+        select.innerHTML = `<option value="">书源加载失败：${esc2(error.message)}，请刷新书源</option>`;
+    } finally {
+        if (request === _debugSourcesRequest && document.getElementById('debugSourceSelect') === select) select.disabled = false;
+    }
 }
 
 function stopSourceDebug() {

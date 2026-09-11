@@ -206,6 +206,10 @@ int main(int argc, char** argv) {
 
     // ── 5. 注册 REST 路由 ───────────────────────────────────────────
     auto& svr = adapter->native_server();
+    // Revalidate assets after a build; stale CSS/JS can otherwise mix app versions.
+    svr.set_file_request_handler([](const httplib::Request&, httplib::Response& response) {
+        response.set_header("Cache-Control", "no-cache");
+    });
     openread::web::register_routes(svr, engine, ui, worker, svm, bvm, rvm, srcvm);
 
     std::cout << "OpenRead Web Server running:\n"

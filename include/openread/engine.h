@@ -500,8 +500,8 @@ public:
 
     /// 检测 RSS 源并按延迟评级（不删除，仅更新 validity/latencyMs 并持久化）。
     /// 评级标准（对齐 legado/书源检测）：
-    ///   优 excellent: < 1000ms；良 good: < 3000ms；差 poor: < 6000ms；
-    ///   无效 invalid: ≥ 6000ms 或 连接失败 或 无内容。
+    ///   无有效文章为 invalid；列表或抽样正文出错为 poor。
+    ///   列表与抽样正文均可读时按总耗时评级：< 1000ms excellent，< 3000ms good，否则 poor。
     /// @param progressCallback (done, total, currentUrl, validity, latencyMs)
     void checkRssSourcesRated(
         std::function<void(int done, int total, const std::string& current,
@@ -514,11 +514,15 @@ public:
     /// 获取 RSS 文章列表（分页）
     RssArticleListResult getRssArticles(const std::string& sourceUrl, int page, int pageSize);
 
+    /// 打开 RSS 列表：有缓存直接读取，无缓存时抓取一次并返回诊断（不依赖导入时间戳）。
+    RssArticleListResult loadRssArticles(const std::string& sourceUrl, int page = 1, int pageSize = 50);
+
     /// 获取单篇 RSS 文章
     RssArticle getRssArticle(int64_t id);
 
     /// 获取单篇 RSS 文章的正文内容（懒加载：点击时才抓取）
     std::string getRssArticleContent(int64_t articleId);
+    RssContentResult getRssArticleContentResult(int64_t articleId);
 
     /// 清空所有 RSS 数据
     void clearAllRss();
@@ -547,7 +551,7 @@ private:
     /// @param src    完整订阅源（含规则字段）
     /// @param result 出参，失败时写入 error
     /// @return 解析到的文章列表
-    std::vector<RssArticle> fetchRssByRule(const RssSource& src, RssFetchResult& result);
+
 };
 
 } // namespace openread

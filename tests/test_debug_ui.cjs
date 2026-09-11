@@ -77,5 +77,25 @@ context._debugAppendStep = (...args) => cards.push(args);
     await context.evalJs();
     assert.match(element('jsOutput').textContent, /offline/);
     assert.equal(element('jsRunBtn').disabled, false);
+    // The debug panel must work before the global source cache is populated.
+    vm.runInContext('sourcesData = []', context);
+    let deliver;
+    context.fetch = () => new Promise(resolve => { deliver = resolve; });
+    const loading = context.loadDebugSources();
+    assert.equal(element('debugSourceSelect').disabled, true);
+    deliver({ok: true, json: async () => ({sources: [
+        {url: 'https://source.test', name: '<Source>', search_url: '/search', latency: 12},
+        {url: 'https://browse.test', name: 'Browse only', search_url: ''},
+    ]})});
+    await loading;
+    assert.match(element('debugSourceSelect').innerHTML, /&lt;Source&gt;/);
+    assert.doesNotMatch(element('debugSourceSelect').innerHTML, /Browse only/);
+    context.fetch = async () => { throw new Error('offline'); };
+    await context.loadDebugSources();
+    assert.match(element('debugSourceSelect').innerHTML, /书源加载失败/);
+    assert.equal(element('debugSourceSelect').disabled, false);
+    context.fetch = async () => ({ok: true, json: async () => ({sources: []})});
+    await context.loadDebugSources();
+    assert.match(element('debugSourceSelect').innerHTML, /暂无可搜索书源/);
     console.log('调试页面会话隔离、HTML 转义、控制台日志与错误恢复测试通过');
 })().catch(error => { console.error(error); process.exitCode = 1; });

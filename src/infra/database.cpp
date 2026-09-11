@@ -1166,39 +1166,43 @@ static void deserializeRssSourceExtras(RssSource& s, const std::string& jsonStr)
     if (jsonStr.empty()) return;
     try {
         json j = json::parse(sanitizeUtf8(jsonStr));
-        s.sourceComment = j.value("sourceComment", "");
-        s.variableComment = j.value("variableComment", "");
-        s.jsLib = j.value("jsLib", "");
-        s.enabledCookieJar = j.value("enabledCookieJar", 1);
-        s.concurrentRate = j.value("concurrentRate", "");
-        s.header = j.value("header", "");
-        s.loginUrl = j.value("loginUrl", "");
-        s.loginUi = j.value("loginUi", "");
-        s.loginCheckJs = j.value("loginCheckJs", "");
-        s.coverDecodeJs = j.value("coverDecodeJs", "");
-        s.singleUrl = j.value("singleUrl", 0);
-        s.ruleArticles = j.value("ruleArticles", "");
-        s.ruleNextPage = j.value("ruleNextPage", "");
-        s.ruleTitle = j.value("ruleTitle", "");
-        s.rulePubDate = j.value("rulePubDate", "");
-        s.ruleDescription = j.value("ruleDescription", "");
-        s.ruleImage = j.value("ruleImage", "");
-        s.ruleLink = j.value("ruleLink", "");
-        s.ruleContent = j.value("ruleContent", "");
-        s.contentWhitelist = j.value("contentWhitelist", "");
-        s.contentBlacklist = j.value("contentBlacklist", "");
-        s.shouldOverrideUrlLoading = j.value("shouldOverrideUrlLoading", "");
-        s.style = j.value("style", "");
-        s.enableJs = j.value("enableJs", 1);
-        s.loadWithBaseUrl = j.value("loadWithBaseUrl", 1);
-        s.injectJs = j.value("injectJs", "");
-        // 只在 JSON 中的 __validity 与 DB 列的 validity 不同时才覆盖
-        auto json_validity = j.value("__validity", std::string("unknown"));
-        auto db_validity = sanitizeUtf8(j["validity"].get<std::string>());
-        if (json_validity != db_validity) {
-            s.validity = json_validity;
-        }
-        // 否则保留 DB 列的值（防止刷新时计数增长）
+        auto text = [&](const char* key) -> std::string {
+            auto it = j.find(key);
+            return it != j.end() && it->is_string() ? it->get<std::string>() : std::string();
+        };
+        auto flag = [&](const char* key, int fallback) {
+            auto it = j.find(key);
+            if (it == j.end()) return fallback;
+            if (it->is_boolean()) return it->get<bool>() ? 1 : 0;
+            return it->is_number_integer() ? it->get<int>() : fallback;
+        };
+        s.sourceComment = text("sourceComment");
+        s.variableComment = text("variableComment");
+        s.jsLib = text("jsLib");
+        s.enabledCookieJar = flag("enabledCookieJar", 1);
+        s.concurrentRate = text("concurrentRate");
+        s.header = text("header");
+        s.loginUrl = text("loginUrl");
+        s.loginUi = text("loginUi");
+        s.loginCheckJs = text("loginCheckJs");
+        s.coverDecodeJs = text("coverDecodeJs");
+        s.singleUrl = flag("singleUrl", 0);
+        s.ruleArticles = text("ruleArticles");
+        s.ruleNextPage = text("ruleNextPage");
+        s.ruleTitle = text("ruleTitle");
+        s.rulePubDate = text("rulePubDate");
+        s.ruleDescription = text("ruleDescription");
+        s.ruleImage = text("ruleImage");
+        s.ruleLink = text("ruleLink");
+        s.ruleContent = text("ruleContent");
+        s.contentWhitelist = text("contentWhitelist");
+        s.contentBlacklist = text("contentBlacklist");
+        s.shouldOverrideUrlLoading = text("shouldOverrideUrlLoading");
+        s.style = text("style");
+        s.enableJs = flag("enableJs", 1);
+        s.loadWithBaseUrl = flag("loadWithBaseUrl", 1);
+        s.injectJs = text("injectJs");
+        // Rating columns are authoritative; old JSON may contain a stale rating.
     } catch (...) {}
 }
 

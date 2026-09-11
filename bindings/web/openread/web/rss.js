@@ -10,12 +10,20 @@ let rssCurrentView = 'sources';   // sources | articles | reader
 let rssCurrentSource = null;
 let rssCurrentArticle = null;
 let rssIsFetching = false;
+let rssNavigationId = 0;
+let rssPanelActive = false;
+function invalidateRssNavigation() { ++rssNavigationId; rssPanelActive = false; }
+let rssListRequest = 0;
+const rssFetches = new Map();
+const rssFetchErrors = new Map();
 
 // ──────────────────────────────────────────────
 // 主面板渲染
 // ──────────────────────────────────────────────
 
 function renderRssPanel() {
+    ++rssNavigationId;
+    rssPanelActive = true;
     const el = document.getElementById('results');
     if (!el) return;
 
@@ -226,11 +234,7 @@ async function openRssArticles(sourceUrl) {
     if (!rssCurrentSource) return;
     rssCurrentView = 'articles';
     renderRssPanel();
-    // 如果该源从未更新过（lastUpdateTime 为 0 或不存在），自动抓取
-    if (!rssCurrentSource.lastUpdateTime || rssCurrentSource.lastUpdateTime === 0) {
-        rssIsFetching = false;
-        await fetchRssSource(sourceUrl);
-    }
+
 }
 
 function renderRssArticlesView(container) {
@@ -249,28 +253,39 @@ function renderRssArticlesView(container) {
             <div class="loading"><div class="spinner"></div><div class="loading-text">加载内容...</div></div>
         </div>
     `;
-    loadRssArticles(source.sourceUrl);
+    loadRssArticles(source.sourceUrl, 1, true);
 }
 
-async function loadRssArticles(sourceUrl, page = 1) {
+async function loadRssArticles(sourceUrl, page = 1, openSource = false) {
+    const request = ++rssListRequest;
+    const navigation = rssNavigationId;
+    const active = () => request === rssListRequest && navigation === rssNavigationId &&
+        rssCurrentView === 'articles' && rssCurrentSource?.sourceUrl === sourceUrl &&
+        !!document.getElementById('rssArticleList');
     try {
-        const r = await fetch(`${API}/api/rss/articles?source_url=${encodeURIComponent(sourceUrl)}&page=${page}&page_size=50`);
+        const r = await fetch(`${API}/api/rss/articles?source_url=${encodeURIComponent(sourceUrl)}&page=${page}&page_size=50&load=${openSource ? 1 : 0}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
-        if (d.error) { toast(d.error, 'error'); return; }
+        if (!active()) return;
         rssArticlesData = d.articles || [];
+        if (d.error) rssFetchErrors.set(sourceUrl, d.error);
+        else if (openSource) rssFetchErrors.delete(sourceUrl);
         renderRssArticleList(d.total || 0, page);
     } catch (e) {
-        console.error('loadRssArticles:', e);
-        document.getElementById('rssArticleList').innerHTML = `
-            <div class="empty"><div class="icon">📄</div><h3>加载失败</h3><p>${esc(e.message)}</p></div>`;
+        if (!active()) return;
+        rssFetchErrors.set(sourceUrl, '加载列表失败: ' + e.message);
+        rssArticlesData = [];
+        renderRssArticleList(0, page);
     }
 }
 
 function renderRssArticleList(total, page) {
     const el = document.getElementById('rssArticleList');
     if (!el) return;
+    const error = rssFetchErrors.get(rssCurrentSource?.sourceUrl);
+    const errorHtml = error ? `<div class="empty"><h3>加载失败</h3><p>${esc(error)}</p><button class="btn" onclick="fetchRssSource(rssCurrentSource.sourceUrl)">重试</button></div>` : '';
     if (!rssArticlesData.length) {
-        el.innerHTML = `
+        el.innerHTML = errorHtml || `
             <div class="empty">
                 <div class="icon">📄</div>
                 <h3>暂无内容</h3>
@@ -279,7 +294,7 @@ function renderRssArticleList(total, page) {
         return;
     }
 
-    el.innerHTML = rssArticlesData.map(a => {
+    el.innerHTML = errorHtml + rssArticlesData.map(a => {
         const dateStr = a.pubDate
             ? new Date(a.pubDate * 1000).toLocaleString('zh-CN')
             : '';
@@ -300,83 +315,50 @@ function renderRssArticleList(total, page) {
 // ──────────────────────────────────────────────
 
 async function openRssArticle(articleId) {
+    rssCurrentArticle = {...(rssArticlesData.find(article => article.id === articleId) || {}), id: articleId, loading: true};
+    rssCurrentView = 'reader';
+    renderRssPanel();
+    const navigation = rssNavigationId;
+    const active = () => navigation === rssNavigationId && rssCurrentView === 'reader';
     try {
         const r = await fetch(`${API}/api/rss/article?id=${articleId}`);
         const d = await r.json();
-        if (d.error) { toast(d.error, 'error'); return; }
+        if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+        if (!active()) return;
         rssCurrentArticle = d;
-        rssCurrentView = 'reader';
-        renderRssPanel();
     } catch (e) {
-        toast('加载内容失败: ' + e.message, 'error');
+        if (!active()) return;
+        rssCurrentArticle = {...rssCurrentArticle, loading: false, content: '', contentError: '加载内容失败: ' + e.message};
     }
+    if (active()) renderRssReaderView(document.getElementById('results'));
 }
 
 function renderRssReaderView(container) {
     const art = rssCurrentArticle;
-    if (!art) {
-        container.innerHTML = `<div class="empty"><div class="icon">📄</div><h3>内容不存在</h3></div>`;
-        return;
+    if (!art || !container) return;
+    const dateStr = art.pubDate ? new Date(art.pubDate * 1000).toLocaleString('zh-CN') : '';
+    const originalUrl = /^https?:\/\//i.test(art.link || '') ? art.link : '';
+    const originalBtn = originalUrl ? `<a class="btn" href="${esc2(originalUrl)}" target="_blank" rel="noopener noreferrer">原文 ↗</a>` : '';
+    const content = art.content || '';
+    const error = art.contentError || (!art.loading && !content ? '没有可显示的正文，请重试或打开原文。' : '');
+    const errorHtml = error ? `<div class="empty"><h3>正文加载失败</h3><p>${esc(error)}</p><button class="btn" onclick="openRssArticle(${art.id})">重试</button></div>` : '';
+    let bodyHtml = '';
+    if (art.loading) {
+        bodyHtml = '<div class="loading"><div class="spinner"></div><p>正在加载正文…</p></div>';
+    } else if (content) {
+        // Render even short content. Remote frames often refuse embedding and show a blank page.
+        // All source HTML is isolated from the app, without sharing the app's origin.
+        const base = originalUrl || (/^https?:\/\//i.test(art.sourceUrl || '') ? art.sourceUrl : '');
+        const html = /<[a-z!][\s\S]*>/i.test(content) ? content : `<pre style="white-space:pre-wrap">${esc(content)}</pre>`;
+        const doc = `<!doctype html><html><head><meta charset="utf-8"><base href="${esc2(base)}" target="_blank"><style>body{font:16px/1.7 sans-serif;padding:16px;overflow-wrap:anywhere}img,video{max-width:100%;height:auto}</style></head><body>${html}</body></html>`;
+        bodyHtml = `<iframe class="rss-reader-frame" title="文章正文" srcdoc="${esc2(doc)}"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            style="width:100%;height:calc(100vh - 200px);border:0;border-radius:8px;background:#fff"></iframe>`;
     }
-
-    const dateStr = art.pubDate
-        ? new Date(art.pubDate * 1000).toLocaleString('zh-CN')
-        : '';
-    const content = art.content || art.description || '';
-
-    // 判断正文是否为「完整 HTML 页面」（含 script/style/head/meta/html 等页面级标签）。
-    // legado 复杂图片源（如壁纸喵）的 ruleContent 返回一整套带 ViewerJS + 瀑布流脚本的
-    // HTML 页面，若直接 innerHTML 注入主文档，其全局 <style>/<script> 会污染并破坏整个
-    // App 布局。对齐 legado 的 WebView 隔离，这类内容用 <iframe srcdoc> 沙箱渲染。
-    const isFullPage = /<\s*(script|style|head|meta|title|link|!doctype|html|body)\b/i.test(content);
-
-    // 检测是否为 SPA 应用（内容太短，只有一个空壳 div）
-    // 这种情况下，服务器端抓取的 HTML 无法渲染，需要直接加载原网页
-    const isSpaShell = content.length < 500 && /<div\s+id=["'](?:app|root|__next)["']\s*><\/div>/i.test(content);
-
-    const imageHeader = art.image
-        ? `<img src="${esc2(art.image)}" style="max-width:100%;border-radius:8px;margin-bottom:16px" onerror="this.style.display='none'">`
-        : '';
-
-    // 仅当存在真实的、http(s) 外链时才显示「原文」按钮：
-    // 空 link 会让 <a href=""> 解析成当前页（localhost）；
-    // 占位 link（源URL#item-N）非真实原文，也不应显示。
-    const hasOriginal = art.link
-        && /^https?:\/\//i.test(art.link)
-        && art.link.indexOf('#item-') === -1;
-    const originalBtn = hasOriginal
-        ? `<a class="btn" href="${esc2(art.link)}" target="_blank" rel="noopener">原文 ↗</a>`
-        : '';
-
-    let bodyHtml;
-    if (hasOriginal && (isSpaShell || content.length < 200)) {
-        // SPA 应用或内容太短：直接用 iframe 加载原网页 URL（对齐 legado WebView 行为）
-        // 这样可以让浏览器执行 JavaScript，渲染出完整内容
-        bodyHtml = `<iframe class="rss-reader-frame" src="${esc2(art.link)}"
-            sandbox="allow-scripts allow-same-origin allow-popups"
-            style="width:100%;height:calc(100vh - 160px);border:0;border-radius:8px;background:#fff"></iframe>`;
-    } else if (isFullPage) {
-        // 沙箱渲染：iframe 与主文档完全隔离（独立 DOM/CSS/JS），允许脚本执行以支持
-        // 瀑布流懒加载、图片查看器等。高度自适应，铺满阅读区。
-        bodyHtml = `<iframe class="rss-reader-frame" srcdoc="${esc2(content)}"
-            sandbox="allow-scripts allow-same-origin allow-popups"
-            style="width:100%;height:calc(100vh - 160px);border:0;border-radius:8px;background:#fff"></iframe>`;
-    } else {
-        bodyHtml = `<div class="rss-reader-body">${content}</div>`;
-    }
-
-    container.innerHTML = `
-        <div class="rss-reader-header">
-            <button class="btn" onclick="rssCurrentView='articles';renderRssPanel()">← 返回列表</button>
-            ${originalBtn}
-        </div>
-        <div class="rss-reader-content">
-            <h1 class="rss-reader-title">${esc(art.title)}</h1>
-            <div class="rss-reader-meta">${dateStr}</div>
-            ${isFullPage ? '' : imageHeader}
-            ${bodyHtml}
-        </div>
-    `;
+    container.innerHTML = `<div class="rss-reader-header">
+            <button class="btn" onclick="rssCurrentView='articles';renderRssPanel()">← 返回列表</button>${originalBtn}
+        </div><div class="rss-reader-content"><h1 class="rss-reader-title">${esc(art.title || '')}</h1>
+            <div class="rss-reader-meta">${dateStr}</div>${errorHtml}${bodyHtml}</div>`;
 }
 
 // ──────────────────────────────────────────────
@@ -618,28 +600,28 @@ async function deleteAndBack(url, name) {
 }
 
 async function fetchRssSource(url) {
-    if (rssIsFetching) return;
-    rssIsFetching = true;
-    toast('🔄 正在抓取...', 'success');
-    try {
-        const r = await fetch(`${API}/api/rss/fetch`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({sourceUrl: url}),
-        });
-        const d = await r.json();
-        if (d.error) { toast(d.error, 'error'); }
-        else { toast(`✅ 抓到 ${d.count || 0} 篇内容`, 'success'); }
-
-        if (rssCurrentView === 'articles' && rssCurrentSource && rssCurrentSource.sourceUrl === url) {
-            await loadRssArticles(url);
-        } else {
-            await refreshRssSources();
+    if (rssFetches.has(url)) return rssFetches.get(url);
+    const operation = (async () => {
+        rssIsFetching = true;
+        rssFetchErrors.delete(url);
+        try {
+            const r = await fetch(`${API}/api/rss/fetch`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sourceUrl: url}),
+            });
+            const d = await r.json();
+            if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+            toast(`抓到 ${d.count || 0} 篇内容`, 'success');
+        } catch (e) {
+            rssFetchErrors.set(url, '抓取失败: ' + e.message);
+            toast('抓取失败: ' + e.message, 'error');
         }
-    } catch (e) {
-        toast('抓取失败: ' + e.message, 'error');
-    } finally {
-        rssIsFetching = false;
-    }
+        if (rssPanelActive && rssCurrentView === 'articles' && rssCurrentSource?.sourceUrl === url) await loadRssArticles(url);
+        else if (rssPanelActive && rssCurrentView === 'sources') await refreshRssSources();
+    })();
+    rssFetches.set(url, operation);
+    try { await operation; }
+    finally { rssFetches.delete(url); rssIsFetching = rssFetches.size > 0; }
 }
 
 let rssCheckEvtSource = null;

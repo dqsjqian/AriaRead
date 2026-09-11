@@ -267,6 +267,9 @@ HttpResponse performCurlRequest(const HttpRequest& req) {
     long status = 0;
     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
 
+    char* effectiveUrl = nullptr;
+    curl_easy_getinfo(curl.get(), CURLINFO_EFFECTIVE_URL, &effectiveUrl);
+    if (effectiveUrl) resp.effectiveUrl = effectiveUrl;
     resp.statusCode = static_cast<int>(status);
     resp.body = std::move(responseBody.body);
     return resp;

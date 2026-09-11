@@ -224,6 +224,31 @@ class DebugHttpTests(unittest.TestCase):
         self.assertTrue(events[-1][1]['error'])
         self.assertEqual(self.request('GET', '/api/health')[0], 200)
 
+    def test_rss_list_content_failure_and_asset_revalidation(self):
+        origin = f'http://127.0.0.1:{self.source_server.server_port}/ok'
+        source = {'sourceUrl': origin, 'sourceName': 'RSS fixture', 'singleUrl': False,
+                  'sortUrl': origin + '/search', 'ruleArticles': '$.books[*]',
+                  'ruleTitle': '$.name', 'ruleLink': '$.url', 'ruleContent': '$.chapters[0].title'}
+        status, body, _ = self.request('POST', '/api/rss/import/json', json.dumps({'json': json.dumps(source)}))
+        self.assertEqual(status, 200, body)
+        status, body, _ = self.request('GET', '/api/rss/articles?' + urlencode({'source_url': origin, 'load': 1}))
+        self.assertEqual(json.loads(body)['total'], 1, body)
+        article = json.loads(body)['articles'][0]
+        status, body, _ = self.request('GET', '/api/rss/article?id=' + str(article['id']))
+        self.assertEqual(status, 200, body)
+        self.assertEqual(json.loads(body)['content'], '第一章')
+        self.assertEqual(json.loads(body)['contentError'], '')
+        source['ruleContent'] = '$.missing'
+        self.request('POST', '/api/rss/import/json', json.dumps({'json': json.dumps(source)}))
+        status, body, _ = self.request('GET', '/api/rss/article?id=' + str(article['id']))
+        self.assertTrue(json.loads(body)['contentError'], body)
+        status, body, _ = self.request('GET', '/api/rss/check/stream')
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body.count('event: check_done'), 1, body)
+        self.assertEqual(body.count('event: check_progress'), 1, body)
+        self.assertEqual(self.request('GET', '/api/rss/article?id=999999999')[0], 404)
+        self.assertEqual(self.request('GET', '/style.css')[2].get('Cache-Control'), 'no-cache')
+
     def test_console_result_and_isolation(self):
         status, raw, _ = self.request('POST', '/api/eval', json.dumps({
             'code': "globalThis.saved = 7; console.log('hello'); 42"}))

@@ -25,6 +25,7 @@ set(ENGINE_TEST_SOURCES
     test_engine_integration.cpp
     test_engine_validate.cpp
     test_engine_bookshelf.cpp
+    test_engine_rss.cpp
 )
 
 add_executable(openread-tests ${ENGINE_TEST_SOURCES})
@@ -102,6 +103,9 @@ if(OPENREAD_BUILD_WEB_TESTS)
         add_test(NAME openread-debug-ui
             COMMAND "${OPENREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_ui.cjs")
         set_tests_properties(openread-debug-ui PROPERTIES TIMEOUT 20 LABELS "web;debug")
+        add_test(NAME openread-rss-ui
+            COMMAND "${OPENREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_rss_ui.cjs")
+        set_tests_properties(openread-rss-ui PROPERTIES TIMEOUT 20 LABELS "web;rss")
     else()
         message(STATUS "Skipping openread-debug-ui: Node.js 18 or newer was not found")
     endif()
