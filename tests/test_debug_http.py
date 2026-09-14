@@ -299,7 +299,7 @@ class DebugHttpTests(unittest.TestCase):
                     shutil.copy2(library, runtime_dir / library.name)
         shutil.copytree(SERVER_BINARY.parent / 'web', runtime_dir / 'web')
         marker = 'This asset is only in the relocated runtime.'
-        (runtime_dir / 'web/runtime-probe.txt').write_text(marker)
+        (runtime_dir / 'web/runtime-probe.txt').write_text(marker, encoding='utf-8')
         with socket.socket() as probe:
             probe.bind(('127.0.0.1', 0))
             port = probe.getsockname()[1]
@@ -328,7 +328,7 @@ class DebugHttpTests(unittest.TestCase):
             self.fail('Relocated runtime did not serve its adjacent assets')
         status, body, _ = http_request(port, 'GET', '/debug.js')
         self.assertEqual(status, 200)
-        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text())
+        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text(encoding='utf-8'))
 
     def test_console_invalid_inputs(self):
         bodies = ['{', '[]', 'null', '{}', '{"code":42}', '{"code":null}', '{"code":""}']

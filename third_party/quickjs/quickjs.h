@@ -244,12 +244,44 @@ typedef struct JSValue {
 
 /* avoid uninitialized data by using a 64 bit field even if only 32
    bits are needed because some compilers generate slower code */
+/* MSVC 兼容：compound literal 是 C99 特性，MSVC 的 C++ 模式直接报
+   C4576（头文件会被下游 C++ TU include）；嵌套形式（JSValueUnion in
+   JSValue）在 C 模式同样触发。MSVC 下改用辅助函数构造。 */
+static js_force_inline JSValue js_mkval_impl(int64_t tag, uint64_t val)
+{
+    JSValue v;
+    v.u.uint64 = val;
+    v.tag = tag;
+    return v;
+}
+
+static js_force_inline JSValue js_mkptr_impl(int64_t tag, void *ptr)
+{
+    JSValue v;
+    v.u.ptr = ptr;
+    v.tag = tag;
+    return v;
+}
+
+static js_force_inline JSValue js_nan_impl(void)
+{
+    JSValue v;
+    v.u.uint64 = 0x7ff8000000000000ULL; /* quiet NaN bit pattern (JS_FLOAT64_NAN) */
+    v.tag = JS_TAG_FLOAT64;
+    return v;
+}
+
+#if defined(_MSC_VER)
+#define JS_MKVAL(tag, val) js_mkval_impl(tag, (uint32_t)(val))
+#define JS_MKPTR(tag, p) js_mkptr_impl(tag, p)
+#define JS_NAN js_nan_impl()
+#else
 #define JS_MKVAL(tag, val) (JSValue){ (JSValueUnion){ .uint64 = (uint32_t)(val) }, tag }
 #define JS_MKPTR(tag, p) (JSValue){ (JSValueUnion){ .ptr = p }, tag }
+#define JS_NAN (JSValue){ .u.float64 = JS_FLOAT64_NAN, JS_TAG_FLOAT64 }
+#endif
 
 #define JS_TAG_IS_FLOAT64(tag) ((unsigned)(tag) == JS_TAG_FLOAT64)
-
-#define JS_NAN (JSValue){ .u.float64 = JS_FLOAT64_NAN, JS_TAG_FLOAT64 }
 
 static inline JSValue __JS_NewFloat64(JSContext *ctx, double d)
 {
