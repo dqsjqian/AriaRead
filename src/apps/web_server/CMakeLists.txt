@@ -31,7 +31,7 @@ target_link_libraries(openread_web_server
         openread_vm       # ViewModel 层（PUBLIC 传递 openread/aria::core/aria::binding）
         aria::http        # HttpAdapter（PUBLIC 传递 aria::core/aria::abi/aria::binding）
         nlohmann_json::nlohmann_json  # JSON 序列化
-        # libcurl_static 不需要显式链接：openread_vm → openread → CURL::libcurl 已传递
+        CURL::libcurl     # json_helpers.cpp 直接使用 curl 头文件与 API
 )
 
 # cpp-httplib 由 aria::http 通过 PUBLIC BUILD_INTERFACE 传递；

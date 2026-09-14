@@ -14,6 +14,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows:
+    name: Build and regressions (Windows UCRT64)
+    runs-on: windows-2022
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git make perl
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-zlib
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-nodejs
+      - name: Configure bundled dependencies and tests
+        run: |
+          cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DOPENREAD_BUILD_TESTS=ON -DOPENREAD_BUILD_WEB_TESTS=ON \
+            -DOPENREAD_ENFORCE_SELF_CONTAINED=ON -DOPENREAD_USE_SYSTEM_CURL=OFF
+      - name: Build engine, ViewModels and Web server
+        run: cmake --build build/ci-win --parallel 3
+      - name: Run engine, ViewModel and Web regressions
+        run: |
+          export PATH="$PWD/build/ci-win/bin:$PATH"
+          ctest --test-dir build/ci-win --output-on-failure --no-tests=error --parallel 3 --timeout 120
+          ./build/ci-win/bin/openread_web_server.exe --help
+      - name: Upload build and test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openread-diagnostics-windows
+          path: |
+            build/ci-win/CMakeCache.txt
+            build/ci-win/CMakeFiles/CMakeConfigureLog.yaml
+            build/ci-win/Testing/Temporary/
+            build/ci-win/openssl_external-prefix/src/openssl_external-stamp/*.log
+          if-no-files-found: ignore
+
   build-and-test:
     name: Build and regressions (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
