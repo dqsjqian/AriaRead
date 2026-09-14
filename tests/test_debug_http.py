@@ -328,7 +328,10 @@ class DebugHttpTests(unittest.TestCase):
             self.fail('Relocated runtime did not serve its adjacent assets')
         status, body, _ = http_request(port, 'GET', '/debug.js')
         self.assertEqual(status, 200)
-        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text(encoding='utf-8', newline=''))
+        # newline='' 保留磁盘原始行尾（Windows checkout 为 CRLF，server 二进制
+        # 透传返回相同字节）；Path.read_text 的 newline 参数要 3.13，改用 open()。
+        with open(runtime_dir / 'web/debug.js', encoding='utf-8', newline='') as f:
+            self.assertEqual(body, f.read())
 
     def test_console_invalid_inputs(self):
         bodies = ['{', '[]', 'null', '{}', '{"code":42}', '{"code":null}', '{"code":""}']
