@@ -14,6 +14,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  vs2026:
+    name: Build and regressions (VS2026 MSVC)
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+      # OpenSSL 的 MSVC 构建走 nmake + cl（ExternalProject），
+      # configure 期 find_program(nmake REQUIRED) 与 build 期 nmake 执行
+      # 都要求 VS 开发者环境在 PATH 里。
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure bundled dependencies and tests
+        run: |
+          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DOPENREAD_BUILD_TESTS=ON -DOPENREAD_BUILD_WEB_TESTS=ON -DOPENREAD_ENFORCE_SELF_CONTAINED=ON -DOPENREAD_USE_SYSTEM_CURL=OFF
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build engine, ViewModels and Web server
+        run: |
+          cmake --build build/ci-vs2026 --config Release --parallel 3
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run engine, ViewModel and Web regressions
+        run: |
+          $env:PATH = "$PWD\build\ci-vs2026\bin\Release;$env:PATH"
+          ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error --parallel 3 --timeout 120
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./build/ci-vs2026/bin/Release/openread_web_server.exe --help
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Upload build and test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openread-diagnostics-vs2026
+          path: |
+            build/ci-vs2026/CMakeCache.txt
+            build/ci-vs2026/CMakeFiles/CMakeConfigureLog.yaml
+            build/ci-vs2026/Testing/Temporary/
+            build/ci-vs2026/openssl_external-prefix/src/openssl_external-stamp/*.log
+          if-no-files-found: ignore
+
   windows:
     name: Build and regressions (Windows UCRT64)
     runs-on: windows-2022

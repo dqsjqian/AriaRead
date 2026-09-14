@@ -88,7 +88,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/openssl/Configure")
     include(${CMAKE_SOURCE_DIR}/cmake/BuildOpenSSL.cmake)
 else()
     message(FATAL_ERROR "OpenSSL source not found at third_party/openssl. "
-        "Please run: git clone --depth 1 --branch openssl-3.3.1 https://github.com/openssl/openssl.git third_party/openssl")
+        "Please run: git clone --depth 1 --branch openssl-4.0 https://github.com/openssl/openssl.git third_party/openssl")
 endif()
 
 # libcurl（HTTP 客户端）

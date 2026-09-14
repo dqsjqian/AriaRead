@@ -112,9 +112,20 @@ set(_OPENSSL_CONFIGURE_ARGS
     "--libdir=lib"        # 统一输出到 lib/ 而非 lib64/
 )
 
-# 新版 Clang（Apple Clang 17+ / Clang 16+）对 C99 implicit-int 等更严格，
-# OpenSSL 3.3.x 的宏展开会触发这些错误，需要通过 CFLAGS 抑制
-set(_OPENSSL_EXTRA_CFLAGS "-Wno-implicit-int -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-deprecated-non-prototype")
+if(WIN32 AND NOT MINGW)
+    # MSVC 分支注意两点：
+    # 1) cl.exe 不认识 gcc 风格的 -Wno-* 警告抑制参数（D9002 unknown option），
+    #    这些参数只为新版 Clang 准备，MSVC 下必须清空；
+    # 2) GitHub Windows runner 不预装 NASM，而 VC-WIN64A 默认启用汇编，
+    #    缺 nasm 会在 Configure 阶段直接失败。CI gate 场景用 no-asm 换取
+    #    零外部依赖（性能损失对回归门禁无意义）。
+    set(_OPENSSL_EXTRA_CFLAGS "")
+    list(APPEND _OPENSSL_CONFIGURE_ARGS "no-asm")
+else()
+    # 新版 Clang（Apple Clang 17+ / Clang 16+）对 C99 implicit-int 等更严格，
+    # OpenSSL 3.x 的宏展开会触发这些错误，需要通过 CFLAGS 抑制
+    set(_OPENSSL_EXTRA_CFLAGS "-Wno-implicit-int -Wno-incompatible-pointer-types -Wno-int-conversion -Wno-deprecated-non-prototype")
+endif()
 
 # 如果是 Android，需要设置 NDK 工具链
 if(ANDROID)
@@ -148,11 +159,16 @@ if(WIN32 AND MINGW)
         unset(_OPENSSL_BASH_COMMAND)
         find_program(_OPENSSL_BASH_COMMAND bash REQUIRED)
     endif()
+    # 注意：不要内嵌 `bash -c "export PATH=\"...\" && make ..."` —— 参数中间的
+    # 转义引号会破坏 ExternalProject 生成的 step 脚本（CMake "Argument not
+    # separated from preceding token" 警告 → 命令参数粘连 → bash 收到空命令
+    # 静默退出 0，OpenSSL 从未被编译）。改调独立脚本，argv 分离，无转义问题。
+    set(_OPENSSL_MINGW_HELPER "${CMAKE_SOURCE_DIR}/cmake/openssl-msys2.sh")
     set(_OPENSSL_BUILD_COMMAND
-        "${_OPENSSL_BASH_COMMAND}" -c "export PATH=\"$(cygpath -u '${_COMPILER_DIR}'):$(cygpath -u '${_PERL_DIR}'):\$PATH\" && make -j${NPROC}"
+        "${_OPENSSL_BASH_COMMAND}" "${_OPENSSL_MINGW_HELPER}" build "${_COMPILER_DIR}" "${_PERL_DIR}" "${NPROC}"
     )
     set(_OPENSSL_INSTALL_COMMAND
-        "${_OPENSSL_BASH_COMMAND}" -c "export PATH=\"$(cygpath -u '${_COMPILER_DIR}'):$(cygpath -u '${_PERL_DIR}'):\$PATH\" && make install_sw"
+        "${_OPENSSL_BASH_COMMAND}" "${_OPENSSL_MINGW_HELPER}" install "${_COMPILER_DIR}" "${_PERL_DIR}"
     )
     set(_OPENSSL_PATH_ENV "")
 elseif(WIN32 AND NOT MINGW)
@@ -219,7 +235,7 @@ set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}" CACHE PATH "" FORCE)
 set(OPENSSL_SSL_LIBRARY "${OPENSSL_SSL_LIBRARY}" CACHE FILEPATH "" FORCE)
 set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
 set(OPENSSL_LIBRARIES "${OPENSSL_SSL_LIBRARY};${OPENSSL_CRYPTO_LIBRARY}" CACHE STRING "" FORCE)
-set(OPENSSL_VERSION "3.3.1" CACHE STRING "" FORCE)
+set(OPENSSL_VERSION "4.0.2" CACHE STRING "" FORCE)
 set(OPENSSL_ROOT_DIR "${OPENSSL_INSTALL_DIR}" CACHE PATH "" FORCE)
 if(MINGW)
     set(LIB_EAY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
