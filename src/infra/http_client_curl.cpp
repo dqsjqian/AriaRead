@@ -1,3 +1,14 @@
+// windows.h 的 min/max 宏会污染 std:: 调用；curl.h 会经 winsock2.h 间接
+// 拉入 Windows 头，因此 guard 必须先于本 TU 的任何 include。
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include "openread/http_client.h"
 
 #include <algorithm>
