@@ -32,6 +32,8 @@ target_link_libraries(openread_web_server
         aria::http        # HttpAdapter（PUBLIC 传递 aria::core/aria::abi/aria::binding）
         nlohmann_json::nlohmann_json  # JSON 序列化
         CURL::libcurl     # json_helpers.cpp 直接使用 curl 头文件与 API
+        sqlite3           # sqlite_modern_cpp.h → sqlite3.h 的传递包含；引擎 PRIVATE
+                          # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
 )
 
 # cpp-httplib 由 aria::http 通过 PUBLIC BUILD_INTERFACE 传递；

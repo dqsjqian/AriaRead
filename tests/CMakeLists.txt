@@ -77,6 +77,7 @@ if(TARGET openread_vm)
             openread_vm
             doctest::doctest
             nlohmann_json::nlohmann_json
+            sqlite3   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
     )
 
     if(NOT MSVC)
