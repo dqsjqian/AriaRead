@@ -85,6 +85,13 @@ void BookSourceEngine::Impl::startRefreshWorker() {
                 }
             }
 
+            // A5: 析构已开始（aliveFlag=false）时不再访问 owner——job 直接
+            // 丢弃并退出。把 refresh worker 与引擎析构的赛跑窗口收窄到
+            // "正在进行的调用"，后者由 stopWorker 的 join 覆盖。
+            // （macOS CI 曾稳定出现 openBookSession 用例 SIGSEGV：worker
+            // 无同步地读主线程栈上 engine 对象的成员，与栈回收竞态。）
+            if (!aliveFlag->load(std::memory_order_acquire)) return;
+
             std::vector<Chapter> chapters;
             std::string error;
             try {
@@ -92,8 +99,10 @@ void BookSourceEngine::Impl::startRefreshWorker() {
                 // getCatalogForSource 内部会持有 engineMutex 做网络请求（可能很慢），
                 // 如果此时 Web 请求线程也在等 engineMutex，会导致 UI 卡死。
                 // 使用 try_lock：如果获取不到，把 job 放回队列稍后重试。
-                if (owner->pImpl->engineMutex.try_lock()) {
-                    owner->pImpl->engineMutex.unlock();
+                // 注意经 this（Impl 自身成员）而非 owner->pImpl —— 后者是
+                // 对主线程栈上对象的无锁跨线程读（TSan 报 data race）。
+                if (engineMutex.try_lock()) {
+                    engineMutex.unlock();
                     // engineMutex 可用，正常调用（getCatalogForSource 内部会再次获取锁）
                     chapters = owner->getCatalogForSource(job.bookUrl, job.sourceIndex, job.sourceName);
                 } else {
