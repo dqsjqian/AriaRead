@@ -6,8 +6,20 @@
 #include <regex>
 #include <cstring>
 
-// iconv 用于编码转换
+// 编码转换：Unix 用 iconv；Windows 用 Win32 代码页 API ——
+// MSVC 没有 iconv.h，MinGW 虽有 MSYS2 libiconv 但多一个外部依赖；
+// GBK/BIG5/SHIFT_JIS/EUC-KR 等 CJK 代码页 MultiByteToWideChar 原生支持。
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <iconv.h>
+#endif
 
 namespace openread {
 namespace detail {
@@ -1060,6 +1072,48 @@ std::string cleanAuthorField(const std::string& author) {
 // 编码转换
 // ──────────────────────────────────────────────
 
+#ifdef _WIN32
+
+/// ensureUtf8 标准化后的编码名 → Windows 代码页；未知编码返回 0（调用方原样返回）
+static UINT encodingToCodePage(const std::string& enc) {
+    if (enc == "GBK") return 936;
+    if (enc == "BIG5") return 950;
+    if (enc == "EUC-KR") return 949;
+    if (enc == "SHIFT_JIS") return 932;
+    if (enc == "ISO-8859-1") return 28591;
+    if (enc == "WINDOWS-1252") return 1252;
+    return 0;
+}
+
+/// Windows 版编码转换：fromEnc 代码页 → UTF-16 → UTF-8。
+/// toEnc 仅支持 UTF-8 —— 与唯一调用点 ensureUtf8 的用法一致。
+static std::string iconvConvert(const std::string& data, const char* fromEnc, const char* toEnc = "UTF-8") {
+    if (data.empty()) return data;
+    if (toEnc == nullptr || std::strcmp(toEnc, "UTF-8") != 0) return data;
+
+    const UINT cp = encodingToCodePage(fromEnc);
+    if (cp == 0) return data;  // 不支持的编码，原样返回
+
+    // fromEnc → UTF-16
+    const int wideLen = MultiByteToWideChar(cp, 0, data.data(), static_cast<int>(data.size()), nullptr, 0);
+    if (wideLen <= 0) return data;
+    std::wstring wide(static_cast<size_t>(wideLen), L'\0');
+    if (MultiByteToWideChar(cp, 0, data.data(), static_cast<int>(data.size()), wide.data(), wideLen) != wideLen) {
+        return data;
+    }
+
+    // UTF-16 → UTF-8
+    const int utf8Len = WideCharToMultiByte(CP_UTF8, 0, wide.data(), wideLen, nullptr, 0, nullptr, nullptr);
+    if (utf8Len <= 0) return data;
+    std::string out(static_cast<size_t>(utf8Len), '\0');
+    if (WideCharToMultiByte(CP_UTF8, 0, wide.data(), wideLen, out.data(), utf8Len, nullptr, nullptr) != utf8Len) {
+        return data;
+    }
+    return out;
+}
+
+#else
+
 /// 使用 iconv 将 fromEnc 编码的 data 转换为 toEnc（通常为 UTF-8）
 static std::string iconvConvert(const std::string& data, const char* fromEnc, const char* toEnc = "UTF-8") {
     if (data.empty()) return data;
@@ -1084,6 +1138,8 @@ static std::string iconvConvert(const std::string& data, const char* fromEnc, co
     out.resize(outBufSize - outLeft);
     return out;
 }
+
+#endif // _WIN32
 
 /// 从字符串中提取 charset 声明（HTML meta 或 XML encoding）
 static std::string extractCharset(const std::string& data) {
