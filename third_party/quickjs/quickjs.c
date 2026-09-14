@@ -72,7 +72,7 @@
 
 /* define to include Atomics.* operations which depend on the OS
    threads */
-#if !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__) && !defined(_MSC_VER)
 #define CONFIG_ATOMICS
 #endif
 
@@ -51552,7 +51552,7 @@ static JSValue js_weakref_new(JSContext *ctx, JSValueConst val)
     } else {
         assert(JS_IsUndefined(val));
     }
-    return (JSValue)val;
+    return val;
 }
 
 #define MAGIC_SET (1 << 0)

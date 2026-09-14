@@ -19,7 +19,9 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_MSC_VER)
 #include <strings.h>
+#endif
 
 #include "attribute.h"
 #include "error.h"

@@ -19,7 +19,9 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_MSC_VER)
 #include <strings.h>
+#endif
 
 #include "string_piece.h"
 #include "util.h"
