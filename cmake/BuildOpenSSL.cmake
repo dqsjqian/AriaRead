@@ -74,7 +74,9 @@ endif()
 
 # 查找 perl（OpenSSL Configure 需要）
 # 优先从 MSYS2 的 usr/bin 查找（与 MinGW 编译器配套）
-get_filename_component(_COMPILER_ROOT "${_COMPILER_DIR}" DIRECTORY)
+get_filename_component(_COMPILER_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+get_filename_component(_COMPILER_PREFIX "${_COMPILER_DIR}" DIRECTORY)
+get_filename_component(_COMPILER_ROOT "${_COMPILER_PREFIX}" DIRECTORY)
 set(_MSYS2_PERL_CANDIDATES
     "${_COMPILER_ROOT}/usr/bin/perl.exe"
     "${_COMPILER_DIR}/../usr/bin/perl.exe"
@@ -90,8 +92,10 @@ foreach(_perl_path IN LISTS _MSYS2_PERL_CANDIDATES)
     endif()
 endforeach()
 if(NOT _OPENSSL_PERL_COMMAND)
+    unset(_OPENSSL_PERL_COMMAND)
     find_program(_OPENSSL_PERL_COMMAND perl REQUIRED)
 endif()
+get_filename_component(_PERL_DIR "${_OPENSSL_PERL_COMMAND}" DIRECTORY)
 
 # 构建 Configure 参数
 set(_OPENSSL_CONFIGURE_ARGS
@@ -141,14 +145,14 @@ if(WIN32 AND MINGW)
         endif()
     endforeach()
     if(NOT _OPENSSL_BASH_COMMAND)
+        unset(_OPENSSL_BASH_COMMAND)
         find_program(_OPENSSL_BASH_COMMAND bash REQUIRED)
     endif()
-    set(_OPENSSL_BUILD_DIR "${CMAKE_BINARY_DIR}/openssl_external-prefix/src/openssl_external-build")
     set(_OPENSSL_BUILD_COMMAND
-        "${_OPENSSL_BASH_COMMAND}" -lc "cd \"${_OPENSSL_BUILD_DIR}\" && export PATH=\"${_COMPILER_DIR}:${_PERL_DIR}:\$PATH\" && make -j${NPROC}"
+        "${_OPENSSL_BASH_COMMAND}" -c "export PATH=\"$(cygpath -u '${_COMPILER_DIR}'):$(cygpath -u '${_PERL_DIR}'):\$PATH\" && make -j${NPROC}"
     )
     set(_OPENSSL_INSTALL_COMMAND
-        "${_OPENSSL_BASH_COMMAND}" -lc "cd \"${_OPENSSL_BUILD_DIR}\" && export PATH=\"${_COMPILER_DIR}:${_PERL_DIR}:\$PATH\" && make install_sw"
+        "${_OPENSSL_BASH_COMMAND}" -c "export PATH=\"$(cygpath -u '${_COMPILER_DIR}'):$(cygpath -u '${_PERL_DIR}'):\$PATH\" && make install_sw"
     )
     set(_OPENSSL_PATH_ENV "")
 elseif(WIN32 AND NOT MINGW)
@@ -217,6 +221,10 @@ set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
 set(OPENSSL_LIBRARIES "${OPENSSL_SSL_LIBRARY};${OPENSSL_CRYPTO_LIBRARY}" CACHE STRING "" FORCE)
 set(OPENSSL_VERSION "3.3.1" CACHE STRING "" FORCE)
 set(OPENSSL_ROOT_DIR "${OPENSSL_INSTALL_DIR}" CACHE PATH "" FORCE)
+if(MINGW)
+    set(LIB_EAY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
+    set(SSL_EAY "${OPENSSL_SSL_LIBRARY}" CACHE FILEPATH "" FORCE)
+endif()
 
 # 平台特定的链接依赖
 if(APPLE)
