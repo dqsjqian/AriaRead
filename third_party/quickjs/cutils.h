@@ -29,11 +29,33 @@
 #include <string.h>
 #include <inttypes.h>
 
+/* MSVC 兼容层：QuickJS 上游面向 GCC/Clang，这里补齐 MSVC 的等价物 */
+#if defined(_MSC_VER)
+#include <intrin.h>
+#include <winsock2.h>      /* struct timeval */
+#include <sys/timeb.h>     /* _ftime_s，用于 gettimeofday shim */
+#define likely(x)       (x)
+#define unlikely(x)     (x)
+#define force_inline    __forceinline
+#define no_inline       __declspec(noinline)
+#define __maybe_unused
+#define js_printf_format(a, b)
+static inline int gettimeofday(struct timeval *tv, void *tz)
+{
+    struct _timeb tb;
+    _ftime_s(&tb);
+    tv->tv_sec = (long)tb.time;
+    tv->tv_usec = (long)tb.millitm * 1000;
+    return 0;
+}
+#else
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #define force_inline inline __attribute__((always_inline))
 #define no_inline __attribute__((noinline))
 #define __maybe_unused __attribute__((unused))
+#define js_printf_format(a, b) __attribute__((format(printf, a, b)))
+#endif
 
 #define xglue(x, y) x ## y
 #define glue(x, y) xglue(x, y)
@@ -125,6 +147,39 @@ static inline int64_t min_int64(int64_t a, int64_t b)
         return b;
 }
 
+#if defined(_MSC_VER)
+/* WARNING: undefined if a = 0 */
+static inline int clz32(unsigned int a)
+{
+    unsigned long i;
+    _BitScanReverse(&i, a);
+    return 31 - (int)i;
+}
+
+/* WARNING: undefined if a = 0 */
+static inline int clz64(uint64_t a)
+{
+    unsigned long i;
+    _BitScanReverse64(&i, a);
+    return 63 - (int)i;
+}
+
+/* WARNING: undefined if a = 0 */
+static inline int ctz32(unsigned int a)
+{
+    unsigned long i;
+    _BitScanForward(&i, a);
+    return (int)i;
+}
+
+/* WARNING: undefined if a = 0 */
+static inline int ctz64(uint64_t a)
+{
+    unsigned long i;
+    _BitScanForward64(&i, a);
+    return (int)i;
+}
+#else
 /* WARNING: undefined if a = 0 */
 static inline int clz32(unsigned int a)
 {
@@ -148,7 +203,22 @@ static inline int ctz64(uint64_t a)
 {
     return __builtin_ctzll(a);
 }
+#endif
 
+#if defined(_MSC_VER)
+/* 单标量成员的 struct 不存在 padding，无需 packed 扩展 */
+struct packed_u64 {
+    uint64_t v;
+};
+
+struct packed_u32 {
+    uint32_t v;
+};
+
+struct packed_u16 {
+    uint16_t v;
+};
+#else
 struct __attribute__((packed)) packed_u64 {
     uint64_t v;
 };
@@ -160,6 +230,7 @@ struct __attribute__((packed)) packed_u32 {
 struct __attribute__((packed)) packed_u16 {
     uint16_t v;
 };
+#endif
 
 static inline uint64_t get_u64(const uint8_t *tab)
 {
@@ -316,7 +387,7 @@ static inline int dbuf_put_u64(DynBuf *s, uint64_t val)
     }
 }
 
-int __attribute__((format(printf, 2, 3))) dbuf_printf(DynBuf *s,
+int js_printf_format(2, 3) dbuf_printf(DynBuf *s,
                                                       const char *fmt, ...);
 void dbuf_free(DynBuf *s);
 static inline BOOL dbuf_error(DynBuf *s) {

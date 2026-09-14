@@ -21,6 +21,10 @@
 #define GUMBO_UTIL_H_
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
+#include <string.h>
+/* POSIX strings.h 的两个函数在 MSVC 下的等价物 */
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
 #endif
 #include <stdbool.h>
 #include <stddef.h>

@@ -11,8 +11,14 @@ set(QUICKJS_SOURCES
     ${QUICKJS_SOURCE_DIR}/libunicode.c
     ${QUICKJS_SOURCE_DIR}/cutils.c
     ${QUICKJS_SOURCE_DIR}/dtoa.c
-    ${QUICKJS_SOURCE_DIR}/quickjs-libc.c
 )
+
+# quickjs-libc.c 提供 os/std JS 模块（dup2/readlink/信号等 POSIX API），
+# MSVC 下不可移植。OpenRead 的 JsRuntime 不使用 js_init_module_os/std 与
+# js_module_loader_set 符号（src/ grep 零命中），MSVC 构建直接排除。
+if(NOT MSVC)
+    list(APPEND QUICKJS_SOURCES ${QUICKJS_SOURCE_DIR}/quickjs-libc.c)
+endif()
 
 # QuickJS 是纯 C 代码
 add_library(quickjs STATIC ${QUICKJS_SOURCES})
