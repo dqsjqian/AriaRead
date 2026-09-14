@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openread-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and regressions (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build gcc-13 g++-13 perl make zlib1g-dev
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Configure bundled dependencies and tests
+        run: |
+          cmake -S . -B build/ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOPENREAD_BUILD_TESTS=ON \
+            -DOPENREAD_BUILD_WEB_TESTS=ON \
+            -DOPENREAD_ENFORCE_SELF_CONTAINED=ON \
+            -DOPENREAD_USE_SYSTEM_CURL=OFF
+
+      - name: Build engine, ViewModels and Web server
+        run: cmake --build build/ci --parallel 3
+
+      - name: Run engine, ViewModel and Web regressions
+        run: ctest --test-dir build/ci --output-on-failure --no-tests=error --parallel 3 --timeout 120
+
+      - name: Verify Web runtime layout and dynamic libraries
+        run: OPENREAD_BUILD_DIR="$PWD/build/ci" bash scripts/build_web_release.sh --skip-cmake
+
+      - name: Upload build and test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openread-diagnostics-${{ matrix.os }}
+          path: |
+            build/ci/CMakeCache.txt
+            build/ci/CMakeFiles/CMakeConfigureLog.yaml
+            build/ci/Testing/Temporary/
+            build/ci/openssl_external-prefix/src/openssl_external-stamp/*.log
+          if-no-files-found: ignore
