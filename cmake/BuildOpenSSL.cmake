@@ -240,6 +240,14 @@ set(OPENSSL_ROOT_DIR "${OPENSSL_INSTALL_DIR}" CACHE PATH "" FORCE)
 if(MINGW)
     set(LIB_EAY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
     set(SSL_EAY "${OPENSSL_SSL_LIBRARY}" CACHE FILEPATH "" FORCE)
+elseif(WIN32)
+    # MSVC 下 FindOpenSSL 不用 LIB_EAY/SSL_EAY，而是 find_library(LIB_EAY_RELEASE/
+    # LIB_EAY_DEBUG) + SelectLibraryConfigurations(LIB_EAY)，再用其结果覆盖
+    # OPENSSL_CRYPTO/SSL_LIBRARY。ExternalProject 构建期产物尚不存在，
+    # find_library 必然 NOTFOUND → "missing: OPENSSL_CRYPTO_LIBRARY"。
+    # 预填 *_RELEASE cache 让 find_library 跳过搜索，直接采用我们的安装路径。
+    set(LIB_EAY_RELEASE "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "" FORCE)
+    set(SSL_EAY_RELEASE "${OPENSSL_SSL_LIBRARY}" CACHE FILEPATH "" FORCE)
 endif()
 
 # 平台特定的链接依赖
