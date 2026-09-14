@@ -328,7 +328,7 @@ class DebugHttpTests(unittest.TestCase):
             self.fail('Relocated runtime did not serve its adjacent assets')
         status, body, _ = http_request(port, 'GET', '/debug.js')
         self.assertEqual(status, 200)
-        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text(encoding='utf-8'))
+        self.assertEqual(body, (runtime_dir / 'web/debug.js').read_text(encoding='utf-8', newline=''))
 
     def test_console_invalid_inputs(self):
         bodies = ['{', '[]', 'null', '{}', '{"code":42}', '{"code":null}', '{"code":""}']
