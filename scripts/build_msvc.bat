@@ -16,9 +16,22 @@ for /d %%D in ("%VSDIR%\VC\Tools\MSVC\*") do set "VCTOOLS=%%D"
 if "%VCTOOLS%"=="" (echo [error] MSVC tools dir not found & exit /b 1)
 for /f "delims=" %%V in ("%VCTOOLS%") do set "VCTOOLVER=%%~nxV"
 set "NINJA=%VSDIR%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
+rem OpenSSL's Configure step needs perl. cmake/BuildOpenSSL.cmake auto-detects
+rem MSYS2 perl; on a plain MSVC toolchain find_program(perl) needs one on PATH.
+rem Set OPENREAD_PERL_DIR to override; otherwise probe the usual locations.
+set "PERLDIR="
+if defined OPENREAD_PERL_DIR if exist "%OPENREAD_PERL_DIR%\perl.exe" set "PERLDIR=%OPENREAD_PERL_DIR%"
+for %%P in (
+  "C:\Strawberry\perl\bin"
+  "%ProgramFiles%\Strawberry\perl\bin"
+  "%ProgramFiles%\Git\usr\bin"
+  "%ProgramFiles(x86)%\Git\usr\bin"
+) do if not defined PERLDIR if exist "%%~P\perl.exe" set "PERLDIR=%%~P"
+if defined PERLDIR (echo [info] perl found at %PERLDIR%) else (echo [warn] perl not found; OpenSSL Configure may fail)
 
 rem ---- assemble MSVC x64 environment ----
 set "PATH=%VCTOOLS%\bin\Hostx64\x64;%KITSDIR%\bin\%SDKVER%\x64;%NINJA%;%VSDIR%\Common7\IDE;%VSDIR%\Common7\Tools;C:\Program Files\CMake\bin;C:\Program Files\Git\usr\bin;%PATH%"
+if defined PERLDIR set "PATH=%PERLDIR%;%PATH%"
 set "INCLUDE=%VCTOOLS%\include;%KITSDIR%\Include\%SDKVER%\ucrt;%KITSDIR%\Include\%SDKVER%\um;%KITSDIR%\Include\%SDKVER%\shared;%KITSDIR%\Include\%SDKVER%\winrt;%KITSDIR%\Include\%SDKVER%\cppwinrt"
 set "LIB=%VCTOOLS%\lib\x64;%KITSDIR%\Lib\%SDKVER%\ucrt\x64;%KITSDIR%\Lib\%SDKVER%\um\x64"
 set "WindowsSdkDir=%KITSDIR%\"
