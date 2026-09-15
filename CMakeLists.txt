@@ -112,11 +112,18 @@ if(EXISTS "${OPENREAD_THIRD_PARTY_ZLIB_DIR}/CMakeLists.txt")
     # 用 $<1:...> 让该属性成为生成器表达式，CMake 便不再追加配置子目录，
     # 于是两种生成器下产物位置一致、上面的固定路径恒成立。
     # 注意：不改动顶层 CMAKE_ARCHIVE_OUTPUT_DIRECTORY，避免影响其他产物布局。
+    #
+    # 输出名也要固定：上游在 UNIX 下把 zlibstatic 改名为 z（产出 libz.a），
+    # Windows/MinGW 下保持 zlibstatic（libzlibstatic.a / zlibstatic.lib）。
+    # FindZLIB 那条变量同样只能接受一个固定路径，无法表达这种平台差异，
+    # 因此统一钉死为 zlibstatic，让路径在两个平台族下都成立。
     set_target_properties(zlibstatic PROPERTIES
+        OUTPUT_NAME "zlibstatic"
         ARCHIVE_OUTPUT_DIRECTORY "$<1:${OPENREAD_ZLIB_ARCHIVE_DIR}>")
     set(ZLIB_INCLUDE_DIR "${OPENREAD_THIRD_PARTY_ZLIB_DIR}" "${CMAKE_BINARY_DIR}/_deps/zlib-build")
     # FindZLIB（CMake 4.x）认 ZLIB_LIBRARY_RELEASE / _DEBUG，不认 ZLIB_LIBRARY
-    set(ZLIB_LIBRARY_RELEASE "${OPENREAD_ZLIB_ARCHIVE_DIR}/zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(ZLIB_LIBRARY_RELEASE
+        "${OPENREAD_ZLIB_ARCHIVE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
     set(ZLIB_LIBRARY "${ZLIB_LIBRARY_RELEASE}")
     set(ZLIB_FOUND TRUE)
     set(CURL_ZLIB ON CACHE BOOL "" FORCE)
