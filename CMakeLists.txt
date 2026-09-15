@@ -16,8 +16,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)  # 用 std=c++20 不用 gnu++20
 # ──────────────────────────────────────────────
 if(MSVC)
     add_compile_options(/W4 /utf-8)
-    # 静态链接运行时（避免 DLL 依赖）
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    # 动态 CRT：Aria 以共享库（aria_*.dll）接入，/MT 会让 exe 与 DLL 各持
+    # 一份 CRT 堆，跨模块分配/释放（析构、引用计数释放）触发堆损坏
+    # （0xc0000374，测试后退出即崩）。/MD 让全部模块共享 UCRT 堆。
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -fPIC -Wno-unused-parameter)
     # macOS/iOS 隐藏符号（减小体积）

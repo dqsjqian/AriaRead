@@ -42,7 +42,9 @@ else()
     )
     # Sources are UTF-8; without this flag MSVC mis-decodes them under the
     # GBK system codepage (C4819) and corrupts string literals.
-    target_compile_options(quickjs PRIVATE /utf-8)
+    # The shim wraps C99 math functions whose dllimport addresses (under /MD)
+    # cannot be used in quickjs.c's static initializer tables (C2099/C4232).
+    target_compile_options(quickjs PRIVATE /utf-8 "/FI${QUICKJS_SOURCE_DIR}/quickjs_msvc_shim.h")
 endif()
 
 # 只暴露 quickjs.h 给需要它的源文件（PRIVATE，防止 _GNU_SOURCE 传播到 C++ 目标）
