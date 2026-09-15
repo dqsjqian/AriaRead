@@ -113,13 +113,19 @@ set(_OPENSSL_CONFIGURE_ARGS
 )
 
 if(WIN32 AND NOT MINGW)
-    # MSVC 分支注意两点：
+    # MSVC 分支注意三点：
     # 1) cl.exe 不认识 gcc 风格的 -Wno-* 警告抑制参数（D9002 unknown option），
     #    这些参数只为新版 Clang 准备，MSVC 下必须清空；
     # 2) GitHub Windows runner 不预装 NASM，而 VC-WIN64A 默认启用汇编，
     #    缺 nasm 会在 Configure 阶段直接失败。CI gate 场景用 no-asm 换取
     #    零外部依赖（性能损失对回归门禁无意义）。
-    set(_OPENSSL_EXTRA_CFLAGS "")
+    # 3) OpenSSL 生成的 makefile 里 LIB_CFLAGS 为
+    #      /Zi /Fdossl_static.pdb /MT /Zl $(CNF_CFLAGS) $(CFLAGS)
+    #    即所有 obj 共用一个 ossl_static.pdb。nmake 下 mspdbsrv 对同一 PDB
+    #    的写入会随机失败，报 fatal error C1090（错误码 3 或 5，每次位置不同），
+    #    构建中断且不可稳定复现。这里把 /Z7 通过 CFLAGS 追加到 /Zi 之后：
+    #    /Z7 使调试信息内联进 obj、不再写 PDB，从根上消除竞争。
+    set(_OPENSSL_EXTRA_CFLAGS "/Z7")
     list(APPEND _OPENSSL_CONFIGURE_ARGS "no-asm")
 else()
     # 新版 Clang（Apple Clang 17+ / Clang 16+）对 C99 implicit-int 等更严格，
@@ -174,7 +180,16 @@ if(WIN32 AND MINGW)
 elseif(WIN32 AND NOT MINGW)
     find_program(_OPENSSL_MAKE_COMMAND nmake REQUIRED)
     set(_OPENSSL_BUILD_COMMAND ${_OPENSSL_MAKE_COMMAND})
-    set(_OPENSSL_INSTALL_COMMAND ${_OPENSSL_MAKE_COMMAND} install_sw)
+    # 上面的 CFLAGS=/Z7 让每个 obj 自带调试信息、不再产出 ossl_static.pdb，
+    # 但 OpenSSL 生成的 makefile 里 install_dev 仍会无条件执行
+    #   perl util/copy.pl ossl_static.pdb "$(libdir)"
+    # 文件缺失会让 nmake install_sw 以 "Can't Open ossl_static.pdb" 失败。
+    # 这里在 install 前补一个占位文件：install 能正常完成，且因为 obj 里已有
+    # CodeView 信息，丢掉这个（本来就是空的）PDB 不影响调试与链接。
+    set(_OPENSSL_INSTALL_COMMAND
+        ${CMAKE_COMMAND} -E touch "<BINARY_DIR>/ossl_static.pdb"
+        COMMAND ${_OPENSSL_MAKE_COMMAND} install_sw
+    )
     set(_OPENSSL_PATH_ENV "")
 else()
     find_program(_OPENSSL_MAKE_COMMAND make REQUIRED)

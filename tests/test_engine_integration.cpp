@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <system_error>
 #include <atomic>
 #include <thread>
 #include <chrono>
@@ -18,9 +19,22 @@ using json = nlohmann::json;
 // ──────────────────────────────────────────────
 // 辅助
 // ──────────────────────────────────────────────
+// On Windows the SQLite handle is released by sqlite3_close_v2 only after the
+// last prepared statement is finalized, and WAL mode keeps the -wal/-shm side
+// files mapped while the connection lives. Removing the temp DB can therefore
+// fail with a sharing violation, which cannot happen on POSIX (unlink of an
+// open file always succeeds there). Cleanup is best-effort: a leftover temp
+// file must not fail a test.
+static void removeTempDb(const std::string& dbPath) {
+    std::error_code ec;
+    std::filesystem::remove(dbPath, ec);
+    std::filesystem::remove(dbPath + "-wal", ec);
+    std::filesystem::remove(dbPath + "-shm", ec);
+}
+
 static std::string makeTempDbPath(const std::string& suffix = "") {
     auto path = std::filesystem::temp_directory_path() / ("openread_integ" + suffix + ".db");
-    std::filesystem::remove(path);
+    removeTempDb(path.string());
     return path.string();
 }
 
@@ -86,7 +100,7 @@ TEST_CASE("集成测试 - 书源加载、检测、过滤、导出完整流程") 
     CHECK(removed == 2);  // 差+无效
     CHECK(engine.sources().size() == 3);  // 优+良+待检测
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -139,7 +153,7 @@ TEST_CASE("集成测试 - 书源持久化和重启恢复") {
         CHECK(list.validCount == 2);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -217,7 +231,7 @@ TEST_CASE("集成测试 - 书架和缓存完整流程") {
     CHECK(engine.getCachedCatalogCount("book://xianni") == 0);
     CHECK(engine.getCachedContentCount("book://xianni") == 0);
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -325,7 +339,7 @@ TEST_CASE("集成测试 - 多本书缓存完全隔离") {
     CHECK(engine.getCachedCatalogCount("book://fanren") == 2);  // 不受影响
     CHECK(engine.getCachedContentCount("book://fanren") == 1);  // 不受影响
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -347,7 +361,7 @@ TEST_CASE("集成测试 - downloadBook 无 sleepMs 参数") {
     auto result2 = engine.downloadBook("book://test", "source://test", -1, "源A", nullptr, 4);
     CHECK(result2.total == 0);
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -383,5 +397,5 @@ TEST_CASE("集成测试 - openBookSession 状态快照") {
     auto state2 = engine.getBookReadingState("book://session-test", "source://test");
     CHECK(state2.bookUrl == "book://session-test");
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }

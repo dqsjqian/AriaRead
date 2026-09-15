@@ -93,6 +93,30 @@ else()
         "Please run: git clone --depth 1 --branch openssl-4.0 https://github.com/openssl/openssl.git third_party/openssl")
 endif()
 
+# ──────────────────────────────────────────────
+# zlib（gzip/deflate 解压后端，libcurl 自动解压的前提）
+# 缺失时 libcurl 对带 Content-Encoding: gzip 的响应直接返回
+# CURLE_BAD_CONTENT_ENCODING，gzip 书源必然失败。
+# 与 openssl/curl 一致，从 vendored 源码编译，零系统依赖。
+# ──────────────────────────────────────────────
+set(OPENREAD_THIRD_PARTY_ZLIB_DIR "${CMAKE_SOURCE_DIR}/third_party/zlib" CACHE PATH "Bundled zlib source directory")
+if(EXISTS "${OPENREAD_THIRD_PARTY_ZLIB_DIR}/CMakeLists.txt")
+    message(STATUS "Using local bundled zlib: ${OPENREAD_THIRD_PARTY_ZLIB_DIR}")
+    set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    add_subdirectory(${OPENREAD_THIRD_PARTY_ZLIB_DIR} ${CMAKE_BINARY_DIR}/_deps/zlib-build EXCLUDE_FROM_ALL)
+    # curl 内部走 find_package(ZLIB)，这里直接喂已确定的路径以跳过系统搜索：
+    # zlibstatic 的产物落在顶层统一的 CMAKE_ARCHIVE_OUTPUT_DIRECTORY（<build>/lib）。
+    set(ZLIB_INCLUDE_DIR "${OPENREAD_THIRD_PARTY_ZLIB_DIR}" "${CMAKE_BINARY_DIR}/_deps/zlib-build")
+    # FindZLIB（CMake 4.x）认 ZLIB_LIBRARY_RELEASE / _DEBUG，不认 ZLIB_LIBRARY
+    set(ZLIB_LIBRARY_RELEASE "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(ZLIB_LIBRARY "${ZLIB_LIBRARY_RELEASE}")
+    set(ZLIB_FOUND TRUE)
+    set(CURL_ZLIB ON CACHE BOOL "" FORCE)
+else()
+    message(FATAL_ERROR "zlib source not found at third_party/zlib. "
+        "Please run: git clone --depth 1 --branch v1.3.1 https://github.com/madler/zlib.git third_party/zlib")
+endif()
+
 # libcurl（HTTP 客户端）
 # 默认使用仓库内/自动拉取的 bundled curl，避免依赖开发机上的系统包管理器动态库。
 set(OPENREAD_THIRD_PARTY_CURL_DIR "${CMAKE_SOURCE_DIR}/third_party/curl" CACHE PATH "Bundled curl source directory")
@@ -162,10 +186,13 @@ else()
         message(FATAL_ERROR "Bundled curl did not provide libcurl target")
     endif()
 
-    # 确保 curl 的静态库目标依赖 OpenSSL 编译完成（不能对 alias target 添加依赖）
+    # 确保 curl 的静态库目标依赖 OpenSSL / zlib 编译完成（不能对 alias target 添加依赖）
     foreach(_curl_target libcurl_static libcurl_shared)
         if(TARGET ${_curl_target})
             add_dependencies(${_curl_target} openssl_external)
+            if(TARGET zlibstatic)
+                add_dependencies(${_curl_target} zlibstatic)
+            endif()
         endif()
     endforeach()
 endif()

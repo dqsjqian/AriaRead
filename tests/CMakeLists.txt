@@ -1,15 +1,28 @@
 # OpenRead Unit Tests
 
 # 使用 doctest（轻量级测试框架）
-include(FetchContent)
-FetchContent_Declare(
-    doctest
-    GIT_REPOSITORY https://github.com/doctest/doctest.git
-    GIT_TAG        v2.4.11
-)
-# CMake 4.x 兼容
+# 优先使用本地 third_party/doctest，避免构建时依赖网络（与 gumbo/zlib 一致）。
+# CMake 4.x 兼容：doctest 的 cmake_minimum_required 低于 3.10，需要放开策略下限。
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-FetchContent_MakeAvailable(doctest)
+set(OPENREAD_THIRD_PARTY_DOCTEST_DIR "${CMAKE_SOURCE_DIR}/third_party/doctest" CACHE PATH "Bundled doctest source directory")
+if(EXISTS "${OPENREAD_THIRD_PARTY_DOCTEST_DIR}/CMakeLists.txt")
+    message(STATUS "Using local bundled doctest: ${OPENREAD_THIRD_PARTY_DOCTEST_DIR}")
+    set(DOCTEST_WITH_TESTS OFF CACHE BOOL "" FORCE)
+    set(DOCTEST_WITH_MAIN_IN_STATIC_LIB OFF CACHE BOOL "" FORCE)
+    add_subdirectory(${OPENREAD_THIRD_PARTY_DOCTEST_DIR} ${CMAKE_BINARY_DIR}/_deps/doctest-build EXCLUDE_FROM_ALL)
+    # 供下方 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake) 使用，
+    # 该变量原本由 FetchContent 提供。
+    set(doctest_SOURCE_DIR "${OPENREAD_THIRD_PARTY_DOCTEST_DIR}")
+else()
+    message(STATUS "Bundled doctest not found, fallback to FetchContent clone")
+    include(FetchContent)
+    FetchContent_Declare(
+        doctest
+        GIT_REPOSITORY https://github.com/doctest/doctest.git
+        GIT_TAG        v2.4.11
+    )
+    FetchContent_MakeAvailable(doctest)
+endif()
 
 # ──────────────────────────────────────────────
 # 引擎测试

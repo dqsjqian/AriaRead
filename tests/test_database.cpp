@@ -7,15 +7,29 @@
 
 #include <filesystem>
 #include <string>
+#include <system_error>
 
 using namespace openread;
 
 // ──────────────────────────────────────────────
 // 辅助：创建临时数据库
 // ──────────────────────────────────────────────
+// On Windows the SQLite handle is released by sqlite3_close_v2 only after the
+// last prepared statement is finalized, and WAL mode keeps the -wal/-shm side
+// files mapped while the connection lives. Removing the temp DB can therefore
+// fail with a sharing violation, which cannot happen on POSIX (unlink of an
+// open file always succeeds there). Cleanup is best-effort: a leftover temp
+// file must not fail a test.
+static void removeTempDb(const std::string& dbPath) {
+    std::error_code ec;
+    std::filesystem::remove(dbPath, ec);
+    std::filesystem::remove(dbPath + "-wal", ec);
+    std::filesystem::remove(dbPath + "-shm", ec);
+}
+
 static std::string makeTempDbPath(const std::string& suffix = "") {
     auto path = std::filesystem::temp_directory_path() / ("openread_db_test" + suffix + ".db");
-    std::filesystem::remove(path);
+    removeTempDb(path.string());
     return path.string();
 }
 
@@ -67,7 +81,7 @@ TEST_CASE("SourceDatabase - 书源插入和查询") {
         CHECK(db.sourceExists("https://a.com") == false);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -117,7 +131,7 @@ TEST_CASE("SourceDatabase - validity 持久化到数据库") {
         CHECK(latencyMap["https://good.com"] == 200);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 TEST_CASE("SourceDatabase - removeInvalidSources 删除差和无效") {
@@ -141,7 +155,7 @@ TEST_CASE("SourceDatabase - removeInvalidSources 删除差和无效") {
     CHECK(removed == 2);
     CHECK(db.getSourceCount() == 2);
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -206,7 +220,7 @@ TEST_CASE("SourceDatabase - 书架操作") {
         CHECK(books[0].hasUpdate == false);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -292,7 +306,7 @@ TEST_CASE("SourceDatabase - 目录缓存") {
         CHECK(db.getCachedCatalogCount("book://b") == 1);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -357,7 +371,7 @@ TEST_CASE("SourceDatabase - 正文缓存") {
         CHECK(db.getCachedContent("book://b", 0) == "B的内容");
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -412,7 +426,7 @@ TEST_CASE("SourceDatabase - 阅读进度") {
         CHECK(loaded.readPercent == doctest::Approx(0.0));
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -463,7 +477,7 @@ TEST_CASE("SourceDatabase - 删除书架条目级联删除缓存和进度") {
     CHECK(loadedProgress.chapterIndex == 0);
     CHECK(loadedProgress.readPercent == doctest::Approx(0.0));
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -509,7 +523,7 @@ TEST_CASE("SourceDatabase - 批量查询缓存数量") {
         CHECK(counts.size() >= 1);
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
 
 // ──────────────────────────────────────────────
@@ -541,5 +555,5 @@ TEST_CASE("SourceDatabase - URL 历史记录") {
         CHECK(history.empty());
     }
 
-    std::filesystem::remove(dbPath);
+    removeTempDb(dbPath);
 }
