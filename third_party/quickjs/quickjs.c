@@ -642,7 +642,11 @@ typedef enum {
 } JSClosureTypeEnum;
 
 typedef struct JSClosureVar {
-    JSClosureTypeEnum closure_type : 3;
+    /* MSVC: an enum-typed bitfield is a SIGNED int field; a 3-bit signed
+       field cannot hold JS_CLOSURE_GLOBAL(4) / MODULE_DECL(5) /
+       MODULE_IMPORT(6) - they read back negative and hit abort() in
+       js_closure2(). Use an unsigned field. */
+    uint8_t closure_type : 3;
     uint8_t is_lexical : 1; /* lexical variable */
     uint8_t is_const : 1; /* const variable (is_lexical = 1 if is_const = 1 */
     uint8_t var_kind : 4; /* see JSVarKindEnum */

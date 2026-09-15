@@ -40,6 +40,9 @@ else()
     target_compile_definitions(quickjs PRIVATE
         CONFIG_VERSION="2026-06-04"
     )
+    # Sources are UTF-8; without this flag MSVC mis-decodes them under the
+    # GBK system codepage (C4819) and corrupts string literals.
+    target_compile_options(quickjs PRIVATE /utf-8)
 endif()
 
 # 只暴露 quickjs.h 给需要它的源文件（PRIVATE，防止 _GNU_SOURCE 传播到 C++ 目标）
