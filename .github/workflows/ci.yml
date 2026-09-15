@@ -44,15 +44,13 @@ jobs:
           cmake --build build/ci-vs2026 --config Release --parallel 3
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Run engine, ViewModel and Web regressions
-        # 已知问题（引擎 Windows 移植遗留）：BookSourceEngine 相关 case 在
-        # MSVC 运行时 SIGABRT（24/169，无栈无输出；Unix 全绿），根因待查
-        # （嫌疑集中在 quickjs/sqlite/std::regex 的 MSVC 行为差异）。
-        # 编译与链接门禁已全过，本 job 阶段性定位为构建门禁 + smoke test，
-        # ctest 非阻塞保留可见性；测试问题作为独立任务跟进。
-        continue-on-error: true
+        # 这里曾经是阻塞门禁的例外：MSVC 侧的静态 CRT 与共享 Aria DLL 不匹配
+        # （/MT 下每个模块各自一个 CRT 堆，跨模块释放堆内存即 0xc0000374 堆损坏），
+        # 169 个用例里挂 114 个。改用动态 CRT（/MD）后病灶消除，本机与 CI
+        # 都稳定 169/169，故恢复为阻塞门禁。
         run: |
           $env:PATH = "$PWD\build\ci-vs2026\bin\Release;$env:PATH"
-          ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --parallel 3 --timeout 120
+          ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error --parallel 3 --timeout 120
       - name: Web server smoke test
         run: |
           ./build/ci-vs2026/bin/Release/openread_web_server.exe --help
