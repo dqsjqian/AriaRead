@@ -59,3 +59,9 @@ temp/
 # 个人书源数据与备份文件（不入库）
 tests/rss*.json
 *.bak
+
+# 第三方 vendored 源码是上游交付物，不是本项目的构建产物。
+# 上面的规则针对本项目自身的构建输出，但上游源码里合法存在同名文件
+# （doctest 的 scripts/cmake/Config.cmake.in、zlib 的 Makefile 等），
+# 会被静默忽略、漏提交，导致 CI 配置阶段才报错（本地因文件仍在磁盘上而无感）。
+!third_party/**

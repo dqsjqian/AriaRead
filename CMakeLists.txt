@@ -100,15 +100,23 @@ endif()
 # 与 openssl/curl 一致，从 vendored 源码编译，零系统依赖。
 # ──────────────────────────────────────────────
 set(OPENREAD_THIRD_PARTY_ZLIB_DIR "${CMAKE_SOURCE_DIR}/third_party/zlib" CACHE PATH "Bundled zlib source directory")
+set(OPENREAD_ZLIB_ARCHIVE_DIR "${CMAKE_BINARY_DIR}/lib")
 if(EXISTS "${OPENREAD_THIRD_PARTY_ZLIB_DIR}/CMakeLists.txt")
     message(STATUS "Using local bundled zlib: ${OPENREAD_THIRD_PARTY_ZLIB_DIR}")
     set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     add_subdirectory(${OPENREAD_THIRD_PARTY_ZLIB_DIR} ${CMAKE_BINARY_DIR}/_deps/zlib-build EXCLUDE_FROM_ALL)
-    # curl 内部走 find_package(ZLIB)，这里直接喂已确定的路径以跳过系统搜索：
-    # zlibstatic 的产物落在顶层统一的 CMAKE_ARCHIVE_OUTPUT_DIRECTORY（<build>/lib）。
+    # curl 内部走 find_package(ZLIB) 并链接 ZLIB::ZLIB，而 FindZLIB 只能接受一个
+    # 固定路径（ZLIB_LIBRARY_RELEASE），无法表达配置相关路径。多配置生成器
+    # （Visual Studio / Xcode / Ninja Multi-Config）会往 CMAKE_ARCHIVE_OUTPUT_DIRECTORY
+    # 后面自动追加 /<CONFIG>，路径就对不上了。这里给 zlibstatic 显式指定输出目录，
+    # 用 $<1:...> 让该属性成为生成器表达式，CMake 便不再追加配置子目录，
+    # 于是两种生成器下产物位置一致、上面的固定路径恒成立。
+    # 注意：不改动顶层 CMAKE_ARCHIVE_OUTPUT_DIRECTORY，避免影响其他产物布局。
+    set_target_properties(zlibstatic PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "$<1:${OPENREAD_ZLIB_ARCHIVE_DIR}>")
     set(ZLIB_INCLUDE_DIR "${OPENREAD_THIRD_PARTY_ZLIB_DIR}" "${CMAKE_BINARY_DIR}/_deps/zlib-build")
     # FindZLIB（CMake 4.x）认 ZLIB_LIBRARY_RELEASE / _DEBUG，不认 ZLIB_LIBRARY
-    set(ZLIB_LIBRARY_RELEASE "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(ZLIB_LIBRARY_RELEASE "${OPENREAD_ZLIB_ARCHIVE_DIR}/zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
     set(ZLIB_LIBRARY "${ZLIB_LIBRARY_RELEASE}")
     set(ZLIB_FOUND TRUE)
     set(CURL_ZLIB ON CACHE BOOL "" FORCE)
