@@ -55,7 +55,6 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
                 $<TARGET_FILE:aria_abi>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
-                $<TARGET_FILE:ZLIB::ZLIB>
                 $<TARGET_FILE_DIR:openread-tests>
             COMMAND_EXPAND_LISTS)
     endif()
@@ -109,7 +108,6 @@ if(TARGET openread_vm)
                 $<TARGET_FILE:aria_abi>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
-                $<TARGET_FILE:ZLIB::ZLIB>
                 $<TARGET_FILE_DIR:openread-vm-tests>
             COMMAND_EXPAND_LISTS)
     endif()

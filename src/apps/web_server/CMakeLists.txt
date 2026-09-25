@@ -63,7 +63,6 @@ target_include_directories(openread_web_server
                 $<TARGET_FILE:aria_abi>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
-                $<TARGET_FILE:ZLIB::ZLIB>
                 $<TARGET_FILE_DIR:openread_web_server>
             COMMAND_EXPAND_LISTS)
     endif()
