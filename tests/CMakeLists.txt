@@ -46,7 +46,7 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
     # MSVC: doctest enumerates tests by executing the binary right after it
     # links; the shared Aria dylibs must sit next to it or the discovery run
     # dies with STATUS_DLL_NOT_FOUND. Copy every runtime DLL in place first.
-    if(WIN32 AND ARIA_BUILD_SHARED)
+    if(MSVC AND ARIA_BUILD_SHARED)
         add_custom_command(TARGET openread-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_RUNTIME_DLLS:openread-tests> $<TARGET_FILE_DIR:openread-tests>
@@ -93,6 +93,12 @@ if(TARGET openread_vm)
         target_compile_options(openread-vm-tests PRIVATE -Wno-deprecated-declarations)
     endif()
 
+    if(MSVC AND ARIA_BUILD_SHARED)
+        add_custom_command(TARGET openread-vm-tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:openread-vm-tests> $<TARGET_FILE_DIR:openread-vm-tests>
+            COMMAND_EXPAND_LISTS)
+    endif()
     if(OPENREAD_DOCTEST_CMAKE_DIR)
         include(${OPENREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
         doctest_discover_tests(openread-vm-tests)
