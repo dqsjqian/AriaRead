@@ -10,11 +10,11 @@
 
 namespace openread::web {
 
-void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engine) {
+void register_misc_routes(Server& svr, openread::BookSourceEngine& engine) {
 
     // ── Health ────────────────────────────────────────────────────────
     svr.Get("/api/health",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             int totalSources = 0, validSources = 0;
             try {
                 auto result = engine.getSourceList();
@@ -33,14 +33,14 @@ void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engi
 
     // ── Shutdown ──────────────────────────────────────────────────────
     svr.Post("/api/shutdown",
-        [](const httplib::Request&, httplib::Response& res) {
+        [](const Request&, Response& res) {
             json_ok(res, {{"ok", true}});
             g_running.store(false);
         });
 
     // ── Eval（隔离运行时，无网络/文件桥接）──────────────────────────
     svr.Post("/api/eval",
-        [](const httplib::Request& req, httplib::Response& res) {
+        [](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 if (req.body.size() > 512 * 1024) {
                     json_error(res, 413, "Request exceeds 512 KiB");
@@ -60,7 +60,7 @@ void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engi
 
     // ── URL History ──────────────────────────────────────────────────
     svr.Get("/api/url_history",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 auto* db = engine.database();
                 if (!db) { json_ok(res, json::array()); return; }
@@ -72,7 +72,7 @@ void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engi
         });
 
     svr.Post("/api/url_history",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string url = body.value("url", "");
@@ -83,7 +83,7 @@ void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engi
         });
 
     svr.Delete("/api/url_history",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 std::string url = param(req, "url");
                 if (auto* db = engine.database(); db && !url.empty()) db->removeUrlHistory(url);

@@ -1,28 +1,12 @@
 # OpenRead Unit Tests
 
-# 使用 doctest（轻量级测试框架）
-# 优先使用本地 third_party/doctest，避免构建时依赖网络（与 gumbo/zlib 一致）。
-# CMake 4.x 兼容：doctest 的 cmake_minimum_required 低于 3.10，需要放开策略下限。
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-set(OPENREAD_THIRD_PARTY_DOCTEST_DIR "${CMAKE_SOURCE_DIR}/third_party/doctest" CACHE PATH "Bundled doctest source directory")
-if(EXISTS "${OPENREAD_THIRD_PARTY_DOCTEST_DIR}/CMakeLists.txt")
-    message(STATUS "Using local bundled doctest: ${OPENREAD_THIRD_PARTY_DOCTEST_DIR}")
-    set(DOCTEST_WITH_TESTS OFF CACHE BOOL "" FORCE)
-    set(DOCTEST_WITH_MAIN_IN_STATIC_LIB OFF CACHE BOOL "" FORCE)
-    add_subdirectory(${OPENREAD_THIRD_PARTY_DOCTEST_DIR} ${CMAKE_BINARY_DIR}/_deps/doctest-build EXCLUDE_FROM_ALL)
-    # 供下方 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake) 使用，
-    # 该变量原本由 FetchContent 提供。
-    set(doctest_SOURCE_DIR "${OPENREAD_THIRD_PARTY_DOCTEST_DIR}")
-else()
-    message(STATUS "Bundled doctest not found, fallback to FetchContent clone")
-    include(FetchContent)
-    FetchContent_Declare(
-        doctest
-        GIT_REPOSITORY https://github.com/doctest/doctest.git
-        GIT_TAG        v2.4.11
-    )
-    FetchContent_MakeAvailable(doctest)
-endif()
+# 使用 doctest（轻量级测试框架）：来自依赖前缀，由 build_openread_deps.py 安装。
+find_package(doctest REQUIRED)
+# doctest_discover_tests 的实现随包安装，位置在上游两种可能都出现过。
+find_path(OPENREAD_DOCTEST_CMAKE_DIR NAMES doctest.cmake
+    HINTS "${OPENREAD_DEPS_PREFIX}/lib/cmake/doctest"
+          "${OPENREAD_DEPS_PREFIX}/share/doctest"
+    NO_DEFAULT_PATH)
 
 # ──────────────────────────────────────────────
 # 引擎测试
@@ -46,21 +30,24 @@ add_executable(openread-tests ${ENGINE_TEST_SOURCES})
 target_include_directories(openread-tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/third_party/quickjs
-        ${CMAKE_SOURCE_DIR}/third_party/gumbo
-        SYSTEM ${CMAKE_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr
+        SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
 )
 
 target_link_libraries(openread-tests
     PRIVATE openread
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE doctest::doctest
-    PRIVATE sqlite3
+    PRIVATE ${OPENREAD_SQLITE_TARGET}
 )
 
 # 注册测试
-include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
-doctest_discover_tests(openread-tests PROPERTIES TIMEOUT 60)
+if(OPENREAD_DOCTEST_CMAKE_DIR)
+    include(${OPENREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
+    doctest_discover_tests(openread-tests PROPERTIES TIMEOUT 60)
+else()
+    # 找不到 doctest 的 cmake 模块就退化成整包一个测试，不让测试静默消失。
+    add_test(NAME openread-tests COMMAND openread-tests)
+endif()
 
 # ──────────────────────────────────────────────
 # ViewModel 测试（仅当 Aria + openread_vm 可用时构建）
@@ -82,7 +69,7 @@ if(TARGET openread_vm)
             ${CMAKE_SOURCE_DIR}/include
             # Aria binding 的测试辅助（FakeAdapter/FakeView），用于端到端示例
             ${CMAKE_SOURCE_DIR}/third_party/aria/modules/binding/tests
-            SYSTEM ${CMAKE_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr
+            SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
     )
 
     target_link_libraries(openread-vm-tests
@@ -90,15 +77,19 @@ if(TARGET openread_vm)
             openread_vm
             doctest::doctest
             nlohmann_json::nlohmann_json
-            sqlite3   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
+            ${OPENREAD_SQLITE_TARGET}   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
     )
 
     if(NOT MSVC)
         target_compile_options(openread-vm-tests PRIVATE -Wno-deprecated-declarations)
     endif()
 
-    include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
-    doctest_discover_tests(openread-vm-tests)
+    if(OPENREAD_DOCTEST_CMAKE_DIR)
+        include(${OPENREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
+        doctest_discover_tests(openread-vm-tests)
+    else()
+        add_test(NAME openread-vm-tests COMMAND openread-vm-tests)
+    endif()
 endif()
 
 # Optional Web regressions use only Node.js / Python standard libraries.

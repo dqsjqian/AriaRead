@@ -16,12 +16,12 @@ namespace openread::web {
 
 using openread::detail::sanitizeUtf8;
 
-void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                              aria::async::IExecutor& /*worker*/) {
 
     // ── 列表 ──────────────────────────────────────────────────────────
     svr.Get("/api/sources",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 auto result = engine.getSourceList();
                 json arr = json::array();
@@ -44,7 +44,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 单源调试（SSE 分阶段输出，不修改全局选源/数据库）─────────────
     svr.Get("/api/source/debug",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 const auto url = param(req, "source_url");
                 const auto name = param(req, "source_name");
@@ -63,7 +63,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
                 res.set_header("Cache-Control", "no-cache");
                 res.set_header("X-Accel-Buffering", "no");
                 res.set_chunked_content_provider("text/event-stream",
-                    [source = *found, keyword](std::size_t, httplib::DataSink& sink) {
+                    [source = *found, keyword](std::size_t, DataSink& sink) {
                         runSourceDebug(source, keyword,
                             [&](const std::string& event, const json& data) {
                                 const auto text = "event: " + event + "\ndata: " + safeDump(data) + "\n\n";
@@ -78,7 +78,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 从文件加载 ────────────────────────────────────────────────────
     svr.Post("/api/sources/load",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string filePath = body.value("path", "");
@@ -90,7 +90,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 从原始 JSON 文本加载 ──────────────────────────────────────────
     svr.Post("/api/sources/raw",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string raw = body.value("json", "");
@@ -102,14 +102,14 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 校验全部书源（SSE 流式）───────────────────────────────────────
     svr.Get("/api/sources/validate",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string testQuery = param(req, "q");
             if (testQuery.empty()) testQuery = "\xe6\x88\x91";
 
             res.set_chunked_content_provider(
                 "text/event-stream",
                 [&engine, testQuery](
-                    std::size_t /*offset*/, httplib::DataSink& sink) -> bool {
+                    std::size_t /*offset*/, DataSink& sink) -> bool {
                     auto sources = engine.sources();
                     int totalCount = static_cast<int>(sources.size());
 
@@ -192,7 +192,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 导出优质源 ────────────────────────────────────────────────────
     svr.Get("/api/sources/export",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 res.set_content(engine.exportGoodSources(), "application/json");
             });
@@ -200,7 +200,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 清空全部源 ────────────────────────────────────────────────────
     svr.Delete("/api/sources/clear",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 int count = engine.clearAllSources();
                 json_ok(res, {{"count", count}, {"ok", true}});
@@ -209,7 +209,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 清空无效源 ────────────────────────────────────────────────────
     svr.Delete("/api/sources/invalid",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 int count = engine.removeInvalidSources();
                 json_ok(res, {{"count", count}, {"ok", true}});
@@ -218,7 +218,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 从 URL 加载 ───────────────────────────────────────────────────
     svr.Post("/api/sources/url",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string url = body.value("url", "");
@@ -231,7 +231,7 @@ void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── 移除单个源（按 url 或 name）───────────────────────────────────
     svr.Delete("/api/sources/remove",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string url = param(req, "url");
             std::string name = param(req, "name");
             with_error_handling(res, [&] {

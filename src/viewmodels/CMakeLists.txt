@@ -32,7 +32,7 @@ target_include_directories(openread_vm
         # engine.h 经 database.h 传递包含 sqlite_modern_cpp.h，
         # 而该头在 src 中是 PRIVATE include（不传播给下游）。
         # 下游消费 engine.h 时需自行提供此路径（SYSTEM 抑制第三方警告）。
-        SYSTEM ${CMAKE_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr
+        SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
 )
 
 # database.h（被 engine.h 包含）还传递依赖 nlohmann/json.hpp，
@@ -66,8 +66,8 @@ if(NOT MSVC)
 endif()
 
 # ──────────────────────────────────────────────
-# Web Server（仅当 aria::http 可用时构建）
+# Web Server（Continuo HTTP/1.1 + ViewModel，取代 Aria HttpAdapter）
 # ──────────────────────────────────────────────
-if(TARGET aria::http)
+if(TARGET continuo::http)
     add_subdirectory(${CMAKE_SOURCE_DIR}/src/apps/web_server ${CMAKE_BINARY_DIR}/apps/web_server)
 endif()

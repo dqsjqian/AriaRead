@@ -11,11 +11,11 @@
 
 #include "aria/async/executor.hpp"
 
-#include <httplib.h>
+#include "continuo_server.h"
 
 namespace openread::web {
 
-/// 注册所有 REST 路由到 httplib::Server。
+/// 注册所有 REST 路由到 Server。
 ///
 /// 路由分组：
 ///   /api/health          — 健康检查
@@ -30,7 +30,7 @@ namespace openread::web {
 ///   /api/source/debug    — 单源搜索/目录/正文诊断（SSE）
 ///   /api/shutdown        — 优雅关闭
 void register_routes(
-    httplib::Server& svr,
+    Server& svr,
     openread::BookSourceEngine& engine,
     aria::async::IExecutor& ui,
     aria::async::IExecutor& worker,

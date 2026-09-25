@@ -12,7 +12,7 @@
 
 #include "json_helpers.h"
 
-#include <httplib.h>
+#include "continuo_server.h"
 
 #include <initializer_list>
 #include <string>
@@ -22,7 +22,7 @@ namespace openread::web {
 
 /// 取请求参数；若主名取不到（空），依次回退到别名（如 snake↔camel）。
 /// @param names 一个或多个候选参数名，按序尝试，返回首个非空值。
-inline std::string param(const httplib::Request& req,
+inline std::string param(const Request& req,
                          std::initializer_list<const char*> names) {
     for (const char* n : names) {
         std::string v = req.get_param_value(n);
@@ -32,12 +32,12 @@ inline std::string param(const httplib::Request& req,
 }
 
 /// 单名版本：等价 req.get_param_value(name)，统一入口便于阅读。
-inline std::string param(const httplib::Request& req, const char* name) {
+inline std::string param(const Request& req, const char* name) {
     return req.get_param_value(name);
 }
 
 /// 取整型参数（含别名兜底 + 安全解析）。解析失败或缺省时返回 def。
-inline int int_param(const httplib::Request& req,
+inline int int_param(const Request& req,
                      std::initializer_list<const char*> names,
                      int def = -1) {
     std::string raw = param(req, names);
@@ -50,18 +50,18 @@ inline int int_param(const httplib::Request& req,
 }
 
 /// 单名整型参数。
-inline int int_param(const httplib::Request& req, const char* name, int def = -1) {
+inline int int_param(const Request& req, const char* name, int def = -1) {
     return int_param(req, {name}, def);
 }
 
 /// 统一错误响应：设置状态码 + {"error": msg} JSON 体。
-inline void json_error(httplib::Response& res, int status, const std::string& msg) {
+inline void json_error(Response& res, int status, const std::string& msg) {
     res.status = status;
     res.set_content(safeDump(json({{"error", msg}})), "application/json");
 }
 
 /// 统一成功响应：直接把 json 写回（application/json）。
-inline void json_ok(httplib::Response& res, const json& j) {
+inline void json_ok(Response& res, const json& j) {
     res.set_content(safeDump(j), "application/json");
 }
 
@@ -73,7 +73,7 @@ inline void json_ok(httplib::Response& res, const json& j) {
 ///       });
 ///   });
 template <typename Fn>
-inline void with_error_handling(httplib::Response& res, Fn&& fn) {
+inline void with_error_handling(Response& res, Fn&& fn) {
     try {
         std::forward<Fn>(fn)();
     } catch (const std::exception& e) {

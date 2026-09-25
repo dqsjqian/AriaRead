@@ -12,11 +12,11 @@ namespace openread::web {
 
 using openread::detail::sanitizeUtf8;
 
-void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& engine) {
+void register_catalog_routes(Server& svr, openread::BookSourceEngine& engine) {
 
     // ── Catalog（带缓存抓取）─────────────────────────────────────────
     svr.Get("/api/catalog",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string url = param(req, "url");
             if (url.empty()) { json_error(res, 400, "Missing query parameter: url"); return; }
             std::string sourceUrl = param(req, "source_url");
@@ -32,7 +32,7 @@ void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── Content（带缓存抓取，兼容 camelCase 别名）────────────────────
     svr.Get("/api/content",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string url = param(req, "url");
             if (url.empty()) { json_error(res, 400, "Missing query parameter: url"); return; }
             std::string bookUrl = param(req, {"book_url", "bookUrl"});
@@ -49,7 +49,7 @@ void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── Catalog: cached（仅取已缓存目录 + 本地完整性标记）────────────
     svr.Get("/api/catalog/cached",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string url = param(req, "url");
             if (url.empty()) { json_error(res, 400, "Missing query parameter: url"); return; }
             std::string sourceUrl = param(req, "source_url");
@@ -71,7 +71,7 @@ void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& e
 
     // ── Catalog: refresh（强制重新抓取目录）──────────────────────────
     svr.Get("/api/catalog/refresh",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string url = param(req, "url");
             if (url.empty()) { json_error(res, 400, "Missing query parameter: url"); return; }
             std::string sourceUrl = param(req, "source_url");

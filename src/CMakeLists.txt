@@ -50,18 +50,17 @@ target_include_directories(openread
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated>
         $<INSTALL_INTERFACE:include>
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/third_party/quickjs  # QuickJS 头文件（PRIVATE，不污染下游）
-        SYSTEM ${CMAKE_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr  # sqlite_modern_cpp（SYSTEM 抑制第三方警告）
+        SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}  # sqlite_modern_cpp（SYSTEM 抑制第三方警告）
 )
 
 # ──────────────────────────────────────────────
 # 链接依赖
 # ──────────────────────────────────────────────
 target_link_libraries(openread
-    PRIVATE quickjs
+    PRIVATE ${OPENREAD_QUICKJS_TARGET}
     PRIVATE nlohmann_json::nlohmann_json
-    PRIVATE sqlite3
-    PRIVATE gumbo
+    PRIVATE ${OPENREAD_SQLITE_TARGET}
+    PRIVATE ${OPENREAD_GUMBO_TARGET}
 )
 
 # ──────────────────────────────────────────────

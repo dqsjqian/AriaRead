@@ -33,13 +33,10 @@ endif()
 # ──────────────────────────────────────────────
 option(OPENREAD_BUILD_SHARED    "Build shared library"              OFF)
 option(OPENREAD_BUILD_TESTS     "Build unit tests"                  ON)
-# OPENREAD_BUILD_PYTHON removed — C++ Web Server (Aria HttpAdapter) fully replaces Python/Flask
-option(OPENREAD_ENFORCE_SELF_CONTAINED "Enforce self-contained third-party dependencies" ON)
-option(OPENREAD_USE_SYSTEM_CURL "Use system libcurl instead of bundled third_party/curl" OFF)
-
-if(OPENREAD_ENFORCE_SELF_CONTAINED AND OPENREAD_USE_SYSTEM_CURL)
-    message(FATAL_ERROR "OPENREAD_ENFORCE_SELF_CONTAINED=ON forbids OPENREAD_USE_SYSTEM_CURL=ON")
-endif()
+# OPENREAD_BUILD_PYTHON removed — C++ Web Server (Continuo) fully replaces Python/Flask
+# OPENREAD_ENFORCE_SELF_CONTAINED / OPENREAD_USE_SYSTEM_CURL removed — 依赖现在只有
+# 一个来源（tools/ci/build_openread_deps.py 的固定版本前缀），不再有"系统库 vs
+# vendored"的开关。
 
 # ──────────────────────────────────────────────
 # 输出目录统一
@@ -58,172 +55,63 @@ configure_file(
 )
 
 # ──────────────────────────────────────────────
-# 第三方依赖（FetchContent 自动下载）
+# 第三方依赖：唯一来源是 tools/ci/build_openread_deps.py 构建的前缀
+#
+# 与 Continuo 一致的依赖哲学：
+#   * 依赖由显式脚本取（固定版本 + SHA256 + 许可证留档），只写仓库 build/；
+#   * CMake 侧只 find_package，配置时不联网、不 FetchContent、不 add_subdirectory
+#     第三方源码；
+#   * 没有前缀就直接失败并提示先跑脚本——不再维护 vendored third_party 回退。
+#
+# Aria 是唯一例外：它是同一作者的兄弟项目（四库源码联动），按谦哥的要求
+# 继续以 submodule 源码接入。
 # ──────────────────────────────────────────────
-include(FetchContent)
+set(OPENREAD_DEPS_PREFIX "" CACHE PATH
+    "tools/ci/build_openread_deps.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
+if(NOT OPENREAD_DEPS_PREFIX
+        AND EXISTS "${CMAKE_SOURCE_DIR}/build/deps/prefix/share/openread-deps/manifest.json")
+    set(OPENREAD_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/build/deps/prefix")
+endif()
+if(NOT OPENREAD_DEPS_PREFIX)
+    message(FATAL_ERROR
+        "未找到依赖前缀。请先执行：python3 tools/ci/build_openread_deps.py\n"
+        "再用 -DOPENREAD_DEPS_PREFIX=<prefix> 配置（留空会自动探测 build/deps/prefix）。")
+endif()
+if(NOT EXISTS "${OPENREAD_DEPS_PREFIX}/share/openread-deps/manifest.json")
+    message(FATAL_ERROR
+        "OPENREAD_DEPS_PREFIX 缺少 manifest.json，不像依赖前缀：${OPENREAD_DEPS_PREFIX}")
+endif()
+list(APPEND CMAKE_PREFIX_PATH "${OPENREAD_DEPS_PREFIX}")
+message(STATUS "Using pinned dependency prefix: ${OPENREAD_DEPS_PREFIX}")
 
+# 前缀里同时有静态库和动态库时优先静态：产物是"拷走就能跑"的目录，
+# 不希望运行时再去 @rpath 找 dylib（zlib 的 CMake 两种都编）。
+if(UNIX)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
+
+# Continuo（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib
+find_package(continuo 0.1 REQUIRED)
 # nlohmann/json（header-only JSON 库）
-# 优先使用本地 third_party/nlohmann_json，避免构建时依赖网络。
-set(OPENREAD_THIRD_PARTY_JSON_DIR "${CMAKE_SOURCE_DIR}/third_party/nlohmann_json" CACHE PATH "Bundled nlohmann/json source directory")
-if(EXISTS "${OPENREAD_THIRD_PARTY_JSON_DIR}/CMakeLists.txt")
-    message(STATUS "Using local bundled nlohmann/json: ${OPENREAD_THIRD_PARTY_JSON_DIR}")
-    set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
-    set(JSON_Install OFF CACHE BOOL "" FORCE)
-    add_subdirectory(${OPENREAD_THIRD_PARTY_JSON_DIR} ${CMAKE_BINARY_DIR}/_deps/json-build EXCLUDE_FROM_ALL)
-else()
-    message(STATUS "Bundled nlohmann/json not found, fallback to FetchContent clone")
-    FetchContent_Declare(
-        json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG        v3.11.3
-        GIT_SHALLOW    TRUE
-        UPDATE_DISCONNECTED TRUE
-    )
-    FetchContent_MakeAvailable(json)
-endif()
+find_package(nlohmann_json 3.12 REQUIRED)
+# zlib：libcurl 的 gzip 解压后端，缺了书源会 CURLE_BAD_CONTENT_ENCODING
+find_package(ZLIB REQUIRED)
+# libcurl（HTTP 客户端，静态链接，OpenSSL 后端由 curl 自己的 config 带入）
+find_package(CURL REQUIRED)
+set(CURL_FOUND TRUE)
+# Gumbo（HTML5 解析）、QuickJS（书源 JS 引擎）、SQLite3（amalgamation）
+find_package(Gumbo REQUIRED)
+find_package(QuickJS REQUIRED)
+find_package(SQLite3Amalgamation REQUIRED)
+# sqlite_modern_cpp（header-only C++ 封装，带 OpenRead 的 C++20 兼容补丁）
+find_package(sqlite_modern_cpp REQUIRED)
 
-# ──────────────────────────────────────────────
-# OpenSSL（从 third_party/openssl 源码编译，全平台统一 TLS 后端）
-# ──────────────────────────────────────────────
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/openssl/Configure")
-    message(STATUS "Building OpenSSL from source (third_party/openssl)")
-    include(${CMAKE_SOURCE_DIR}/cmake/BuildOpenSSL.cmake)
-else()
-    message(FATAL_ERROR "OpenSSL source not found at third_party/openssl. "
-        "Please run: git clone --depth 1 --branch openssl-4.0 https://github.com/openssl/openssl.git third_party/openssl")
-endif()
+# 统一的目标名，供 src/、tests/ 使用（前缀模式与后续可能的其它来源只改这里）
+set(OPENREAD_GUMBO_TARGET gumbo::gumbo)
+set(OPENREAD_QUICKJS_TARGET quickjs::quickjs)
+set(OPENREAD_SQLITE_TARGET sqlite3)
+set(OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${OPENREAD_DEPS_PREFIX}/include")
 
-# ──────────────────────────────────────────────
-# zlib（gzip/deflate 解压后端，libcurl 自动解压的前提）
-# 缺失时 libcurl 对带 Content-Encoding: gzip 的响应直接返回
-# CURLE_BAD_CONTENT_ENCODING，gzip 书源必然失败。
-# 与 openssl/curl 一致，从 vendored 源码编译，零系统依赖。
-# ──────────────────────────────────────────────
-set(OPENREAD_THIRD_PARTY_ZLIB_DIR "${CMAKE_SOURCE_DIR}/third_party/zlib" CACHE PATH "Bundled zlib source directory")
-set(OPENREAD_ZLIB_ARCHIVE_DIR "${CMAKE_BINARY_DIR}/lib")
-if(EXISTS "${OPENREAD_THIRD_PARTY_ZLIB_DIR}/CMakeLists.txt")
-    message(STATUS "Using local bundled zlib: ${OPENREAD_THIRD_PARTY_ZLIB_DIR}")
-    set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    add_subdirectory(${OPENREAD_THIRD_PARTY_ZLIB_DIR} ${CMAKE_BINARY_DIR}/_deps/zlib-build EXCLUDE_FROM_ALL)
-    # curl 内部走 find_package(ZLIB) 并链接 ZLIB::ZLIB，而 FindZLIB 只能接受一个
-    # 固定路径（ZLIB_LIBRARY_RELEASE），无法表达配置相关路径。多配置生成器
-    # （Visual Studio / Xcode / Ninja Multi-Config）会往 CMAKE_ARCHIVE_OUTPUT_DIRECTORY
-    # 后面自动追加 /<CONFIG>，路径就对不上了。这里给 zlibstatic 显式指定输出目录，
-    # 用 $<1:...> 让该属性成为生成器表达式，CMake 便不再追加配置子目录，
-    # 于是两种生成器下产物位置一致、上面的固定路径恒成立。
-    # 注意：不改动顶层 CMAKE_ARCHIVE_OUTPUT_DIRECTORY，避免影响其他产物布局。
-    #
-    # 输出名也要固定：上游在 UNIX 下把 zlibstatic 改名为 z（产出 libz.a），
-    # Windows/MinGW 下保持 zlibstatic（libzlibstatic.a / zlibstatic.lib）。
-    # FindZLIB 那条变量同样只能接受一个固定路径，无法表达这种平台差异，
-    # 因此统一钉死为 zlibstatic，让路径在两个平台族下都成立。
-    set_target_properties(zlibstatic PROPERTIES
-        OUTPUT_NAME "zlibstatic"
-        ARCHIVE_OUTPUT_DIRECTORY "$<1:${OPENREAD_ZLIB_ARCHIVE_DIR}>")
-    set(ZLIB_INCLUDE_DIR "${OPENREAD_THIRD_PARTY_ZLIB_DIR}" "${CMAKE_BINARY_DIR}/_deps/zlib-build")
-    # FindZLIB（CMake 4.x）认 ZLIB_LIBRARY_RELEASE / _DEBUG，不认 ZLIB_LIBRARY
-    set(ZLIB_LIBRARY_RELEASE
-        "${OPENREAD_ZLIB_ARCHIVE_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}zlibstatic${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    set(ZLIB_LIBRARY "${ZLIB_LIBRARY_RELEASE}")
-    set(ZLIB_FOUND TRUE)
-    set(CURL_ZLIB ON CACHE BOOL "" FORCE)
-else()
-    message(FATAL_ERROR "zlib source not found at third_party/zlib. "
-        "Please run: git clone --depth 1 --branch v1.3.1 https://github.com/madler/zlib.git third_party/zlib")
-endif()
-
-# libcurl（HTTP 客户端）
-# 默认使用仓库内/自动拉取的 bundled curl，避免依赖开发机上的系统包管理器动态库。
-set(OPENREAD_THIRD_PARTY_CURL_DIR "${CMAKE_SOURCE_DIR}/third_party/curl" CACHE PATH "Bundled curl source directory")
-if(OPENREAD_USE_SYSTEM_CURL)
-    message(STATUS "Using system libcurl (OPENREAD_USE_SYSTEM_CURL=ON)")
-    find_package(CURL REQUIRED)
-else()
-    message(STATUS "Using bundled libcurl from third_party/curl")
-
-    # 关闭不需要的目标与协议，减少构建体积与外部依赖。
-    set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
-    set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
-    set(CURL_ZSTD OFF CACHE BOOL "" FORCE)
-    set(CURL_BROTLI OFF CACHE BOOL "" FORCE)
-    if(OPENREAD_ENFORCE_SELF_CONTAINED)
-        set(USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
-        set(USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
-    endif()
-    set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)   # 不需要 SCP/SFTP，关闭 LibSSH2
-    set(CURL_DISABLE_LDAP ON CACHE BOOL "" FORCE)    # 不需要 LDAP 协议
-    set(CURL_DISABLE_LDAPS ON CACHE BOOL "" FORCE)   # 不需要 LDAPS 协议
-    set(CURL_CA_PATH "none" CACHE STRING "" FORCE)    # 不使用 CA path 目录
-    set(CURL_CA_BUNDLE "none" CACHE STRING "" FORCE)  # 不使用 CA bundle 文件（运行时通过代码设置）
-
-    # 统一构建为静态库，减少运行时动态库冲突风险。
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-
-    # 全平台统一使用 OpenSSL 作为 TLS 后端（替代之前 macOS 的 SecureTransport）
-    set(CURL_ENABLE_SSL ON CACHE BOOL "" FORCE)
-    set(CURL_USE_OPENSSL ON CACHE BOOL "" FORCE)
-    set(CURL_USE_SECTRANSP OFF CACHE BOOL "" FORCE)   # 不再使用 macOS SecureTransport
-    set(CURL_USE_SCHANNEL OFF CACHE BOOL "" FORCE)    # 不再使用 Windows Schannel
-    set(CURL_USE_MBEDTLS OFF CACHE BOOL "" FORCE)     # 不使用 mbedTLS
-    set(CURL_DEFAULT_SSL_BACKEND "openssl" CACHE STRING "" FORCE)
-
-    # 告诉 curl 的 CMake 在哪里找到我们编译的 OpenSSL
-    set(OPENSSL_ROOT_DIR "${OPENSSL_INSTALL_DIR}" CACHE PATH "" FORCE)
-
-    if(EXISTS "${OPENREAD_THIRD_PARTY_CURL_DIR}/CMakeLists.txt")
-        message(STATUS "Using local bundled curl source: ${OPENREAD_THIRD_PARTY_CURL_DIR}")
-        # 确保 OpenSSL 在 curl 之前编译完成
-        # curl 的 find_package(OpenSSL) 会使用我们设置的 OPENSSL_ROOT_DIR
-        add_subdirectory(${OPENREAD_THIRD_PARTY_CURL_DIR} ${CMAKE_BINARY_DIR}/_deps/curl-build EXCLUDE_FROM_ALL)
-    else()
-        message(STATUS "Bundled curl source not found, fallback to FetchContent clone")
-        FetchContent_Declare(
-            curl
-            GIT_REPOSITORY https://github.com/curl/curl.git
-            GIT_TAG        curl-8_8_0
-            GIT_SHALLOW    TRUE
-            UPDATE_DISCONNECTED TRUE
-        )
-        FetchContent_MakeAvailable(curl)
-    endif()
-
-    if(TARGET CURL::libcurl)
-        set(CURL_FOUND TRUE)
-    elseif(TARGET libcurl)
-        add_library(CURL::libcurl ALIAS libcurl)
-        set(CURL_FOUND TRUE)
-    elseif(TARGET libcurl_static)
-        add_library(CURL::libcurl ALIAS libcurl_static)
-        set(CURL_FOUND TRUE)
-    else()
-        message(FATAL_ERROR "Bundled curl did not provide libcurl target")
-    endif()
-
-    # 确保 curl 的静态库目标依赖 OpenSSL / zlib 编译完成（不能对 alias target 添加依赖）
-    foreach(_curl_target libcurl_static libcurl_shared)
-        if(TARGET ${_curl_target})
-            add_dependencies(${_curl_target} openssl_external)
-            if(TARGET zlibstatic)
-                add_dependencies(${_curl_target} zlibstatic)
-            endif()
-        endif()
-    endforeach()
-endif()
-
-if(NOT CURL_FOUND)
-    message(FATAL_ERROR "libcurl is required but not found")
-endif()
-
-# Gumbo HTML5 解析器（Google 开源，纯 C99，跨平台零依赖）
-add_subdirectory(third_party/gumbo)
-
-# QuickJS（本地源码编译）
-add_subdirectory(third_party/quickjs)
-
-# SQLite3（amalgamation 编译，跨平台零依赖）
-add_subdirectory(third_party/sqlite3_src)
 
 # ──────────────────────────────────────────────
 # Aria（C++20 响应式 MVVM 框架，git submodule 源码接入）
@@ -241,15 +129,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/aria/CMakeLists.txt")
     # runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
     # OpenRead 静态库照常链接其导出符号。
     set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
-    # 启用 Aria HTTP/REST/SSE adapter（把 ViewModel 暴露给浏览器，零 Python）。
-    # TLS：Aria 的 BuildOpenSSL.cmake 检测到父项目已定义 openssl_external
-    # target（+ FindOpenSSL 兼容变量）时自动 early-return，复用父项目的
-    # OpenSSL 编译产物。aria_http 的 CMakeLists 自行处理
-    # CPPHTTPLIB_OPENSSL_SUPPORT / OpenSSL::SSL 链接，无需父项目手动干预。
-    # （Aria 上游 2026-06-09 修复：CMAKE_SOURCE_DIR→PROJECT_SOURCE_DIR、
-    #   BuildOpenSSL early-return、native_server() 强类型 escape hatch）
-    set(ARIA_BUILD_HTTP        ON  CACHE BOOL "" FORCE)
-    set(ARIA_HTTP_ENABLE_TLS   ON  CACHE BOOL "" FORCE)
+    # 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Continuo，
+    # Aria 的 adapter 会顺带把 vendored cpp-httplib 编进产物。Aria 在这里
+    # 只提供响应式/协程/ViewModel（core + async + binding）。
+    set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
+    set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
     add_subdirectory(third_party/aria EXCLUDE_FROM_ALL)
 else()
     message(STATUS "Aria submodule not found at third_party/aria. "

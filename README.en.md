@@ -22,7 +22,7 @@ One C++ core drives two web shapes side by side:
 - **Self-contained third-party deps** — nlohmann/json, OpenSSL, and libcurl all build from source; zero system dependencies
 - **Extended ViewModel layer** — SearchViewModel, BookshelfViewModel, ReaderViewModel, SourceViewModel
 - **Engine adapters** — engine_reader_adapter / engine_source_adapter keep engine.h's private dependencies isolated inside .cpp files
-- **C++ web server** — Aria HttpAdapter + ViewModels: 39 REST routes, SSE push, zero Python
+- **C++ web server** — Continuo (in-house C++23 coroutine networking library) + Aria ViewModels: 39 REST routes, SSE push, zero Python
 
 ## Build
 
@@ -65,7 +65,7 @@ OpenRead/
 │   ├── rule/               # rule analyzer
 │   ├── infra/              # infrastructure (HTTP/JS/DB)
 │   ├── viewmodels/         # ViewModel layer
-│   └── apps/web_server/    # web server (Aria HttpAdapter + REST API)
+│   └── apps/web_server/    # web server (Continuo HTTP/1.1 + REST API)
 ├── third_party/
 │   ├── aria/               # Aria C++20 coroutine MVVM framework (git submodule)
 │   ├── curl/               # libcurl, built from source

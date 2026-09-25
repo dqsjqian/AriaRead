@@ -15,7 +15,7 @@
 #include "aria/async/executor.hpp"
 
 #include <atomic>
-#include <httplib.h>
+#include "continuo_server.h"
 
 namespace openread::web {
 
@@ -23,18 +23,18 @@ namespace openread::web {
 extern std::atomic<bool> g_running;
 
 // ── 分组注册函数 ───────────────────────────────────────────────────
-void register_misc_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+void register_misc_routes(Server& svr, openread::BookSourceEngine& engine);
 
-void register_search_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+void register_search_routes(Server& svr, openread::BookSourceEngine& engine);
 
-void register_catalog_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+void register_catalog_routes(Server& svr, openread::BookSourceEngine& engine);
 
-void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
                                aria::async::IExecutor& worker);
 
-void register_sources_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                              aria::async::IExecutor& worker);
 
-void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engine);
+void register_rss_routes(Server& svr, openread::BookSourceEngine& engine);
 
 }  // namespace openread::web

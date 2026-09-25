@@ -15,12 +15,12 @@ namespace openread::web {
 
 using openread::detail::sanitizeUtf8;
 
-void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine& engine,
+void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
                                aria::async::IExecutor& worker) {
 
     // ── 列表 ──────────────────────────────────────────────────────────
     svr.Get("/api/bookshelf",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 auto details = engine.getBookshelfWithDetails();
                 json arr = json::array();
@@ -31,7 +31,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 加入书架 ──────────────────────────────────────────────────────
     svr.Post("/api/bookshelf/add",
-        [&engine, &worker](const httplib::Request& req, httplib::Response& res) {
+        [&engine, &worker](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 openread::BookshelfItem item;
@@ -67,7 +67,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 移除（支持 query 或 body）─────────────────────────────────────
     svr.Delete("/api/bookshelf/remove",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookUrl = param(req, "bookUrl");
             if (bookUrl.empty() && !req.body.empty()) {
                 try {
@@ -84,7 +84,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 阅读进度：读 ──────────────────────────────────────────────────
     svr.Get("/api/bookshelf/progress",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookUrl = param(req, {"book_url", "bookUrl"});
             if (bookUrl.empty()) { json_error(res, 400, "Missing query parameter: bookUrl"); return; }
             with_error_handling(res, [&] {
@@ -101,7 +101,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 阅读进度：写 ──────────────────────────────────────────────────
     svr.Put("/api/bookshelf/progress",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 openread::ReadProgress p;
@@ -118,7 +118,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 换源 ──────────────────────────────────────────────────────────
     svr.Put("/api/bookshelf/change_source",
-        [&engine, &worker](const httplib::Request& req, httplib::Response& res) {
+        [&engine, &worker](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string bookUrl = body.value("bookUrl", "");
@@ -148,7 +148,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 缓存状态 ──────────────────────────────────────────────────────
     svr.Get("/api/bookshelf/cache_status",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookUrl = param(req, {"book_url", "bookUrl"});
             if (bookUrl.empty()) { json_error(res, 400, "Missing query parameter: book_url"); return; }
             with_error_handling(res, [&] {
@@ -161,7 +161,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 清缓存 ────────────────────────────────────────────────────────
     svr.Delete("/api/bookshelf/clear_cache",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string bookUrl = body.value("bookUrl", "");
@@ -174,7 +174,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 更新检查状态（轮询用）─────────────────────────────────────────
     svr.Get("/api/bookshelf/check_status",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 auto details = engine.getBookshelfWithDetails();
                 int hasUpdate = 0;
@@ -191,7 +191,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 批量更新检查 ──────────────────────────────────────────────────
     svr.Get("/api/bookshelf/check_update",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 int count = engine.checkAllUpdates();
                 json_ok(res, {{"updatedCount", count}, {"ok", true}});
@@ -200,7 +200,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 全量下载（SSE）────────────────────────────────────────────────
     svr.Get("/api/bookshelf/download",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookUrl = param(req, {"book_url", "bookUrl"});
             if (bookUrl.empty()) { json_error(res, 400, "Missing query parameter: book_url"); return; }
             std::string sourceUrl = param(req, {"source_url", "sourceUrl"});
@@ -210,7 +210,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
             res.set_chunked_content_provider(
                 "text/event-stream",
                 [&engine, bookUrl, sourceUrl, sourceIndex, sourceName](
-                    std::size_t /*offset*/, httplib::DataSink& sink) -> bool {
+                    std::size_t /*offset*/, DataSink& sink) -> bool {
                     std::mutex sink_mu;
 
                     {
@@ -248,7 +248,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 导出 TXT ──────────────────────────────────────────────────────
     svr.Get("/api/bookshelf/export_txt",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookUrl = param(req, {"book_url", "bookUrl"});
             std::string sourceUrl = param(req, {"source_url", "sourceUrl"});
             if (bookUrl.empty()) { json_error(res, 400, "Missing query parameter: bookUrl"); return; }
@@ -264,7 +264,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
 
     // ── 自动换源（SSE）────────────────────────────────────────────────
     svr.Get("/api/bookshelf/auto_source",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string bookName = param(req, {"book_name", "bookName"});
             std::string bookAuthor = param(req, {"book_author", "bookAuthor"});
             std::string excludeSourceUrl = param(req, {"exclude_source_url", "excludeSourceUrl"});
@@ -273,7 +273,7 @@ void register_bookshelf_routes(httplib::Server& svr, openread::BookSourceEngine&
             res.set_chunked_content_provider(
                 "text/event-stream",
                 [&engine, bookName, bookAuthor, excludeSourceUrl](
-                    std::size_t /*offset*/, httplib::DataSink& sink) -> bool {
+                    std::size_t /*offset*/, DataSink& sink) -> bool {
                     std::mutex sink_mu;
                     engine.findAlternativeSources(
                         bookName, bookAuthor, excludeSourceUrl, 8,

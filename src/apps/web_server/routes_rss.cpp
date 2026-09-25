@@ -13,11 +13,11 @@ namespace openread::web {
 
 using openread::detail::sanitizeUtf8;
 
-void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engine) {
+void register_rss_routes(Server& svr, openread::BookSourceEngine& engine) {
 
     // ── 订阅源列表 ────────────────────────────────────────────────────
     svr.Get("/api/rss/sources",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 auto sources = engine.getRssSources();
                 json arr = json::array();
@@ -41,7 +41,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 新增/更新订阅源 ───────────────────────────────────────────────
     svr.Post("/api/rss/sources",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 openread::RssSource src;
@@ -59,7 +59,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 删除订阅源 ────────────────────────────────────────────────────
     svr.Delete("/api/rss/sources",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string sourceUrl = body.value("sourceUrl", "");
@@ -71,7 +71,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 导入（JSON 文本）──────────────────────────────────────────────
     svr.Post("/api/rss/import/json",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string content = body.value("json", "");
@@ -85,7 +85,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 导入（URL）────────────────────────────────────────────────────
     svr.Post("/api/rss/import/url",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string url = body.value("url", "");
@@ -99,7 +99,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 文章列表（分页）───────────────────────────────────────────────
     svr.Get("/api/rss/articles",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string sourceUrl = param(req, "source_url");
             int page = int_param(req, "page", 1);
             int pageSize = int_param(req, "page_size", 50);
@@ -136,7 +136,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 文章详情（懒加载正文）─────────────────────────────────────────
     svr.Get("/api/rss/article",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string idRaw = param(req, "id");
             if (idRaw.empty()) { json_error(res, 400, "Missing query parameter: id"); return; }
             with_error_handling(res, [&] {
@@ -163,7 +163,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 抓取单个订阅源 ────────────────────────────────────────────────
     svr.Post("/api/rss/fetch",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
                 std::string sourceUrl = body.value("sourceUrl", "");
@@ -182,10 +182,10 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 评级检测（SSE 流式）───────────────────────────────────────────
     svr.Get("/api/rss/check/stream",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             res.set_chunked_content_provider(
                 "text/event-stream",
-                [&engine](std::size_t /*offset*/, httplib::DataSink& sink) -> bool {
+                [&engine](std::size_t /*offset*/, DataSink& sink) -> bool {
                     std::mutex sink_mu;
                     std::atomic<int> excellent{0}, good{0}, poor{0}, invalid{0};
                     try {
@@ -230,7 +230,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 清空全部 RSS ──────────────────────────────────────────────────
     svr.Delete("/api/rss/clear",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 engine.clearAllRss();
                 json_ok(res, {{"ok", true}});
@@ -239,7 +239,7 @@ void register_rss_routes(httplib::Server& svr, openread::BookSourceEngine& engin
 
     // ── 清空无效 RSS ──────────────────────────────────────────────────
     svr.Delete("/api/rss/clear-invalid",
-        [&engine](const httplib::Request&, httplib::Response& res) {
+        [&engine](const Request&, Response& res) {
             with_error_handling(res, [&] {
                 int removed = engine.clearInvalidRssSources();
                 json_ok(res, {{"ok", true}, {"removed", removed}});

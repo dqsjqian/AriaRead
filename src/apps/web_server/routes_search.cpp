@@ -23,14 +23,14 @@ namespace {
 /// 把"逐源并发搜索 → SSE 推送"这套在 all/selected 两处重复的逻辑收敛成一个函数。
 /// @param sourceNames 为空表示搜全部可用源；非空表示只搜指定名称的源。
 void stream_concurrent_search(openread::BookSourceEngine& engine,
-                              httplib::Response& res,
+                              Response& res,
                               const std::string& keyword,
                               bool matchName, bool matchAuthor, bool matchIntro,
                               const std::vector<std::string>& sourceNames) {
     res.set_chunked_content_provider(
         "text/event-stream",
         [&engine, keyword, matchName, matchAuthor, matchIntro, sourceNames](
-            std::size_t /*offset*/, httplib::DataSink& sink) -> bool {
+            std::size_t /*offset*/, DataSink& sink) -> bool {
             auto sources = engine.sources();
 
             // 统计可搜索源数量
@@ -132,11 +132,11 @@ void stream_concurrent_search(openread::BookSourceEngine& engine,
 
 }  // namespace
 
-void register_search_routes(httplib::Server& svr, openread::BookSourceEngine& engine) {
+void register_search_routes(Server& svr, openread::BookSourceEngine& engine) {
 
     // ── 单源搜索 ──────────────────────────────────────────────────────
     svr.Get("/api/search",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string keyword = param(req, "q");
             if (keyword.empty()) { json_error(res, 400, "Missing query parameter: q"); return; }
             with_error_handling(res, [&] {
@@ -174,7 +174,7 @@ void register_search_routes(httplib::Server& svr, openread::BookSourceEngine& en
 
     // ── 全源并发搜索（SSE 流式）───────────────────────────────────────
     svr.Get("/api/search/all",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string keyword = param(req, "q");
             if (keyword.empty()) { json_error(res, 400, "Missing query parameter: q"); return; }
 
@@ -189,7 +189,7 @@ void register_search_routes(httplib::Server& svr, openread::BookSourceEngine& en
 
     // ── 指定源并发搜索（SSE 流式）─────────────────────────────────────
     svr.Get("/api/search/selected",
-        [&engine](const httplib::Request& req, httplib::Response& res) {
+        [&engine](const Request& req, Response& res) {
             std::string keyword = param(req, "q");
             if (keyword.empty()) { json_error(res, 400, "Missing query parameter: q"); return; }
 

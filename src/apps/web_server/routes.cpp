@@ -16,7 +16,7 @@
 namespace openread::web {
 
 void register_routes(
-    httplib::Server& svr,
+    Server& svr,
     openread::BookSourceEngine& engine,
     aria::async::IExecutor& /*ui*/,
     aria::async::IExecutor& worker,

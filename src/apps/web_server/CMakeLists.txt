@@ -1,20 +1,22 @@
-# OpenRead Web Server（Aria HttpAdapter + ViewModel 替代 Python Flask）
+# OpenRead Web Server（Continuo HTTP/1.1 + ViewModel 替代 Python Flask）
 #
-# 完整 C++ Web 后端：用 Aria 的 HTTP adapter + ViewModel 把 OpenRead 的
-# 业务逻辑直接暴露给浏览器——零 Python、零 Flask。
+# 完整 C++ Web 后端：把 OpenRead 的业务逻辑直接暴露给浏览器——零 Python、
+# 零 Flask，也不再 vendored cpp-httplib（原先经 Aria HttpAdapter 带入）。
 #
 # 运行：
 #   ./openread_web_server [port] [static_root] [db_path]
 #   例：./openread_web_server 9091 ../web openread.db
 #   然后浏览器打开 http://127.0.0.1:9091
 
-if(NOT TARGET aria::http)
-    message(STATUS "openread_web_server skipped: aria::http not available (set ARIA_BUILD_HTTP=ON)")
-    return()
+if(NOT TARGET continuo::http)
+    message(FATAL_ERROR "openread_web_server 需要 Continuo："
+        "先执行 python3 tools/ci/build_openread_deps.py，再用 "
+        "-DCMAKE_PREFIX_PATH=<prefix> 配置")
 endif()
 
 add_executable(openread_web_server
     main.cpp
+    continuo_server.cpp
     json_helpers.cpp
     port_utils.cpp
     routes.cpp
@@ -29,23 +31,23 @@ add_executable(openread_web_server
 target_link_libraries(openread_web_server
     PRIVATE
         openread_vm       # ViewModel 层（PUBLIC 传递 openread/aria::core/aria::binding）
-        aria::http        # HttpAdapter（PUBLIC 传递 aria::core/aria::abi/aria::binding）
+        continuo::http    # HTTP/1.1（传递 continuo::core）
+        continuo::transport  # TCP 监听与连接
         nlohmann_json::nlohmann_json  # JSON 序列化
         CURL::libcurl     # json_helpers.cpp 直接使用 curl 头文件与 API
         sqlite3           # sqlite_modern_cpp.h → sqlite3.h 的传递包含；引擎 PRIVATE
                           # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
 )
 
-# cpp-httplib 由 aria::http 通过 PUBLIC BUILD_INTERFACE 传递；
-# 这里的显式 SYSTEM include 是兜底，确保即使 Aria 改回 PRIVATE
-# 也能编译。sqlite_modern_cpp 是本项目的直接依赖。
+# sqlite_modern_cpp 是本项目的直接依赖（header-only）。
 target_include_directories(openread_web_server
     PRIVATE
-        SYSTEM ${CMAKE_SOURCE_DIR}/third_party/aria/third_party/cpp-httplib
-        SYSTEM ${CMAKE_SOURCE_DIR}/third_party/sqlite_modern_cpp/hdr
+        SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
 )
 
-target_compile_features(openread_web_server PRIVATE cxx_std_20)
+# Continuo 以 C++23 发布（公开头用 std::expected），本目标的源码按 C++23 编译；
+# 其余目标仍是 C++20，二者通过 libc++/libstdc++ 的稳定 ABI 链接。
+target_compile_features(openread_web_server PRIVATE cxx_std_23)
 
 # 每次构建服务时同步资源，包括仅修改 JS/CSS、没有触发重新链接的情况。
 # 多配置生成器将资源放到 bin/<配置>/web，与可执行文件、Aria DLL 同目录。
@@ -74,7 +76,7 @@ elseif(UNIX)
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "$ORIGIN")
 endif()
 
-# 抑制 sqlite_modern_cpp / httplib 的弃用警告
+# 抑制 sqlite_modern_cpp 的弃用警告
 if(NOT MSVC)
     target_compile_options(openread_web_server PRIVATE -Wno-deprecated-declarations)
 endif()

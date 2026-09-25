@@ -2,10 +2,13 @@
 /// @brief OpenRead Web Server 入口。
 ///
 /// 架构：
-///   主线程 = Aria 响应式图线程（MainThreadExecutor pump）
-///   后台   = ThreadPoolExecutor（worker，搜索/目录/正文在其上执行）
-///   HttpAdapter 负责 Aria 绑定协议（SSE 推送响应式状态变更）
-///   native_server() 获取底层 httplib::Server&，注册 /api/* REST 路由
+///   主线程   = Aria 响应式图线程（MainThreadExecutor pump）
+///   后台     = ThreadPoolExecutor（worker，搜索/目录/正文在其上执行）
+///   HTTP 线程 = Continuo 事件循环（Server，/api/* REST + 静态资源）
+///
+/// HTTP 层原先是 Aria HttpAdapter（内部 vendored cpp-httplib），现改为
+/// Continuo：解析/分帧/keep-alive 交给 Continuo，路由与静态文件在
+/// continuo_server.{h,cpp}，业务仍跑在独立线程上，避免占住事件循环。
 
 #include "openread/engine.h"
 #include "openread/vm/search_view_model.h"
@@ -18,9 +21,8 @@
 #include "openread/vm/engine_source_adapter.h"
 
 #include "aria/async/executor.hpp"
-#include "aria/binding/binding_engine.hpp"
-#include "aria/adapters/http/http_adapter.hpp"
 
+#include "continuo_server.h"
 #include "json_helpers.h"
 #include "startup_options.h"
 #include "routes.h"
@@ -64,8 +66,6 @@ void on_signal(int) { openread::web::g_running.store(false); }
 
 int main(int argc, char** argv) {
     using namespace aria::async;
-    using aria::binding::BindingEngine;
-    namespace http = aria::adapters::http;
 
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
@@ -186,41 +186,33 @@ int main(int argc, char** argv) {
     openread::vm::ReaderViewModel rvm{ui, worker, reader_backend};
     openread::vm::SourceViewModel srcvm{ui, worker, source_backend};
 
-    // ── 4. HttpAdapter + BindingEngine（SSE 推送）────────────────────
-    http::HttpAdapterConfig cfg;
-    cfg.host = host;
-    cfg.port = port;
-    cfg.enable_cors = true;
-    cfg.static_root = static_root;
+    // ── 4. Continuo HTTP 服务 ────────────────────────────────────────
+    openread::web::Server svr;
+    svr.set_static_root(static_root);
+    // Revalidate assets after a build; stale CSS/JS can otherwise mix app versions.
+    svr.set_file_request_handler([](const openread::web::Request&,
+                                    openread::web::Response& response) {
+        response.set_header("Cache-Control", "no-cache");
+    });
 
-    auto adapter = std::make_shared<http::HttpAdapter>(cfg);
-    BindingEngine binding_engine(adapter);
+    // ── 5. 注册 REST 路由（必须在事件循环起来之前，避免路由表读写竞争）──
+    openread::web::register_routes(svr, engine, ui, worker, svm, bvm, rvm, srcvm);
 
-    // 绑定搜索状态到 SSE
-    auto& v_keyword = adapter->register_view("keyword", "text");
-    auto& v_found   = adapter->register_view("found", "int");
-    auto& v_loading = adapter->register_view("loading", "bool");
-    binding_engine.bind_text(svm.keyword, v_keyword);
-    binding_engine.bind_int_oneway(svm.found_count, v_found);
-    binding_engine.bind_bool_oneway(svm.is_searching(), v_loading);
-
-    if (!adapter->start()) {
+    if (!svr.listen(host, port)) {
+        std::cerr << "Invalid listen address: " << host << ":" << port << "\n";
+        return 1;
+    }
+    std::thread http_thread([&svr] { svr.run(); });
+    const int listening_port = svr.actual_port();
+    if (listening_port <= 0) {
         std::cerr << "Failed to start HTTP server on " << host << ":" << port
                   << ". The address may be unavailable or already in use.\n";
         return 1;
     }
 
-    // ── 5. 注册 REST 路由 ───────────────────────────────────────────
-    auto& svr = adapter->native_server();
-    // Revalidate assets after a build; stale CSS/JS can otherwise mix app versions.
-    svr.set_file_request_handler([](const httplib::Request&, httplib::Response& response) {
-        response.set_header("Cache-Control", "no-cache");
-    });
-    openread::web::register_routes(svr, engine, ui, worker, svm, bvm, rvm, srcvm);
-
     std::cout << "OpenRead Web Server running:\n"
-              << "  http://" << host << ":" << adapter->actual_port() << "\n"
-              << "  Backend: C++ (Aria HttpAdapter + ViewModel)\n"
+              << "  http://" << host << ":" << listening_port << "\n"
+              << "  Backend: C++ (Continuo HTTP/1.1 + ViewModel)\n"
               << "  Static: " << static_root << "\n"
               << "  (Ctrl-C to stop)\n";
 
@@ -231,12 +223,14 @@ int main(int argc, char** argv) {
 
     // ── 7. 退出 ─────────────────────────────────────────────────────
     //
-    // 根因：adapter->stop() 内部 server_thread.join() 等 httplib 线程池
-    // 排空所有活跃连接（SSE content provider 等），会永远不返回。
-    // ThreadPoolExecutor::~ThreadPoolExecutor 的 wait_idle() 同理。
+    // 根因：stop() 只投递协作取消，正在跑的长任务（SSE content provider）
+    // 与 ThreadPoolExecutor::~ThreadPoolExecutor 的 wait_idle() 都可能
+    // 长时间不返回。
     //
-    // 方案：跳过阻塞的析构，用 _Exit 直接退。OS 自动回收 socket/线程。
+    // 方案：先请求停止，再用 _Exit 直接退。OS 自动回收 socket/线程。
     // 这是 Chrome/SQLite 等成熟项目的常见做法——进程退出时不需要
     // 运行全局析构函数，内核回收一切资源。
+    svr.stop();
+    http_thread.detach();
     std::_Exit(0);
 }
