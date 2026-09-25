@@ -51,6 +51,11 @@ jobs:
         run: |
           cmake --build build/ci-vs2026 --config Release --parallel 3
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Dump test-binary DLL dependencies on failure
+        if: failure()
+        run: |
+          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\openread-tests.exe
+          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\openread_web_server.exe
       - name: Run engine, ViewModel and Web regressions
         # 这里曾经是阻塞门禁的例外：MSVC 侧的静态 CRT 与共享 Aria DLL 不匹配
         # （/MT 下每个模块各自一个 CRT 堆，跨模块释放堆内存即 0xc0000374 堆损坏），
@@ -108,6 +113,11 @@ jobs:
             -DOPENREAD_BUILD_TESTS=ON -DOPENREAD_BUILD_WEB_TESTS=ON
       - name: Build engine, ViewModels and Web server
         run: cmake --build build/ci-win --parallel 3
+      - name: Dump test-binary DLL dependencies on failure
+        if: failure()
+        run: |
+          objdump -p build/ci-win/bin/openread-tests.exe | grep -i "DLL Name"
+          objdump -p build/ci-win/bin/openread_web_server.exe | grep -i "DLL Name"
       - name: Run engine, ViewModel and Web regressions
         run: |
           export PATH="$PWD/build/ci-win/bin:$PATH"
