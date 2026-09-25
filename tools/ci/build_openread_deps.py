@@ -52,7 +52,7 @@ CONTINUO_REPO = "dqsjqian/continuo"
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
 CONTINUO_TAG = "v0.1.3"
-CONTINUO_REF = "b12349be5ba07c862b8126e252e7bffa01f653e40b8af28a7b3565117ac9a760"
+CONTINUO_REF = "5884aca2e389c0f381d46e1e2610f7ea353c6c4f"
 
 
 @dataclass(frozen=True)
