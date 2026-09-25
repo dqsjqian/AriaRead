@@ -52,11 +52,11 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
         # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
         add_custom_command(TARGET openread-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:aria::abi>
-                $<TARGET_FILE:aria::core>
-                $<TARGET_FILE:aria::async>
-                $<TARGET_FILE:aria::runtime>
-                $<TARGET_FILE:aria::binding>
+                $<TARGET_FILE:aria_abi>
+                $<TARGET_FILE:aria_core>
+                $<TARGET_FILE:aria_async>
+                $<TARGET_FILE:aria_runtime>
+                $<TARGET_FILE:aria_binding>
                 $<TARGET_FILE_DIR:openread-tests>
             COMMAND_EXPAND_LISTS)
     endif()
@@ -107,11 +107,11 @@ if(TARGET openread_vm)
         # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
         add_custom_command(TARGET openread-vm-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:aria::abi>
-                $<TARGET_FILE:aria::core>
-                $<TARGET_FILE:aria::async>
-                $<TARGET_FILE:aria::runtime>
-                $<TARGET_FILE:aria::binding>
+                $<TARGET_FILE:aria_abi>
+                $<TARGET_FILE:aria_core>
+                $<TARGET_FILE:aria_async>
+                $<TARGET_FILE:aria_runtime>
+                $<TARGET_FILE:aria_binding>
                 $<TARGET_FILE_DIR:openread-vm-tests>
             COMMAND_EXPAND_LISTS)
     endif()
