@@ -1,0 +1,120 @@
+diff --git a/src/attribute.c b/src/attribute.c
+--- a/src/attribute.c
++++ b/src/attribute.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ 
+ #include "util.h"
+ 
+diff --git a/src/parser.c b/src/parser.c
+--- a/src/parser.c
++++ b/src/parser.c
+@@ -19,7 +19,13 @@
+ #include <stdarg.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ 
+ #include "attribute.h"
+ #include "error.h"
+diff --git a/src/string_buffer.c b/src/string_buffer.c
+--- a/src/string_buffer.c
++++ b/src/string_buffer.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ 
+ #include "string_piece.h"
+ #include "util.h"
+diff --git a/src/string_piece.c b/src/string_piece.c
+--- a/src/string_piece.c
++++ b/src/string_piece.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ 
+ #include "util.h"
+ 
+diff --git a/src/utf8.c b/src/utf8.c
+--- a/src/utf8.c
++++ b/src/utf8.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdint.h>
+ #include <string.h>
+-#include <strings.h>  // For strncasecmp.
++#ifndef _MSC_VER
++#include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif  // For strncasecmp.
+ 
+ #include "error.h"
+ #include "gumbo.h"
+diff --git a/src/util.c b/src/util.c
+--- a/src/util.c
++++ b/src/util.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ #include <stdarg.h>
+ #include <stdio.h>
+ 
+diff --git a/src/vector.c b/src/vector.c
+--- a/src/vector.c
++++ b/src/vector.c
+@@ -19,7 +19,13 @@
+ #include <assert.h>
+ #include <stdlib.h>
+ #include <string.h>
++#ifndef _MSC_VER
+ #include <strings.h>
++#else
++#include <string.h>
++#define strcasecmp _stricmp
++#define strncasecmp _strnicmp
++#endif
+ 
+ #include "util.h"
+ 

@@ -183,7 +183,11 @@ target_include_directories(quickjs PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOUR
 set_target_properties(quickjs PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON
                                         POSITION_INDEPENDENT_CODE ON)
 # CONFIG_VERSION 上游由 Makefile 传入（quickjs.c 里直接用），CMake 侧必须补上。
+# _GNU_SOURCE：quickjs-libc.c 用到 environ 与 sighandler_t，strict c11 下不可见。
 target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="2026-06-04")
+if(NOT MSVC)
+    target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
+endif()
 if(MSVC)
     target_compile_options(quickjs PRIVATE /utf-8
         "/FI${CMAKE_CURRENT_SOURCE_DIR}/quickjs_msvc_shim.h")
@@ -264,7 +268,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url="https://github.com/google/gumbo-parser/archive/refs/tags/v0.10.1.tar.gz",
         sha256="28463053d44a5dfbc4b77bcf49c8cee119338ffa636cc17fc3378421d714efad",
         license="Apache-2.0", license_files=("COPYING",), root="gumbo-parser-0.10.1",
-        kind="generated", cmake_lists=GUMBO_CMAKE,
+        kind="generated", cmake_lists=GUMBO_CMAKE, patch="gumbo-0.10.1-msvc.patch",
         artifacts=("lib/libgumbo.a", "include/gumbo.h"),
         hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
