@@ -217,7 +217,10 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url="https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
         sha256="9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
         license="Zlib", license_files=("LICENSE",), root="zlib-1.3.1", kind="cmake",
-        options=("-DZLIB_BUILD_EXAMPLES=OFF", "-DSKIP_INSTALL_FILES=OFF"),
+        # 仅静态：zlib 的 CMake 默认同时产出共享库，Windows 消费端会通过
+        # 导入库依赖 zlib1.dll，测试发现与服务器启动都得额外带 DLL。
+        options=("-DZLIB_BUILD_SHARED=OFF", "-DZLIB_BUILD_EXAMPLES=OFF",
+                 "-DSKIP_INSTALL_FILES=OFF"),
         artifacts=("lib/libz.a", "include/zlib.h"),  # Windows 上是 zlibstatic.lib，见 artifact_present
         hash_note="本机实测（上游 release 未发布摘要）",
     ),
