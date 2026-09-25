@@ -526,10 +526,17 @@ def copy_licenses(prefix: Path, source: Path, dependency: Dependency) -> list[st
     return copied
 
 
+def windows_toolchain() -> str:
+    """Windows 上区分 MSVC 与 MinGW/MSYS2：两者的 OpenSSL 构建方式不同。"""
+    if shutil.which("cl") and shutil.which("nmake"):
+        return "msvc"
+    return "mingw"
+
+
 def build_cmake(source: Path, build: Path, prefix: Path, jobs: int,
                 dependency: Dependency, common: list[str]) -> None:
     configure = ["cmake"]
-    if sys.platform == "win32":
+    if sys.platform == "win32" and windows_toolchain() == "msvc":
         # Visual Studio 生成器默认出 Win32；本项目全平台只要 x64。
         configure += ["-A", "x64"]
     run([*configure, "-S", str(source), "-B", str(build), *common, *dependency.options])
@@ -541,15 +548,21 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
     if shutil.which("perl") is None:
         raise ValueError("OpenSSL 的 Configure 需要 perl（Windows 上可用 Strawberry Perl）")
     windows = sys.platform == "win32"
-    make = "nmake" if windows else "make"
+    toolchain = windows_toolchain() if windows else ""
+    make = "nmake" if toolchain == "msvc" else "make"
     if shutil.which(make) is None:
         raise ValueError(f"OpenSSL 源码构建需要 {make}")
-    target = ["VC-WIN64A"] if windows else []
+    if toolchain == "msvc":
+        target = ["VC-WIN64A"]
+    elif toolchain == "mingw":
+        target = ["mingw64"]
+    else:
+        target = []
     # no-asm：避免 Windows 上再依赖 NASM；静态库只给 libcurl 用，慢一点无所谓。
     run(["perl", str(source / "Configure"), *target, f"--prefix={prefix}",
          f"--openssldir={prefix}/ssl", "no-shared", "no-tests", "no-docs", "no-apps",
-         "no-asm"] + ([] if windows else []), cwd=source)
-    if windows:
+         "no-asm"], cwd=source)
+    if toolchain == "msvc":
         run([make], cwd=source)
         run([make, "install_sw"], cwd=source)
     else:
