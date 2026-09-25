@@ -39,6 +39,12 @@ target_link_libraries(openread_web_server
                           # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
 )
 
+# 静态 OpenSSL（Continuo TLS 传递）在 Windows 上会拉到证书库后端
+# winstore_store，它需要系统的 crypt32；MinGW 静态链接不会自动补系统库。
+if(WIN32)
+    target_link_libraries(openread_web_server PRIVATE crypt32)
+endif()
+
 # sqlite_modern_cpp 是本项目的直接依赖（header-only）。
 target_include_directories(openread_web_server
     PRIVATE

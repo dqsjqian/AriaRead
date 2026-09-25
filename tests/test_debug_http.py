@@ -443,11 +443,16 @@ class DebugHttpTests(unittest.TestCase):
         owner = subprocess.Popen([sys.executable, '-c', PORT_OWNER_SCRIPT, str(port_file)],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.addCleanup(stop_process, owner)
-        deadline = time.monotonic() + 5
+        # Freshly-built binaries on macOS CI runners pay first-launch
+        # signature/codesign checks, and ctest runs this concurrently with
+        # the other two web suites — give the fixture real headroom. The
+        # assertions that matter (owner stays alive, server rejects the
+        # occupied port) are unchanged.
+        deadline = time.monotonic() + 30
         while not port_file.exists() and time.monotonic() < deadline:
             self.assertIsNone(owner.poll(), 'Port-owner fixture exited before binding')
             time.sleep(0.02)
-        self.assertTrue(port_file.exists(), 'Port-owner fixture did not start within 5 seconds')
+        self.assertTrue(port_file.exists(), 'Port-owner fixture did not start within 30 seconds')
         occupied_port = int(port_file.read_text())
         self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1], 'openread-test-port-owner')
         log = tempfile.TemporaryFile(mode='w+b')

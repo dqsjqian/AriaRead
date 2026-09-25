@@ -49,6 +49,10 @@
 #else
 #include <unistd.h>
 #include <sys/stat.h>
+#if defined(_MSC_VER) && !defined(S_ISDIR)
+// MSVC's <sys/stat.h> lacks the POSIX S_IS* wrappers.
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#endif
 #include <sys/types.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
