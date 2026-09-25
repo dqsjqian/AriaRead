@@ -54,6 +54,21 @@ target_include_directories(openread_web_server
         SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
 )
 
+    if(WIN32 AND ARIA_BUILD_SHARED)
+        # 明确按目标拷贝运行时 DLL：Aria 是 SHARED，MinGW 的发现测试执行
+        # exe 时必须能在同目录找到它们。$<TARGET_RUNTIME_DLLS> 在 MinGW 上
+        # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
+        add_custom_command(TARGET openread_web_server POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:aria::abi>
+                $<TARGET_FILE:aria::core>
+                $<TARGET_FILE:aria::async>
+                $<TARGET_FILE:aria::runtime>
+                $<TARGET_FILE:aria::binding>
+                $<TARGET_FILE_DIR:openread_web_server>
+            COMMAND_EXPAND_LISTS)
+    endif()
+
 # Continuo 以 C++23 发布（公开头用 std::expected），本目标的源码按 C++23 编译；
 # 其余目标仍是 C++20，二者通过 libc++/libstdc++ 的稳定 ABI 链接。
 target_compile_features(openread_web_server PRIVATE cxx_std_23)

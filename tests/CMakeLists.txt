@@ -46,10 +46,18 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
     # MSVC: doctest enumerates tests by executing the binary right after it
     # links; the shared Aria dylibs must sit next to it or the discovery run
     # dies with STATUS_DLL_NOT_FOUND. Copy every runtime DLL in place first.
-    if(MSVC AND ARIA_BUILD_SHARED)
+    if(WIN32 AND ARIA_BUILD_SHARED)
+        # 明确按目标拷贝运行时 DLL：Aria 是 SHARED，MinGW 的发现测试执行
+        # exe 时必须能在同目录找到它们。$<TARGET_RUNTIME_DLLS> 在 MinGW 上
+        # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
         add_custom_command(TARGET openread-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:openread-tests> $<TARGET_FILE_DIR:openread-tests>
+                $<TARGET_FILE:aria::abi>
+                $<TARGET_FILE:aria::core>
+                $<TARGET_FILE:aria::async>
+                $<TARGET_FILE:aria::runtime>
+                $<TARGET_FILE:aria::binding>
+                $<TARGET_FILE_DIR:openread-tests>
             COMMAND_EXPAND_LISTS)
     endif()
     doctest_discover_tests(openread-tests PROPERTIES TIMEOUT 60)
@@ -93,10 +101,18 @@ if(TARGET openread_vm)
         target_compile_options(openread-vm-tests PRIVATE -Wno-deprecated-declarations)
     endif()
 
-    if(MSVC AND ARIA_BUILD_SHARED)
+    if(WIN32 AND ARIA_BUILD_SHARED)
+        # 明确按目标拷贝运行时 DLL：Aria 是 SHARED，MinGW 的发现测试执行
+        # exe 时必须能在同目录找到它们。$<TARGET_RUNTIME_DLLS> 在 MinGW 上
+        # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
         add_custom_command(TARGET openread-vm-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:openread-vm-tests> $<TARGET_FILE_DIR:openread-vm-tests>
+                $<TARGET_FILE:aria::abi>
+                $<TARGET_FILE:aria::core>
+                $<TARGET_FILE:aria::async>
+                $<TARGET_FILE:aria::runtime>
+                $<TARGET_FILE:aria::binding>
+                $<TARGET_FILE_DIR:openread-vm-tests>
             COMMAND_EXPAND_LISTS)
     endif()
     if(OPENREAD_DOCTEST_CMAKE_DIR)
