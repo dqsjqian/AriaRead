@@ -61,8 +61,6 @@ target_include_directories(openread_web_server
         add_custom_command(TARGET openread_web_server POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:aria_abi>
-                $<TARGET_FILE:aria_core>
-                $<TARGET_FILE:aria_async>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
                 $<TARGET_FILE_DIR:openread_web_server>

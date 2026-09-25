@@ -53,8 +53,6 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
         add_custom_command(TARGET openread-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:aria_abi>
-                $<TARGET_FILE:aria_core>
-                $<TARGET_FILE:aria_async>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
                 $<TARGET_FILE_DIR:openread-tests>
@@ -108,8 +106,6 @@ if(TARGET openread_vm)
         add_custom_command(TARGET openread-vm-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:aria_abi>
-                $<TARGET_FILE:aria_core>
-                $<TARGET_FILE:aria_async>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
                 $<TARGET_FILE_DIR:openread-vm-tests>
