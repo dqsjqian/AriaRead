@@ -51,8 +51,8 @@ CONTINUO_REPO = "dqsjqian/continuo"
 # 固定到 v0.1.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
-CONTINUO_TAG = "v0.1.3"
-CONTINUO_REF = "5884aca2e389c0f381d46e1e2610f7ea353c6c4f"
+CONTINUO_TAG = "v0.1.4"
+CONTINUO_REF = "2fa1e66e6dc32b9ce15ebadbb8f390111a5cd676"
 
 
 @dataclass(frozen=True)
