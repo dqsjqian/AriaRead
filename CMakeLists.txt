@@ -7,9 +7,9 @@ project(OpenRead VERSION 0.1.0 LANGUAGES CXX C)
 # 兼容性：源码无 C++20 移除的废弃 API（result_of/is_pod/u8""/random_shuffle 等），
 # 无隐式捕获 this 的 [=] lambda；第三方库各自锁定自身标准，不受此设置影响。
 # ──────────────────────────────────────────────
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)  # 用 std=c++20 不用 gnu++20
+set(CMAKE_CXX_EXTENSIONS OFF)  # 用 std=c++23 不用 gnu++23
 
 # ──────────────────────────────────────────────
 # 编译选项
