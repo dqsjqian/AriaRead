@@ -51,8 +51,8 @@ CONTINUO_REPO = "dqsjqian/continuo"
 # 固定到 v0.1.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
-CONTINUO_TAG = "v0.1.2"
-CONTINUO_REF = "cb83eefbb7f2cb454113fd853820a96df1d5531d"
+CONTINUO_TAG = "v0.1.3"
+CONTINUO_REF = "b12349be5ba07c862b8126e252e7bffa01f653e40b8af28a7b3565117ac9a760"
 
 
 @dataclass(frozen=True)
@@ -547,6 +547,12 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
     # no-asm：避免 Windows 上再依赖 NASM；静态库只给 libcurl 用，慢一点无所谓。
     run(["perl", str(source / "Configure"), *target, f"--prefix={prefix}",
          f"--openssldir={prefix}/ssl", "--libdir=lib", "no-shared", "no-tests",
+         # no-winstore: the Windows certificate-store provider pulls
+         # crypt32 into every static consumer, and OpenSSL's exported
+         # CMake interface lists crypt32 *before* libcrypto.a, which GNU
+         # ld (left-to-right) cannot use. Nothing in OpenRead reads the
+         # system store — curl ships its own CA bundle.
+         "no-winstore",
          "no-docs", "no-apps", "no-asm"], cwd=source)
     if toolchain == "msvc":
         run([make], cwd=source)
