@@ -48,8 +48,11 @@ from pathlib import Path, PurePosixPath
 REPO = Path(__file__).resolve().parents[2]
 PATCHES = Path(__file__).resolve().parent / "patches"
 CONTINUO_REPO = "dqsjqian/continuo"
-# 固定到 v0.1.0 的 release asset（仓库已公开，无需凭据即可取）。
-CONTINUO_VERSION = "0.1.0"
+# 固定到 v0.1.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
+# 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
+# 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
+CONTINUO_TAG = "v0.1.0"
+CONTINUO_REF = "5c0b085fbef1fe045251609da8be7a89ad88bfda"
 
 
 @dataclass(frozen=True)
@@ -211,7 +214,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         sha256="9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
         license="Zlib", license_files=("LICENSE",), root="zlib-1.3.1", kind="cmake",
         options=("-DZLIB_BUILD_EXAMPLES=OFF", "-DSKIP_INSTALL_FILES=OFF"),
-        artifacts=("lib/libz.a", "include/zlib.h"),
+        artifacts=("lib/libz.a", "include/zlib.h"),  # Windows 上是 zlibstatic.lib，见 artifact_present
         hash_note="本机实测（上游 release 未发布摘要）",
     ),
     Dependency(
@@ -297,13 +300,11 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
     Dependency(
-        name="continuo", version=CONTINUO_VERSION,
-        url=("https://github.com/" + CONTINUO_REPO +
-             "/releases/download/v" + CONTINUO_VERSION + "/continuo-" + CONTINUO_VERSION + ".tar.gz"),
-        sha256="354e188d200215eece87697a5b5d59a65060a89449d3d40aa3545404e0c606c8",
-        license="MIT", license_files=("LICENSE",), root=f"continuo-{CONTINUO_VERSION}",
-        kind="cmake",
-        hash_note="release asset 实测（本机 git archive 生成并上传）",
+        name="continuo", version=CONTINUO_TAG,
+        url=f"https://github.com/{CONTINUO_REPO}.git",
+        sha256="",  # 由 git 按 CONTINUO_REF 校验，不用归档字节哈希
+        license="MIT", license_files=("LICENSE",), root="", kind="git",
+        hash_note=f"git 检出校验：tag {CONTINUO_TAG} 必须指向 commit {CONTINUO_REF}",
     ),
 )
 
@@ -314,23 +315,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def github_token() -> str:
-    for variable in ("GITHUB_TOKEN", "GH_TOKEN"):
-        value = os.environ.get(variable, "").strip()
-        if value:
-            return value
-    executable = shutil.which("gh")
-    if executable:
-        try:
-            completed = subprocess.run([executable, "auth", "token"],
-                                       capture_output=True, text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
-            return ""
-        if completed.returncode == 0:
-            return completed.stdout.strip()
-    return ""
 
 
 def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
@@ -349,12 +333,6 @@ def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
 
     request = urllib.request.Request(dependency.url,
                                      headers={"User-Agent": "openread-deps"})
-    if dependency.kind == "continuo":
-        # 公开的 release asset 可匿名下载；仓库若回到私有，给 token 仍可工作。
-        token = github_token()
-        request.add_header("Authorization", f"Bearer {token}")
-        request.add_header("Accept", "application/vnd.github+json")
-
     print(f"下载：{dependency.url}\n期望 SHA256：{expected or '(未固定，稍后打印实测值)'}",
           flush=True)
     # 下载中断或校验失败只删除本次临时文件，不覆盖已有归档。
@@ -540,8 +518,12 @@ def build_cmake(source: Path, build: Path, prefix: Path, jobs: int,
         # Visual Studio 生成器默认出 Win32；本项目全平台只要 x64。
         configure += ["-A", "x64"]
     run([*configure, "-S", str(source), "-B", str(build), *common, *dependency.options])
-    run(["cmake", "--build", str(build), "--parallel", str(jobs)])
-    run(["cmake", "--install", str(build)])
+    # Visual Studio 是多配置生成器：不指定 --config 会编出 Debug，而 install
+    # 默认按 Release 去找，两者对不上就直接失败。
+    config = ["--config", "Release"] if (sys.platform == "win32"
+                                         and windows_toolchain() == "msvc") else []
+    run(["cmake", "--build", str(build), "--parallel", str(jobs), *config])
+    run(["cmake", "--install", str(build), *config])
 
 
 def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
@@ -560,14 +542,72 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
         target = []
     # no-asm：避免 Windows 上再依赖 NASM；静态库只给 libcurl 用，慢一点无所谓。
     run(["perl", str(source / "Configure"), *target, f"--prefix={prefix}",
-         f"--openssldir={prefix}/ssl", "no-shared", "no-tests", "no-docs", "no-apps",
-         "no-asm"], cwd=source)
+         f"--openssldir={prefix}/ssl", "--libdir=lib", "no-shared", "no-tests",
+         "no-docs", "no-apps", "no-asm"], cwd=source)
     if toolchain == "msvc":
         run([make], cwd=source)
         run([make, "install_sw"], cwd=source)
     else:
         run([make, "-j", str(jobs)], cwd=source)
         run([make, "install_sw"], cwd=source)
+
+
+def artifact_present(prefix: Path, artifact: str) -> bool:
+    """产物存在性检查：头文件精确匹配，库文件按平台后缀模糊匹配。
+
+    Linux 的 OpenSSL 默认装进 lib64，MSVC 的静态库叫 zlibstatic.lib、动态库
+    带 d 后缀——逐个平台列清单会把脚本变成一张维护不完的表，所以库只比对
+    文件名主干。
+    """
+    candidate = prefix / artifact
+    if candidate.exists():
+        return True
+    if artifact.endswith(".h"):
+        return False
+    directory = candidate.parent
+    if not directory.is_dir():
+        return False
+    stem = candidate.name
+    for marker in ("lib",):
+        if stem.startswith(marker):
+            stem = stem[len(marker):]
+            break
+    stem = stem.rsplit(".", 1)[0]
+    suffixes = (".a", ".lib", ".so", ".dylib")
+    return any(entry.is_file() and stem in entry.name.lower()
+               and entry.name.lower().endswith(suffixes)
+               for entry in directory.iterdir())
+
+
+def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
+    """按固定 commit 取 Continuo。
+
+    不下载归档而是 git clone，是因为归档的字节在 GitHub 侧不稳定；git 用
+    commit SHA 做完整性校验，比"下载后比对哈希"更强：标签可以被挪动，
+    commit 不能。
+    """
+    target = work / "src" / dependency.name
+
+    def head() -> str:
+        if not (target / ".git").exists():
+            return ""
+        completed = subprocess.run(["git", "-C", str(target), "rev-parse", "HEAD"],
+                                   capture_output=True, text=True)
+        return completed.stdout.strip() if completed.returncode == 0 else ""
+
+    if head() == CONTINUO_REF:
+        print(f"复用已校验的 Continuo 检出：{target}", flush=True)
+        return target
+    if offline:
+        raise ValueError(f"离线模式缺少已校验的 Continuo 检出：{target}")
+    if target.exists():
+        raise ValueError(f"{target} 与固定 commit 不一致，请手动删除后重跑")
+    run(["git", "clone", "--depth", "1", "--branch", dependency.version,
+         dependency.url, str(target)])
+    if head() != CONTINUO_REF:
+        raise ValueError(f"Continuo tag {dependency.version} 指向 {head()}，"
+                         f"与固定 commit {CONTINUO_REF} 不一致")
+    return target
 
 
 def positive_jobs(value: str) -> int:
@@ -615,8 +655,6 @@ def main() -> None:
                         help="只构建指定依赖，逗号分隔；默认全部")
     parser.add_argument("--offline", action="store_true",
                         help="禁止下载，只使用 <path>/cache 中已校验的归档")
-    parser.add_argument("--continuo-sha256", default="",
-                        help="固定 Continuo 归档的 SHA256；省略则只打印实测值")
     args = parser.parse_args()
 
     if not (sys.platform.startswith("linux") or sys.platform == "darwin"
@@ -657,9 +695,27 @@ def main() -> None:
     builds.mkdir(parents=True, exist_ok=True)
     for dependency in dependencies:
         print(f"\n=== {dependency.name} {dependency.version} ===", flush=True)
-        if dependency.kind == "continuo" and args.continuo_sha256:
-            dependency = Dependency(**{**dependency.__dict__,
-                                       "sha256": args.continuo_sha256})
+        if dependency.kind == "git":
+            source = fetch_git(work, dependency, args.offline)
+            build_cmake(source, builds / dependency.name, prefix, args.jobs,
+                        dependency, common)
+            licenses = copy_licenses(prefix, source, dependency)
+            missing = [artifact for artifact in dependency.artifacts
+                       if not artifact_present(prefix, artifact)]
+            if missing:
+                raise ValueError(f"{dependency.name} 缺少预期产物：{missing}")
+            manifest.append({
+                "name": dependency.name,
+                "version": f"{dependency.version} ({CONTINUO_REF})",
+                "url": dependency.url,
+                "sha256": CONTINUO_REF,
+                "sha256_source": dependency.hash_note,
+                "license": dependency.license,
+                "license_files": licenses,
+                "artifacts": list(dependency.artifacts),
+                "expected_sha256": CONTINUO_REF,
+            })
+            continue
         archive = download(cache, dependency, args.offline)
         digest = sha256(archive)
         stamp = sources / f"{dependency.name}.stamp"
@@ -698,7 +754,7 @@ def main() -> None:
             raise ValueError(f"未知构建方式：{dependency.kind}")
         licenses = copy_licenses(prefix, source, dependency)
         missing = [artifact for artifact in dependency.artifacts
-                   if not (prefix / artifact).exists()]
+                   if not artifact_present(prefix, artifact)]
         if missing:
             raise ValueError(f"{dependency.name} 缺少预期产物：{missing}")
         manifest.append({
