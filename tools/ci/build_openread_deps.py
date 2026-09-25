@@ -766,6 +766,18 @@ def main() -> None:
         else:
             raise ValueError(f"未知构建方式：{dependency.kind}")
         licenses = copy_licenses(prefix, source, dependency)
+        if dependency.name == "zlib" and sys.platform == "win32":
+            # zlib 的 CMake 在 Windows 上即使关掉 ZLIB_BUILD_SHARED 也会装出
+            # 共享库与导入库；FindZLIB 会优先链到导入库，让所有消费端在运行
+            # 时依赖 zlib.dll。删掉共享产物，只留静态库，让 FindZLIB 落到
+            # zlibstatic/libz。
+            for junk in ("lib/zlib.lib", "lib/zlib.dll", "lib/zlib1.dll",
+                         "lib/libzlib.dll.a", "bin/zlib.dll",
+                         "bin/zlib1.dll", "bin/libzlib.dll"):
+                stale = prefix / junk
+                if stale.exists():
+                    stale.unlink()
+                    print(f"  移除共享产物：{stale}")
         missing = [artifact for artifact in dependency.artifacts
                    if not artifact_present(prefix, artifact)]
         if missing:
