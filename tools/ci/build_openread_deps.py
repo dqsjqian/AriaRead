@@ -596,6 +596,13 @@ def output_path(value: Path) -> Path:
 
 
 def main() -> None:
+    # Windows 控制台默认是 cp1252 之类的本地编码，脚本里的中文日志会直接
+    # UnicodeEncodeError。强制 UTF-8（失败时退化为替换字符，不因此中断构建）。
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError, ValueError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--path", type=Path, default=REPO / "build/deps",
