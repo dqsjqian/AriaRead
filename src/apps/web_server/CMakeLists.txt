@@ -41,8 +41,11 @@ target_link_libraries(openread_web_server
 
 # 静态 OpenSSL（Continuo TLS 传递）在 Windows 上会拉到证书库后端
 # winstore_store，它需要系统的 crypt32；MinGW 静态链接不会自动补系统库。
-if(WIN32)
-    target_link_libraries(openread_web_server PRIVATE crypt32)
+if(MINGW)
+    # OpenSSL's exported interface places crypt32 *before* libcrypto.a,
+    # which GNU ld (left-to-right) cannot use for libcrypto's own
+    # CertOpenSystemStoreW references. Append it after the archives.
+    target_link_options(openread_web_server PRIVATE -lcrypt32)
 endif()
 
 # sqlite_modern_cpp 是本项目的直接依赖（header-only）。

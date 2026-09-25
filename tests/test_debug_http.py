@@ -437,24 +437,36 @@ class DebugHttpTests(unittest.TestCase):
         self.assertEqual(content['preview'], '文' * (4096 // 3))
 
     def test_startup_does_not_kill_port_owner(self):
-        temp_dir = tempfile.TemporaryDirectory(prefix='openread-port-test-')
-        self.addCleanup(temp_dir.cleanup)
-        port_file = Path(temp_dir.name) / 'port'
-        owner = subprocess.Popen([sys.executable, '-c', PORT_OWNER_SCRIPT, str(port_file)],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.addCleanup(stop_process, owner)
-        # Freshly-built binaries on macOS CI runners pay first-launch
-        # signature/codesign checks, and ctest runs this concurrently with
-        # the other two web suites — give the fixture real headroom. The
-        # assertions that matter (owner stays alive, server rejects the
-        # occupied port) are unchanged.
-        deadline = time.monotonic() + 30
-        while not port_file.exists() and time.monotonic() < deadline:
-            self.assertIsNone(owner.poll(), 'Port-owner fixture exited before binding')
-            time.sleep(0.02)
-        self.assertTrue(port_file.exists(), 'Port-owner fixture did not start within 30 seconds')
-        occupied_port = int(port_file.read_text())
-        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1], 'openread-test-port-owner')
+        # Thread-owned listener rather than a subprocess owner: the earlier
+        # subprocess fixture flaked on macOS CI, where python startup raced
+        # the readiness window for reasons unrelated to the assertion. The
+        # properties under test are unchanged — the contender must refuse
+        # to bind an occupied port and must leave the owner serving.
+        class MarkerHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                data = b'openread-test-port-owner'
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *_):
+                pass
+
+        owner = ThreadingHTTPServer(('127.0.0.1', 0), MarkerHandler)
+        occupied_port = owner.server_address[1]
+        owner_thread = threading.Thread(
+            target=owner.serve_forever, kwargs={'poll_interval': 0.05})
+        owner_thread.start()
+
+        def stop_owner():
+            owner.shutdown()
+            owner.server_close()
+            owner_thread.join(timeout=5)
+        self.addCleanup(stop_owner)
+
+        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
+                         'openread-test-port-owner')
         log = tempfile.TemporaryFile(mode='w+b')
         self.addCleanup(log.close)
         contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
@@ -464,8 +476,21 @@ class DebugHttpTests(unittest.TestCase):
         except subprocess.TimeoutExpired:
             self.fail('Server did not reject the occupied port within 5 seconds')
         self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
-        self.assertIsNone(owner.poll(), 'Server killed the existing port owner')
-        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1], 'openread-test-port-owner')
+        self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
+        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
+                         'openread-test-port-owner')
+        log = tempfile.TemporaryFile(mode='w+b')
+        self.addCleanup(log.close)
+        contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
+        self.addCleanup(stop_process, contender)
+        try:
+            contender.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.fail('Server did not reject the occupied port within 5 seconds')
+        self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
+        self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
+        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
+                         'openread-test-port-owner')
 
 
 if __name__ == '__main__':
