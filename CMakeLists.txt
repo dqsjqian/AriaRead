@@ -99,7 +99,7 @@ elseif(WIN32)
 endif()
 
 # Mira（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib
-find_package(Mira 0.1 REQUIRED)
+find_package(Mira 0.2 REQUIRED)
 # nlohmann/json（header-only JSON 库）
 find_package(nlohmann_json 3.12 REQUIRED)
 # zlib：libcurl 的 gzip 解压后端，缺了书源会 CURLE_BAD_CONTENT_ENCODING
