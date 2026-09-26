@@ -29,7 +29,7 @@
 ```bash
 python3 tools/ci/build_ariaread_deps.py     # 取固定版本依赖（只写 build/deps）
 mkdir -p build && cd build
-cmake .. -DARIAREAD_BUILD_TESTS=ON
+cmake .. -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 ctest --output-on-failure
 ```
@@ -85,7 +85,7 @@ QuickJS / Gumbo / doctest / sqlite_modern_cpp）由显式脚本取：固定版�
 ```bash
 python3 tools/ci/build_ariaread_deps.py            # 首次构建（约 10 分钟，主要是 OpenSSL）
 python3 tools/ci/fetch_aria.py                     # 取回 Aria（固定 commit SHA，无 submodule）
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON      # 自动探测 build/deps/prefix
+cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release      # 自动探测 build/deps/prefix
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
@@ -98,10 +98,14 @@ ctest --test-dir build --output-on-failure
 从仓库根目录配置、构建并运行测试：
 
 ```bash
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON
+cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+主工程 configure 必须显式 `-DCMAKE_BUILD_TYPE=Release`：deps（Mira/OpenSSL/libcurl）
+按 Release /MD 构建，空 build type 会编出 /MDd 目标，链接 `ariaread_web_server` 时
+LNK2038 运行库失配。
 
 CTest 会注册引擎和可用的 ViewModel 测试，并在找到 Node.js 18+、Python 3.8+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DARIAREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
 

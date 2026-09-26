@@ -28,7 +28,7 @@ One C++ core drives two web shapes side by side:
 
 ```bash
 mkdir -p build && cd build
-cmake .. -DARIAREAD_BUILD_TESTS=ON
+cmake .. -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 ctest --output-on-failure
 ```
@@ -78,10 +78,14 @@ AriaRead/
 Configure, build, and run the tests from the repository root:
 
 ```bash
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON
+cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+The main configure must pass `-DCMAKE_BUILD_TYPE=Release` explicitly: the deps
+(Mira/OpenSSL/libcurl) are built with /MD, so an empty build type produces /MDd
+objects and linking `ariaread_web_server` fails with LNK2038 runtime-library mismatch.
 
 CTest registers engine tests and available ViewModel tests. It also registers the relevant debug regressions when Node.js 18+, Python 3.8+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
 
