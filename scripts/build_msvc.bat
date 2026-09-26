@@ -49,6 +49,15 @@ where cl >nul 2>&1 || (echo [error] cl.exe not on PATH & exit /b 1)
 where ninja >nul 2>&1 || (echo [error] ninja.exe not on PATH & exit /b 1)
 echo [env] MSVC %VCTOOLVER% / SDK %SDKVER% / Ninja + cl 19.51
 
+rem Pinned dependency prefix: built once by tools\ci\build_ariaread_deps.py
+rem (downloads + SHA256-verified builds; ~40 min on first run because of
+rem OpenSSL). Configure itself never touches the network.
+if not exist "%PROJECT_ROOT%\build\deps\prefix\share\ariaread-deps\manifest.json" (
+    echo [deps] pinned dependency prefix missing - building it now ^(first run only^) ...
+    where python >nul 2>&1 || (echo [error] python not on PATH; run: python tools\ci\build_ariaread_deps.py & exit /b 1)
+    python tools\ci\build_ariaread_deps.py || exit /b 1
+)
+
 if "%STEP%"=="clean" (
     if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
     echo [clean] removed %BUILD_DIR%
