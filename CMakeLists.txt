@@ -89,6 +89,13 @@ message(STATUS "Using pinned dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
 # 不希望运行时再去 @rpath 找 dylib（zlib 的 CMake 两种都编）。
 if(UNIX)
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
+elseif(WIN32)
+    # FindZLIB 在 Windows 上对 zlib.lib（动态 import）与 zlibstatic.lib 的
+    # 选择不确定：选中动态会让 zlib.dll 成为隐形运行时依赖，而没有任何
+    # 打包脚本会把它带进运行时目录。显式钉死静态版。
+    find_library(ZLIB_LIBRARY NAMES zlibstatic
+        PATHS "${ARIAREAD_DEPS_PREFIX}/lib" NO_DEFAULT_PATH
+        CACHE FILEPATH "Prefer the static zlib from the pinned prefix")
 endif()
 
 # Continuo（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib

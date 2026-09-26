@@ -11,7 +11,7 @@ $PROJECT_ROOT = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BUILD_DIR = if ($env:ARIAREAD_BUILD_DIR) { $env:ARIAREAD_BUILD_DIR } else { Join-Path $PROJECT_ROOT "build" }
 
 # Preserve the existing MinGW workflow while also allowing an existing MSVC cache.
-foreach ($candidate in @("C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin", "D:\msys64\mingw64\bin")) {
+foreach ($candidate in @("C:\DevTools\msys64\ucrt64\bin", "C:\DevTools\msys64\mingw64\bin", "C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin", "D:\msys64\mingw64\bin")) {
     if (Test-Path $candidate -PathType Container) {
         $env:PATH = "$candidate;$env:PATH"
         break
@@ -23,7 +23,16 @@ foreach ($candidate in @("C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin", "D:\ms
 # fall back to MinGW gcc. Both feed Ninja single-config builds.
 $clOnPath = (Get-Command cl -ErrorAction SilentlyContinue) -ne $null
 if (-not $clOnPath) {
-    foreach ($vsRoot in @("D:\VS2026\IDE", "C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")) {
+    # vswhere first: it finds the VS installation root wherever it is
+    # installed; the hardcoded paths below are only fallback candidates.
+    $vsRoots = @()
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswhere) {
+        $detected = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null | Select-Object -First 1
+        if ($detected) { $vsRoots += $detected }
+    }
+    $vsRoots += @("C:\DevTools\VS2026", "D:\VS2026", "C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")
+    foreach ($vsRoot in $vsRoots) {
         if (-not (Test-Path $vsRoot)) { continue }
         $msvcDir = Get-ChildItem (Join-Path $vsRoot "VC\Tools\MSVC") -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name | Select-Object -Last 1
