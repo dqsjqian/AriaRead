@@ -78,6 +78,10 @@ class Dependency:
     artifacts: tuple[str, ...] = ()
     #: 构建前应用到源码树的补丁（tools/ci/patches 下）
     patch: str = ""
+    #: 该依赖的 CMake 工程是否消费 CMAKE_INSTALL_LIBDIR（即包含
+    #: GNUInstallDirs）。不消费的依赖（generated 自写 CMakeLists 硬编码
+    #: DESTINATION lib、zlib 自定义安装目录）传了也只是 CMake 噪音告警。
+    uses_libdir: bool = False
     #: 构建前复制到源码树的额外文件（tools/ci/patches 下 → 源码根同名文件）
     extra_files: tuple[str, ...] = ()
     #: 哈希来源说明，写进 manifest
@@ -237,6 +241,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url="https://github.com/curl/curl/releases/download/curl-8_22_0/curl-8.22.0.tar.xz",
         sha256="f7ef3ae8a22e521f289803fe93543eb64c329b58aa73a9e224dfd915a2a5f4f7",
         license="curl", license_files=("COPYING",), root="curl-8.22.0", kind="cmake",
+        uses_libdir=True,
         options=(
             "-DBUILD_CURL_EXE=OFF", "-DBUILD_TESTING=OFF", "-DCURL_DISABLE_INSTALL=OFF",
             "-DCURL_ENABLE_SSL=ON", "-DCURL_USE_OPENSSL=ON", "-DCURL_ZLIB=ON",
@@ -252,6 +257,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url="https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz",
         sha256="42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa",
         license="MIT", license_files=("LICENSE.MIT",), root="json", kind="cmake",
+        uses_libdir=True,
         options=("-DJSON_BuildTests=OFF",),
         artifacts=("include/nlohmann/json.hpp",),
         hash_note="本机实测（上游 release 未发布摘要）",
@@ -301,7 +307,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url="https://github.com/doctest/doctest/archive/refs/tags/v2.4.12.tar.gz",
         sha256="73381c7aa4dee704bd935609668cf41880ea7f19fa0504a200e13b74999c2d70",
         license="MIT", license_files=("LICENSE.txt",), root="doctest-2.4.12",
-        kind="cmake",
+        kind="cmake", uses_libdir=True,
         options=("-DDOCTEST_WITH_TESTS=OFF", "-DDOCTEST_WITH_MAIN_IN_STATIC_LIB=OFF"),
         artifacts=("include/doctest/doctest.h",),
         hash_note="本机实测（GitHub 源码归档，无官方摘要）",
@@ -311,6 +317,7 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         url=f"https://github.com/{CONTINUO_REPO}.git",
         sha256="",  # 由 git 按 CONTINUO_REF 校验，不用归档字节哈希
         license="MIT", license_files=("LICENSE",), root="", kind="git",
+        uses_libdir=True,
         hash_note=f"git 检出校验：tag {CONTINUO_TAG} 必须指向 commit {CONTINUO_REF}",
     ),
 )
@@ -529,7 +536,11 @@ def build_cmake(source: Path, build: Path, prefix: Path, jobs: int,
     if msvc_vs:
         # Visual Studio 生成器默认出 Win32；本项目全平台只要 x64。
         configure += ["-A", "x64"]
-    run([*configure, "-S", str(source), "-B", str(build), *common, *dependency.options])
+    # CMAKE_INSTALL_LIBDIR 只喂给真正包含 GNUInstallDirs 的工程：其余依赖
+    # 不消费它，传了只会得到 "Manually-specified variables were not used" 噪音。
+    libdir = ["-DCMAKE_INSTALL_LIBDIR=lib"] if dependency.uses_libdir else []
+    run([*configure, "-S", str(source), "-B", str(build), *common, *libdir,
+         *dependency.options])
     # Visual Studio 是多配置生成器：不指定 --config 会编出 Debug，而 install
     # 默认按 Release 去找，两者对不上就直接失败。
     config = ["--config", "Release"] if msvc_vs else []
@@ -697,7 +708,7 @@ def main() -> None:
         parser.error("--prefix 不得与归档缓存目录重叠")
     cache.mkdir(parents=True, exist_ok=True)
 
-    common = [f"-DCMAKE_INSTALL_PREFIX={prefix}", "-DCMAKE_INSTALL_LIBDIR=lib",
+    common = [f"-DCMAKE_INSTALL_PREFIX={prefix}",
               "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
               "-DBUILD_SHARED_LIBS=OFF",
               f"-DCMAKE_PREFIX_PATH={prefix}"]
