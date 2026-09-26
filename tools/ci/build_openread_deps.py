@@ -520,15 +520,19 @@ def windows_toolchain() -> str:
 
 def build_cmake(source: Path, build: Path, prefix: Path, jobs: int,
                 dependency: Dependency, common: list[str]) -> None:
+    # 允许调用方用 CMAKE_GENERATOR 环境变量换生成器（如本机 Ninja + cl）；
+    # CI 不设该变量，默认行为不变。
+    env_gen = os.environ.get("CMAKE_GENERATOR", "").strip().lower()
+    msvc_vs = (sys.platform == "win32" and windows_toolchain() == "msvc"
+               and env_gen != "ninja")
     configure = ["cmake"]
-    if sys.platform == "win32" and windows_toolchain() == "msvc":
+    if msvc_vs:
         # Visual Studio 生成器默认出 Win32；本项目全平台只要 x64。
         configure += ["-A", "x64"]
     run([*configure, "-S", str(source), "-B", str(build), *common, *dependency.options])
     # Visual Studio 是多配置生成器：不指定 --config 会编出 Debug，而 install
     # 默认按 Release 去找，两者对不上就直接失败。
-    config = ["--config", "Release"] if (sys.platform == "win32"
-                                         and windows_toolchain() == "msvc") else []
+    config = ["--config", "Release"] if msvc_vs else []
     run(["cmake", "--build", str(build), "--parallel", str(jobs), *config])
     run(["cmake", "--install", str(build), *config])
 
@@ -697,6 +701,15 @@ def main() -> None:
               "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
               "-DBUILD_SHARED_LIBS=OFF",
               f"-DCMAKE_PREFIX_PATH={prefix}"]
+    if shutil.which("cl"):
+        # CJK-locale Windows (cp936): cl defaults to the ANSI code page and
+        # UTF-8 sources trip C4819, a hard error under continuo's /WX. Inject
+        # /utf-8 through the CL env var -- replacing CMAKE_CXX_FLAGS instead
+        # would wipe CMake's /EHsc /GR defaults and turn C4530 into a hard
+        # error for any exception-using target.
+        os.environ["CL"] = (os.environ.get("CL", "") + " /utf-8").strip()
+        print("CL=/utf-8 injected (CJK-locale source-encoding safety)",
+              flush=True)
 
     manifest = []
     # 源码与中间产物放在 <work>/src、<work>/build 下复用，而不是每次解压到临时
@@ -708,6 +721,33 @@ def main() -> None:
     builds.mkdir(parents=True, exist_ok=True)
     for dependency in dependencies:
         print(f"\n=== {dependency.name} {dependency.version} ===", flush=True)
+        # 断点续跑：前缀已有全部预期产物就不再重建（openssl 全量重建约 40 分钟），
+        # 只补 manifest 记录；manifest.json 在 CMake 侧仅做存在性检查。
+        # 注意 artifacts 为空的依赖（如 continuo）不能跳过，必须每次构建。
+        if dependency.artifacts and all(artifact_present(prefix, artifact)
+                                        for artifact in dependency.artifacts):
+            license_dir = prefix / "share" / "licenses" / dependency.name
+            licenses = (sorted(p.name for p in license_dir.rglob("*")
+                               if p.is_file()) if license_dir.is_dir() else [])
+            version = dependency.version
+            if dependency.kind == "git":
+                version = f"{dependency.version} ({CONTINUO_REF})"
+                digest = CONTINUO_REF
+            else:
+                digest = dependency.sha256 or "installed"
+            manifest.append({
+                "name": dependency.name,
+                "version": version,
+                "url": dependency.url,
+                "sha256": digest,
+                "sha256_source": dependency.hash_note,
+                "license": dependency.license,
+                "license_files": licenses,
+                "artifacts": list(dependency.artifacts),
+                "expected_sha256": digest,
+            })
+            print(f"跳过 {dependency.name}（前缀已有产物）", flush=True)
+            continue
         if dependency.kind == "git":
             source = fetch_git(work, dependency, args.offline)
             build_cmake(source, builds / dependency.name, prefix, args.jobs,
