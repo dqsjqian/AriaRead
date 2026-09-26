@@ -52,7 +52,7 @@ MIRA_REPO = "dqsjqian/Mira"
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
 MIRA_TAG = "v0.2.0"
-MIRA_REF = "e13d729bafae912c71189f5801d26a0925d08b01"
+MIRA_REF = "b648e47227eae76002baa923b3f7ae80296e6087"
 
 
 @dataclass(frozen=True)
