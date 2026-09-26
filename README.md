@@ -2,7 +2,7 @@
 
 📖 跨平台阅读引擎，专注于开源中文书源生态。
 
-基于 [Aria](https://github.com/dqsjqian/Aria)（C++20 响应式 MVVM 框架）构建，兼容主流书源格式。
+基于 [Aria](https://github.com/dqsjqian/Aria)（C++23 响应式 MVVM 框架）构建，兼容主流书源格式。
 
 [English](README.en.md) | [简体中文](README.md)
 
@@ -17,7 +17,7 @@
 
 ## 特性
 
-- **C++20 响应式 MVVM**：基于 Aria 框架，支持协程异步、响应式状态与 ViewModel
+- **C++23 响应式 MVVM**：基于 Aria 框架，支持协程异步、响应式状态与 ViewModel
 - **跨平台引擎**：CSS3/XPath 选择器、JS 运行时桥接、Gumbo HTML5 解析
 - **自包含第三方依赖**：Continuo/OpenSSL/libcurl 等由脚本按固定版本取源码编译，零系统依赖
 - **扩展 ViewModel 层**：SearchViewModel、BookshelfViewModel、ReaderViewModel、SourceViewModel
@@ -56,7 +56,7 @@ Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/openread_web_
 
 ```
 OpenRead/
-├── CMakeLists.txt          # C++20，全平台统一编译选项
+├── CMakeLists.txt          # C++23，全平台统一编译选项
 ├── include/                # 公共头文件
 │   └── openread/
 │       └── version.h.in    # 版本号模板
@@ -68,7 +68,7 @@ OpenRead/
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Continuo HTTP/1.1 + REST API）
 ├── third_party/
-│   └── aria/               # Aria C++20 协程 MVVM 框架（git submodule，四库源码联动）
+│   └── aria/               # Aria C++23 协程 MVVM 框架（git submodule，四库源码联动）
 ├── tools/ci/
 │   └── build_openread_deps.py  # 依赖的唯一来源：固定版本 + SHA256（见下）
 ├── bindings/web/openread/web/  # 前端静态资源

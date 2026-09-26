@@ -2,7 +2,7 @@
 
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
 
-Built on [Aria](https://github.com/dqsjqian/Aria) (a C++20 reactive MVVM framework); compatible with mainstream book-source formats.
+Built on [Aria](https://github.com/dqsjqian/Aria) (a C++23 reactive MVVM framework); compatible with mainstream book-source formats.
 
 [English](README.en.md) | [简体中文](README.md)
 
@@ -17,7 +17,7 @@ One C++ core drives two web shapes side by side:
 
 ## Features
 
-- **C++20 reactive MVVM** — built on the Aria framework: coroutine async, reactive state, ViewModels
+- **C++23 reactive MVVM** — built on the Aria framework: coroutine async, reactive state, ViewModels
 - **Cross-platform engine** — CSS3/XPath selectors, a JS runtime bridge, Gumbo HTML5 parsing
 - **Self-contained third-party deps** — nlohmann/json, OpenSSL, and libcurl all build from source; zero system dependencies
 - **Extended ViewModel layer** — SearchViewModel, BookshelfViewModel, ReaderViewModel, SourceViewModel
@@ -55,7 +55,7 @@ The project no longer uses a `release/` directory; run and distribute the build 
 
 ```
 OpenRead/
-├── CMakeLists.txt          # C++20, unified options across platforms
+├── CMakeLists.txt          # C++23, unified options across platforms
 ├── include/                # public headers
 │   └── openread/
 │       └── version.h.in    # version template
@@ -67,7 +67,7 @@ OpenRead/
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Continuo HTTP/1.1 + REST API)
 ├── third_party/
-│   ├── aria/               # Aria C++20 coroutine MVVM framework (git submodule)
+│   ├── aria/               # Aria C++23 coroutine MVVM framework (git submodule)
 │   ├── curl/               # libcurl, built from source
 │   ├── nlohmann_json/      # nlohmann/json
 │   ├── openssl/            # OpenSSL
