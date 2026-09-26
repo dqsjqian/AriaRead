@@ -1,4 +1,4 @@
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <cctype>
 #include <algorithm>
@@ -21,7 +21,7 @@
 #include <iconv.h>
 #endif
 
-namespace openread {
+namespace ariaread {
 namespace detail {
 
 std::string normalizeText(const std::string& text) {
@@ -1204,4 +1204,4 @@ std::string ensureUtf8(const std::string& data, const std::string& declaredChars
 }
 
 } // namespace detail
-} // namespace openread
+} // namespace ariaread

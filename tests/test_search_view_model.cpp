@@ -7,7 +7,7 @@
 
 #include <doctest/doctest.h>
 
-#include "openread/vm/search_view_model.h"
+#include "ariaread/vm/search_view_model.h"
 
 #include "aria/async/executor.hpp"
 
@@ -15,13 +15,13 @@
 #include <string>
 #include <vector>
 
-using namespace openread;
+using namespace ariaread;
 using aria::async::InlineExecutor;
 
 namespace {
 
-openread::Book make_book(const std::string& name, const std::string& author) {
-    openread::Book b;
+ariaread::Book make_book(const std::string& name, const std::string& author) {
+    ariaread::Book b;
     b.name = name;
     b.author = author;
     b.bookUrl = "http://example.com/" + name;

@@ -1,5 +1,5 @@
-#include "openread/analyze_url.h"
-#include "openread/js_runtime.h"
+#include "ariaread/analyze_url.h"
+#include "ariaread/js_runtime.h"
 
 #include <nlohmann/json.hpp>
 #include <regex>
@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <vector>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -586,4 +586,4 @@ std::string AnalyzeUrl::extractBaseUrl(const std::string& url) {
     return url;
 }
 
-} // namespace openread
+} // namespace ariaread

@@ -7,7 +7,7 @@
 namespace {
 
 TEST_CASE("DebugConsole - 输出日志结果与隔离状态") {
-    using openread::web::evaluateDebugScript;
+    using ariaread::web::evaluateDebugScript;
     auto result = evaluateDebugScript({{"code", "console.log('hello'); 6 * 7"}});
     CHECK(result["ok"] == true);
     CHECK(result["result"] == "42");
@@ -19,7 +19,7 @@ TEST_CASE("DebugConsole - 输出日志结果与隔离状态") {
 }
 
 TEST_CASE("DebugConsole - 错误超时与输入限制") {
-    using openread::web::evaluateDebugScript;
+    using ariaread::web::evaluateDebugScript;
     auto result = evaluateDebugScript({{"code", "while (true) {}"}, {"timeoutMs", 20}});
     CHECK(result["ok"] == false);
     CHECK(result["error"].get<std::string>().find("timed out") != std::string::npos);
@@ -35,7 +35,7 @@ TEST_CASE("DebugConsole - 错误超时与输入限制") {
 }
 
 TEST_CASE("DebugConsole - 输出上限与 UTF8 边界") {
-    using openread::web::evaluateDebugScript;
+    using ariaread::web::evaluateDebugScript;
     auto result = evaluateDebugScript({{"code", "for (var i=0;i<120;i++) console.log(i); 'ok'"}});
     CHECK(result["logs"].size() == 100);
     CHECK(result["logsTruncated"] == true);
@@ -47,7 +47,7 @@ TEST_CASE("DebugConsole - 输出上限与 UTF8 边界") {
 }
 
 TEST_CASE("DebugConsole - 异常输出上限与 UTF8 边界") {
-    using openread::web::evaluateDebugScript;
+    using ariaread::web::evaluateDebugScript;
     const auto result = evaluateDebugScript({{"code", "throw '中'.repeat(30000)"}});
     CHECK(result["ok"] == false);
     CHECK(result["result"] == "");
@@ -59,8 +59,8 @@ TEST_CASE("DebugConsole - 异常输出上限与 UTF8 边界") {
     CHECK(evaluateDebugScript({{"code", "throw new Error('short')"}})["errorTruncated"] == false);
 }
 
-openread::BookSource debugTestSource() {
-    return openread::SourceParser::parse(R"({
+ariaread::BookSource debugTestSource() {
+    return ariaread::SourceParser::parse(R"({
         "bookSourceName":"诊断源", "bookSourceUrl":"https://debug.test",
         "searchUrl":"https://debug.test/search?q={{key}}",
         "ruleSearch":{"bookList":"$.books[*]","name":"$.name","bookUrl":"$.url"},
@@ -69,7 +69,7 @@ openread::BookSource debugTestSource() {
     })");
 }
 
-openread::HttpResponse debugScenarioResponse(const openread::HttpRequest& request) {
+ariaread::HttpResponse debugScenarioResponse(const ariaread::HttpRequest& request) {
     if (request.url.find("/search") != std::string::npos) {
         return {200, R"({"books":[{"name":"书籍","url":"https://debug.test/book"}]})", {}, ""};
     }
@@ -83,14 +83,14 @@ TEST_CASE("SourceDebug - 搜索目录正文及 HTTP 事件") {
     std::vector<std::pair<std::string, nlohmann::json>> events;
     std::vector<std::string> urls;
     auto source = debugTestSource();
-    openread::web::runSourceDebug(source, "test",
+    ariaread::web::runSourceDebug(source, "test",
         [&](const std::string& event, const nlohmann::json& data) { events.emplace_back(event, data); return true; },
         [] { return true; },
-        [&](const openread::HttpRequest& request) {
+        [&](const ariaread::HttpRequest& request) {
             urls.push_back(request.url);
             CHECK(request.timeoutMs > 0);
             CHECK(request.timeoutMs <= 10000);
-            openread::HttpResponse response;
+            ariaread::HttpResponse response;
             response.statusCode = 200;
             if (request.url.find("/search") != std::string::npos) {
                 response.body = R"({"books":[{"name":"书籍","url":"https://debug.test/book"}]})";
@@ -106,7 +106,7 @@ TEST_CASE("SourceDebug - 搜索目录正文及 HTTP 事件") {
     CHECK(events.back().first == "debug_done");
     CHECK(urls.size() == 3);
     CHECK(urls.back() == "https://debug.test/chapter");
-    CHECK(source.validity == openread::SourceValidity::Unknown);
+    CHECK(source.validity == ariaread::SourceValidity::Unknown);
     std::vector<std::string> stages;
     for (const auto& [event, data] : events) {
         if (event != "debug_http") stages.push_back(event);
@@ -120,10 +120,10 @@ TEST_CASE("SourceDebug - 搜索目录正文及 HTTP 事件") {
 
 TEST_CASE("SourceDebug - 空搜索结果报告阶段失败") {
     std::vector<std::pair<std::string, nlohmann::json>> events;
-    openread::web::runSourceDebug(debugTestSource(), "test",
+    ariaread::web::runSourceDebug(debugTestSource(), "test",
         [&](const std::string& event, const nlohmann::json& data) { events.emplace_back(event, data); return true; },
         [] { return true; },
-        [](const openread::HttpRequest&) { return openread::HttpResponse{200, R"({"books":[]})", {}, ""}; });
+        [](const ariaread::HttpRequest&) { return ariaread::HttpResponse{200, R"({"books":[]})", {}, ""}; });
     REQUIRE(!events.empty());
     CHECK(events.back().first == "debug_error");
     CHECK(events.back().second["stage"] == "debug_search");
@@ -132,10 +132,10 @@ TEST_CASE("SourceDebug - 空搜索结果报告阶段失败") {
 TEST_CASE("SourceDebug - 断连后不再发起请求") {
     int requests = 0;
     int events = 0;
-    openread::web::runSourceDebug(debugTestSource(), "test",
+    ariaread::web::runSourceDebug(debugTestSource(), "test",
         [&](const std::string&, const nlohmann::json&) { ++events; return false; },
         [] { return true; },
-        [&](const openread::HttpRequest&) { ++requests; return openread::HttpResponse{}; });
+        [&](const ariaread::HttpRequest&) { ++requests; return ariaread::HttpResponse{}; });
     CHECK(events == 1);
     CHECK(requests == 0);
 }
@@ -153,12 +153,12 @@ TEST_CASE("SourceDebug - 多项慢规则共享整体时间预算") {
     int requests = 0;
     std::vector<std::pair<std::string, nlohmann::json>> events;
     const auto started = Clock::now();
-    openread::web::runSourceDebug(source, "test",
+    ariaread::web::runSourceDebug(source, "test",
         [&](const std::string& event, const nlohmann::json& data) { events.emplace_back(event, data); return true; },
         [] { return true; },
-        [&](const openread::HttpRequest&) {
+        [&](const ariaread::HttpRequest&) {
             ++requests;
-            return openread::HttpResponse{200, responseBody, {}, ""};
+            return ariaread::HttpResponse{200, responseBody, {}, ""};
         }, std::chrono::milliseconds(100));
     const auto duration = Clock::now() - started;
     CHECK(duration < std::chrono::seconds(1));
@@ -182,10 +182,10 @@ TEST_CASE("SourceDebug - JS 执行中断连立即取消且不再发起 HTTP") {
     std::vector<std::string> urls;
     std::vector<std::string> events;
     const auto started = Clock::now();
-    openread::web::runSourceDebug(source, "test",
+    ariaread::web::runSourceDebug(source, "test",
         [&](const std::string& event, const nlohmann::json&) { events.push_back(event); return true; },
         [&] { return !scriptStarted || Clock::now() < cancelAt; },
-        [&](const openread::HttpRequest& request) {
+        [&](const ariaread::HttpRequest& request) {
             urls.push_back(request.url);
             if (request.url == "https://debug.test/js-started") {
                 scriptStarted = true;
@@ -210,10 +210,10 @@ TEST_CASE("SourceDebug - JS HTTP 桥接不能吞掉请求上限错误") {
         "@js:for (var i = 0; i < 25; ++i) java.ajax('https://debug.test/probe?i=' + i); '正常正文';";
     int requests = 0;
     std::vector<std::pair<std::string, nlohmann::json>> events;
-    openread::web::runSourceDebug(source, "test",
+    ariaread::web::runSourceDebug(source, "test",
         [&](const std::string& event, const nlohmann::json& data) { events.emplace_back(event, data); return true; },
         [] { return true; },
-        [&](const openread::HttpRequest& request) { ++requests; return debugScenarioResponse(request); });
+        [&](const ariaread::HttpRequest& request) { ++requests; return debugScenarioResponse(request); });
     CHECK(requests == 20);
     REQUIRE(!events.empty());
     CHECK(events.back().first == "debug_error");
@@ -230,8 +230,8 @@ TEST_CASE("SourceDebug - 引擎取消检查清空后可重新使用") {
     source.searchRule.name =
         "@js:java.log('begin'); var until = Date.now() + 20;"
         "while (Date.now() < until) {} JSON.parse(result).name;";
-    openread::BookSourceEngine engine;
-    REQUIRE(engine.loadSource(openread::SourceParser::serialize(source)));
+    ariaread::BookSourceEngine engine;
+    REQUIRE(engine.loadSource(ariaread::SourceParser::serialize(source)));
     engine.setHttpClient(debugScenarioResponse);
     bool cancelled = false;
     engine.setJsLogCallback([&](const std::string& message) {
@@ -255,12 +255,12 @@ TEST_CASE("SourceDebug - 指定书源读取取消后恢复原先选择") {
     auto sourceB = sourceA;
     sourceB.name = "源 B";
     sourceB.url = "https://second-debug.test";
-    openread::BookSourceEngine engine;
-    REQUIRE(engine.loadSource(openread::SourceParser::serialize(sourceA)));
-    REQUIRE(engine.loadSource(openread::SourceParser::serialize(sourceB)));
+    ariaread::BookSourceEngine engine;
+    REQUIRE(engine.loadSource(ariaread::SourceParser::serialize(sourceA)));
+    REQUIRE(engine.loadSource(ariaread::SourceParser::serialize(sourceB)));
     REQUIRE(engine.selectSource(0));
     int requests = 0;
-    engine.setHttpClient([&](const openread::HttpRequest& request) {
+    engine.setHttpClient([&](const ariaread::HttpRequest& request) {
         ++requests;
         return debugScenarioResponse(request);
     });
@@ -286,8 +286,8 @@ TEST_CASE("SourceDebug - 指定书源读取取消后恢复原先选择") {
 
 TEST_CASE("SourceDebug - RSS 读取取消后移除临时书源并恢复选择") {
     auto source = debugTestSource();
-    openread::BookSourceEngine engine;
-    REQUIRE(engine.loadSource(openread::SourceParser::serialize(source)));
+    ariaread::BookSourceEngine engine;
+    REQUIRE(engine.loadSource(ariaread::SourceParser::serialize(source)));
     bool cancelled = true;
     bool cancelDuringHttp = false;
     SUBCASE("HTTP 前取消") {}
@@ -296,7 +296,7 @@ TEST_CASE("SourceDebug - RSS 读取取消后移除临时书源并恢复选择") 
         cancelDuringHttp = true;
     }
     int requests = 0;
-    engine.setHttpClient([&](const openread::HttpRequest& request) {
+    engine.setHttpClient([&](const ariaread::HttpRequest& request) {
         ++requests;
         if (cancelDuringHttp) cancelled = true;
         return debugScenarioResponse(request);
@@ -304,7 +304,7 @@ TEST_CASE("SourceDebug - RSS 读取取消后移除临时书源并恢复选择") 
     engine.setOperationCheck([&] {
         if (cancelled) throw std::runtime_error("operation cancelled");
     });
-    openread::RssSource rss;
+    ariaread::RssSource rss;
     rss.sourceName = "临时 RSS 源";
     rss.sourceUrl = "https://rss-debug.test";
     rss.ruleContent = "$.text";
@@ -323,15 +323,15 @@ TEST_CASE("SourceDebug - JS HTTP 桥接不能吞掉一次性取消检查异常")
     auto source = debugTestSource();
     source.searchRule.name =
         "@js:java.log('before-ajax'); java.ajax('https://debug.test/probe'); JSON.parse(result).name;";
-    openread::BookSourceEngine engine;
-    REQUIRE(engine.loadSource(openread::SourceParser::serialize(source)));
+    ariaread::BookSourceEngine engine;
+    REQUIRE(engine.loadSource(ariaread::SourceParser::serialize(source)));
     bool readyToCancel = false;
     bool threwOnce = false;
     int probes = 0;
     engine.setJsLogCallback([&](const std::string& message) {
         if (message == "before-ajax") readyToCancel = true;
     });
-    engine.setHttpClient([&](const openread::HttpRequest& request) {
+    engine.setHttpClient([&](const ariaread::HttpRequest& request) {
         if (request.url == "https://debug.test/probe") ++probes;
         return debugScenarioResponse(request);
     });

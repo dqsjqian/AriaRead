@@ -1,12 +1,12 @@
-#include "openread/bridge.h"
-#include "openread/engine.h"
-#include "openread/version.h"
+#include "ariaread/bridge.h"
+#include "ariaread/engine.h"
+#include "ariaread/version.h"
 #include <nlohmann/json.hpp>
 #include <cstring>
 #include <memory>
 #include <thread>
 
-using namespace openread;
+using namespace ariaread;
 using json = nlohmann::json;
 
 // ──────────────────────────────────────────────
@@ -41,16 +41,16 @@ static std::string chapterToJson(const Chapter& c) {
 // ──────────────────────────────────────────────
 // 生命周期
 // ──────────────────────────────────────────────
-OpenReadEngine openread_engine_create() {
+AriaReadEngine ariaread_engine_create() {
     try {
         auto* engine = new BookSourceEngine();
-        return static_cast<OpenReadEngine>(engine);
+        return static_cast<AriaReadEngine>(engine);
     } catch (...) {
         return nullptr;
     }
 }
 
-void openread_engine_destroy(OpenReadEngine engine) {
+void ariaread_engine_destroy(AriaReadEngine engine) {
     if (engine) {
         delete static_cast<BookSourceEngine*>(engine);
     }
@@ -59,9 +59,9 @@ void openread_engine_destroy(OpenReadEngine engine) {
 // ──────────────────────────────────────────────
 // 配置
 // ──────────────────────────────────────────────
-void openread_engine_set_http_callback(
-    OpenReadEngine engine,
-    OpenReadHttpCallback callback,
+void ariaread_engine_set_http_callback(
+    AriaReadEngine engine,
+    AriaReadHttpCallback callback,
     void* userData
 ) {
     if (!engine || !callback) return;
@@ -79,7 +79,7 @@ void openread_engine_set_http_callback(
                                 headers.c_str(), body.c_str(), userData);
         if (result) {
             std::string str(result);
-            openread_free_string(result);
+            ariaread_free_string(result);
             return str;
         }
         return "";
@@ -88,9 +88,9 @@ void openread_engine_set_http_callback(
     e->setHttpRequest(httpFunc);
 }
 
-void openread_engine_set_log_callback(
-    OpenReadEngine engine,
-    OpenReadLogCallback callback,
+void ariaread_engine_set_log_callback(
+    AriaReadEngine engine,
+    AriaReadLogCallback callback,
     void* userData
 ) {
     if (!engine || !callback) return;
@@ -107,37 +107,37 @@ void openread_engine_set_log_callback(
 // ──────────────────────────────────────────────
 // 书源管理
 // ──────────────────────────────────────────────
-int openread_engine_load_source(OpenReadEngine engine, const char* jsonStr) {
+int ariaread_engine_load_source(AriaReadEngine engine, const char* jsonStr) {
     if (!engine || !jsonStr) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->loadSource(jsonStr) ? 0 : -1;
 }
 
-int openread_engine_load_sources(OpenReadEngine engine, const char* jsonArray) {
+int ariaread_engine_load_sources(AriaReadEngine engine, const char* jsonArray) {
     if (!engine || !jsonArray) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->loadSources(jsonArray);
 }
 
-int openread_engine_load_sources_from_file(OpenReadEngine engine, const char* filePath) {
+int ariaread_engine_load_sources_from_file(AriaReadEngine engine, const char* filePath) {
     if (!engine || !filePath) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->loadSourcesFromFile(filePath);
 }
 
-int openread_engine_select_source(OpenReadEngine engine, int index) {
+int ariaread_engine_select_source(AriaReadEngine engine, int index) {
     if (!engine) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->selectSource(static_cast<size_t>(index)) ? 0 : -1;
 }
 
-int openread_engine_select_source_by_name(OpenReadEngine engine, const char* name) {
+int ariaread_engine_select_source_by_name(AriaReadEngine engine, const char* name) {
     if (!engine || !name) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->selectSourceByName(name) ? 0 : -1;
 }
 
-int openread_engine_source_count(OpenReadEngine engine) {
+int ariaread_engine_source_count(AriaReadEngine engine) {
     if (!engine) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return static_cast<int>(e->sources().size());
@@ -146,7 +146,7 @@ int openread_engine_source_count(OpenReadEngine engine) {
 // ──────────────────────────────────────────────
 // 核心操作
 // ──────────────────────────────────────────────
-char* openread_engine_search(OpenReadEngine engine, const char* keyword) {
+char* ariaread_engine_search(AriaReadEngine engine, const char* keyword) {
     if (!engine || !keyword) return strdup("[]");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -159,7 +159,7 @@ char* openread_engine_search(OpenReadEngine engine, const char* keyword) {
     return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-char* openread_engine_get_catalog(OpenReadEngine engine, const char* bookUrl) {
+char* ariaread_engine_get_catalog(AriaReadEngine engine, const char* bookUrl) {
     if (!engine || !bookUrl) return strdup("[]");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -172,7 +172,7 @@ char* openread_engine_get_catalog(OpenReadEngine engine, const char* bookUrl) {
     return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-char* openread_engine_get_content(OpenReadEngine engine, const char* chapterUrl) {
+char* ariaread_engine_get_content(AriaReadEngine engine, const char* chapterUrl) {
     if (!engine || !chapterUrl) return strdup("");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -180,8 +180,8 @@ char* openread_engine_get_content(OpenReadEngine engine, const char* chapterUrl)
     return strdup(content.c_str());
 }
 
-char* openread_engine_get_catalog_for_source(
-    OpenReadEngine engine,
+char* ariaread_engine_get_catalog_for_source(
+    AriaReadEngine engine,
     const char* bookUrl,
     int sourceIndex,
     const char* sourceName
@@ -198,8 +198,8 @@ char* openread_engine_get_catalog_for_source(
     return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-char* openread_engine_get_content_for_source(
-    OpenReadEngine engine,
+char* ariaread_engine_get_content_for_source(
+    AriaReadEngine engine,
     const char* chapterUrl,
     int sourceIndex,
     const char* sourceName
@@ -211,7 +211,7 @@ char* openread_engine_get_content_for_source(
     return strdup(content.c_str());
 }
 
-int openread_engine_clear_all_sources(OpenReadEngine engine) {
+int ariaread_engine_clear_all_sources(AriaReadEngine engine) {
     if (!engine) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->clearAllSources();
@@ -221,7 +221,7 @@ int openread_engine_clear_all_sources(OpenReadEngine engine) {
 // 书架管理
 // ──────────────────────────────────────────────
 
-int64_t openread_bookshelf_add(OpenReadEngine engine, const char* bookJson) {
+int64_t ariaread_bookshelf_add(AriaReadEngine engine, const char* bookJson) {
     if (!engine || !bookJson) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     try {
@@ -242,13 +242,13 @@ int64_t openread_bookshelf_add(OpenReadEngine engine, const char* bookJson) {
     }
 }
 
-int openread_bookshelf_remove(OpenReadEngine engine, const char* bookUrl, const char* sourceUrl) {
+int ariaread_bookshelf_remove(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
     if (!engine || !bookUrl) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->removeFromBookshelf(bookUrl) ? 0 : -1;
 }
 
-char* openread_bookshelf_list(OpenReadEngine engine) {
+char* ariaread_bookshelf_list(AriaReadEngine engine) {
     if (!engine) return strdup("[]");
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto items = e->getBookshelf();
@@ -274,13 +274,13 @@ char* openread_bookshelf_list(OpenReadEngine engine) {
     return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-int openread_bookshelf_is_in(OpenReadEngine engine, const char* bookUrl, const char* sourceUrl) {
+int ariaread_bookshelf_is_in(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
     if (!engine || !bookUrl) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->isInBookshelf(bookUrl) ? 1 : 0;
 }
 
-int openread_bookshelf_progress_save(OpenReadEngine engine, const char* progressJson) {
+int ariaread_bookshelf_progress_save(AriaReadEngine engine, const char* progressJson) {
     if (!engine || !progressJson) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     try {
@@ -299,7 +299,7 @@ int openread_bookshelf_progress_save(OpenReadEngine engine, const char* progress
     }
 }
 
-char* openread_bookshelf_progress_get(OpenReadEngine engine, const char* bookUrl, const char* sourceUrl) {
+char* ariaread_bookshelf_progress_get(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
     if (!engine || !bookUrl) return strdup("{}");
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto progress = e->getReadProgress(bookUrl);
@@ -314,7 +314,7 @@ char* openread_bookshelf_progress_get(OpenReadEngine engine, const char* bookUrl
     return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-int openread_bookshelf_change_source(OpenReadEngine engine,
+int ariaread_bookshelf_change_source(AriaReadEngine engine,
     const char* bookUrl, const char* oldSourceUrl,
     const char* newSourceName, const char* newSourceUrl, const char* newBookUrl) {
     if (!engine || !bookUrl) return -1;
@@ -331,7 +331,7 @@ int openread_bookshelf_change_source(OpenReadEngine engine,
     }
 }
 
-int openread_bookshelf_check_update(OpenReadEngine engine,
+int ariaread_bookshelf_check_update(AriaReadEngine engine,
     const char* bookUrl, const char* sourceUrl,
     int sourceIndex, const char* sourceName) {
     if (!engine || !bookUrl) return -1;
@@ -346,7 +346,7 @@ int openread_bookshelf_check_update(OpenReadEngine engine,
     }
 }
 
-int openread_bookshelf_update_last_chapter(OpenReadEngine engine,
+int ariaread_bookshelf_update_last_chapter(AriaReadEngine engine,
     const char* bookUrl, const char* sourceUrl,
     const char* lastChapter, int totalChapters, int hasUpdate) {
     if (!engine || !bookUrl) return -1;
@@ -367,7 +367,7 @@ int openread_bookshelf_update_last_chapter(OpenReadEngine engine,
 // ──────────────────────────────────────────────
 // 全量下载缓存（同步，无回调版本）
 // ──────────────────────────────────────────────
-char* openread_bookshelf_download(OpenReadEngine engine,
+char* ariaread_bookshelf_download(AriaReadEngine engine,
     const char* bookUrl, const char* sourceUrl,
     int sourceIndex, const char* sourceName) {
     if (!engine || !bookUrl) return strdup("{\"error\":\"invalid params\"}");
@@ -391,7 +391,7 @@ char* openread_bookshelf_download(OpenReadEngine engine,
 // ──────────────────────────────────────────────
 // 批量更新检测（同步，无回调版本）
 // ──────────────────────────────────────────────
-int openread_bookshelf_check_all_updates(OpenReadEngine engine) {
+int ariaread_bookshelf_check_all_updates(AriaReadEngine engine) {
     if (!engine) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     try {
@@ -404,7 +404,7 @@ int openread_bookshelf_check_all_updates(OpenReadEngine engine) {
 // ──────────────────────────────────────────────
 // 状态查询
 // ──────────────────────────────────────────────
-char* openread_engine_get_source_info(OpenReadEngine engine) {
+char* ariaread_engine_get_source_info(AriaReadEngine engine) {
     if (!engine) return strdup("{}");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -412,7 +412,7 @@ char* openread_engine_get_source_info(OpenReadEngine engine) {
     return strdup(info.c_str());
 }
 
-char* openread_engine_get_source_list(OpenReadEngine engine) {
+char* ariaread_engine_get_source_list(AriaReadEngine engine) {
     if (!engine) return strdup("{\"sources\":[],\"validCount\":0,\"totalCount\":0}");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -442,13 +442,13 @@ char* openread_engine_get_source_list(OpenReadEngine engine) {
     return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-char* openread_engine_export_good_sources(OpenReadEngine engine) {
+char* ariaread_engine_export_good_sources(AriaReadEngine engine) {
     if (!engine) return strdup("[]");
     auto* e = static_cast<BookSourceEngine*>(engine);
     return strdup(e->exportGoodSources().c_str());
 }
 
-const char* openread_engine_get_last_error(OpenReadEngine engine) {
+const char* ariaread_engine_get_last_error(AriaReadEngine engine) {
     if (!engine) return "Invalid engine";
 
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -457,7 +457,7 @@ const char* openread_engine_get_last_error(OpenReadEngine engine) {
     return error.c_str();
 }
 
-int openread_engine_is_available(OpenReadEngine engine) {
+int ariaread_engine_is_available(AriaReadEngine engine) {
     if (!engine) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->isAvailable() ? 1 : 0;
@@ -466,33 +466,33 @@ int openread_engine_is_available(OpenReadEngine engine) {
 // ──────────────────────────────────────────────
 // 并发操作
 // ──────────────────────────────────────────────
-OpenReadCancelToken openread_cancel_token_create() {
+AriaReadCancelToken ariaread_cancel_token_create() {
     auto* token = new std::shared_ptr<CancelToken>(std::make_shared<CancelToken>());
-    return static_cast<OpenReadCancelToken>(token);
+    return static_cast<AriaReadCancelToken>(token);
 }
 
-void openread_cancel_token_cancel(OpenReadCancelToken token) {
+void ariaread_cancel_token_cancel(AriaReadCancelToken token) {
     if (token) {
         auto* ptr = static_cast<std::shared_ptr<CancelToken>*>(token);
         (*ptr)->cancel();
     }
 }
 
-void openread_cancel_token_destroy(OpenReadCancelToken token) {
+void ariaread_cancel_token_destroy(AriaReadCancelToken token) {
     if (token) {
         delete static_cast<std::shared_ptr<CancelToken>*>(token);
     }
 }
 
-void openread_engine_validate_concurrent(
-    OpenReadEngine engine,
+void ariaread_engine_validate_concurrent(
+    AriaReadEngine engine,
     const char* testQuery,
     int timeoutMs,
     int concurrency,
-    OpenReadValidateCallback callback,
-    OpenReadDoneCallback doneCallback,
+    AriaReadValidateCallback callback,
+    AriaReadDoneCallback doneCallback,
     void* userData,
-    OpenReadCancelToken cancelToken
+    AriaReadCancelToken cancelToken
 ) {
     if (!engine) return;
     auto* e = static_cast<BookSourceEngine*>(engine);
@@ -534,14 +534,14 @@ void openread_engine_validate_concurrent(
     );
 }
 
-void openread_engine_search_all_concurrent(
-    OpenReadEngine engine,
+void ariaread_engine_search_all_concurrent(
+    AriaReadEngine engine,
     const char* keyword,
     int concurrency,
-    OpenReadSearchCallback callback,
-    OpenReadDoneCallback doneCallback,
+    AriaReadSearchCallback callback,
+    AriaReadDoneCallback doneCallback,
     void* userData,
-    OpenReadCancelToken cancelToken,
+    AriaReadCancelToken cancelToken,
     int matchName,
     int matchAuthor,
     int matchIntro
@@ -598,25 +598,25 @@ void openread_engine_search_all_concurrent(
     );
 }
 
-void openread_engine_set_database_path(OpenReadEngine engine, const char* dbPath) {
+void ariaread_engine_set_database_path(AriaReadEngine engine, const char* dbPath) {
     if (!engine) return;
     auto* e = static_cast<BookSourceEngine*>(engine);
     e->setDatabasePath(dbPath ? dbPath : "");
 }
 
-int openread_engine_load_sources_from_database(OpenReadEngine engine) {
+int ariaread_engine_load_sources_from_database(AriaReadEngine engine) {
     if (!engine) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->loadSourcesFromDatabase();
 }
 
-int openread_engine_remove_invalid_sources(OpenReadEngine engine) {
+int ariaread_engine_remove_invalid_sources(AriaReadEngine engine) {
     if (!engine) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->removeInvalidSources();
 }
 
-void openread_engine_set_concurrency(OpenReadEngine engine, int n) {
+void ariaread_engine_set_concurrency(AriaReadEngine engine, int n) {
     if (!engine) return;
     auto* e = static_cast<BookSourceEngine*>(engine);
     e->setConcurrency(n);
@@ -625,7 +625,7 @@ void openread_engine_set_concurrency(OpenReadEngine engine, int n) {
 // ──────────────────────────────────────────────
 // 内存管理
 // ──────────────────────────────────────────────
-void openread_free_string(char* str) {
+void ariaread_free_string(char* str) {
     if (str) {
         free(str);
     }
@@ -634,6 +634,6 @@ void openread_free_string(char* str) {
 // ──────────────────────────────────────────────
 // 版本信息
 // ──────────────────────────────────────────────
-const char* openread_version() {
-    return OPENREAD_VERSION;
+const char* ariaread_version() {
+    return ARIAREAD_VERSION;
 }

@@ -18,7 +18,7 @@
 #include <string>
 #include <utility>
 
-namespace openread::web {
+namespace ariaread::web {
 
 /// 取请求参数；若主名取不到（空），依次回退到别名（如 snake↔camel）。
 /// @param names 一个或多个候选参数名，按序尝试，返回首个非空值。
@@ -83,4 +83,4 @@ inline void with_error_handling(Response& res, Fn&& fn) {
     }
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

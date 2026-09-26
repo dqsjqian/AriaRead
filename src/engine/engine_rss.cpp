@@ -1,9 +1,9 @@
 /// @file engine_rss.cpp
 /// @brief D8: RSS 订阅源 —— 抓取、解析、存储
 
-#include "openread/engine_impl.h"
-#include "openread/http_client.h"
-#include "openread/parallel.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/http_client.h"
+#include "ariaread/parallel.h"
 
 #include <cstring>
 #include <algorithm>
@@ -12,7 +12,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -295,7 +295,7 @@ RssArticle parseRssArticleByRule(const std::string& itemHtml,
         art.title = detail::decodeHtmlEntities(firstOf(apply(src.ruleTitle)));
     }
     if (!detail::isBlank(src.rulePubDate)) {
-        // legado RssArticle.pubDate 是字符串原文；OpenRead 的 pubDate 是 int64 时间戳。
+        // legado RssArticle.pubDate 是字符串原文；AriaRead 的 pubDate 是 int64 时间戳。
         // 这里尝试从规则文本中提取 yyyy-mm-dd 解析为时间戳；失败则保持 0
         // （前端仍可按入库时间 createdAt 排序，不影响展示）。
         std::string dateText = firstOf(apply(src.rulePubDate));
@@ -1002,4 +1002,4 @@ std::pair<int, std::string> BookSourceEngine::importRssSourcesFromJson(const std
     return pImpl->db->importRssSourcesFromJson(jsonText);
 }
 
-} // namespace openread
+} // namespace ariaread

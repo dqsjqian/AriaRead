@@ -2,15 +2,15 @@
 /// @brief 引擎核心逻辑单元测试（书源管理、有效性过滤、列表过滤、导出等）
 
 #include <doctest/doctest.h>
-#include "openread/engine.h"
-#include "openread/types.h"
-#include "openread/source_parser.h"
+#include "ariaread/engine.h"
+#include "ariaread/types.h"
+#include "ariaread/source_parser.h"
 #include "startup_runtime_cases.h"
 #include "debug_cases.h"
 
 #include <nlohmann/json.hpp>
 
-using namespace openread;
+using namespace ariaread;
 using json = nlohmann::json;
 
 // ──────────────────────────────────────────────

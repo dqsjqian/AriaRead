@@ -1,12 +1,12 @@
 /// @file engine_auto_source.cpp
 /// @brief D7: 智能自动换源 —— 复用 searchAllConcurrent，按书名+作者过滤并排序
 
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 #include <algorithm>
 #include <mutex>
 #include <atomic>
 
-namespace openread {
+namespace ariaread {
 
 namespace {
 
@@ -169,4 +169,4 @@ void BookSourceEngine::findAlternativeSources(
     );
 }
 
-} // namespace openread
+} // namespace ariaread

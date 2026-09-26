@@ -4,8 +4,8 @@
 /// 设计：把表达式拆成「步(step)」序列，每步 = 轴 + 节点测试 + 谓词列表。
 /// 逐步在当前节点集上推进，最后一步若是 @attr / text() 则产出字符串值。
 
-#include "openread/xpath_engine.h"
-#include "openread/gumbo_helper.h"
+#include "ariaread/xpath_engine.h"
+#include "ariaread/gumbo_helper.h"
 
 #include <algorithm>
 #include <cctype>
@@ -13,7 +13,7 @@
 #include <unordered_set>
 #include <functional>
 
-namespace openread {
+namespace ariaread {
 
 namespace {
 
@@ -439,4 +439,4 @@ std::vector<std::string> XPathEngine::evaluateToStrings(const GumboNode* root,
     return out;
 }
 
-} // namespace openread
+} // namespace ariaread

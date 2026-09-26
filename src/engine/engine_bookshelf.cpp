@@ -1,7 +1,7 @@
 /// @file engine_bookshelf.cpp
 /// @brief 引擎书架功能：收藏管理、阅读进度、换源、追更检查
 
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <tuple>
@@ -10,7 +10,7 @@
 #include <mutex>
 #include <atomic>
 
-namespace openread {
+namespace ariaread {
 
 namespace {
 
@@ -580,4 +580,4 @@ void BookSourceEngine::clearBookCache(const std::string& bookUrl, const std::str
 // 批量更新检测   → 见 engine_update_check.cpp（B4 已拆分）
 // ──────────────────────────────────────────────
 
-} // namespace openread
+} // namespace ariaread

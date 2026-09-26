@@ -34,7 +34,7 @@ const context = vm.createContext({
     syncActiveReadingSessionGlobals() {},
     fetch: async () => ({json: async () => ({ok: true, result: '', logs: ['hello'], elapsedMs: 2})}),
 });
-const root = path.resolve(__dirname, '../bindings/web/openread/web');
+const root = path.resolve(__dirname, '../bindings/web/ariaread/web');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8').replace(/\ninit\(\);\s*$/, '\n');
 vm.runInContext(app, context);
 vm.runInContext(fs.readFileSync(path.join(root, 'debug.js'), 'utf8'), context);

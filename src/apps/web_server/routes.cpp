@@ -13,17 +13,17 @@
 #include "routes.h"
 #include "routes_internal.h"
 
-namespace openread::web {
+namespace ariaread::web {
 
 void register_routes(
     Server& svr,
-    openread::BookSourceEngine& engine,
+    ariaread::BookSourceEngine& engine,
     aria::async::IExecutor& /*ui*/,
     aria::async::IExecutor& worker,
-    openread::vm::SearchViewModel& /*svm*/,
-    openread::vm::BookshelfViewModel& /*bvm*/,
-    openread::vm::ReaderViewModel& /*rvm*/,
-    openread::vm::SourceViewModel& /*srcvm*/) {
+    ariaread::vm::SearchViewModel& /*svm*/,
+    ariaread::vm::BookshelfViewModel& /*bvm*/,
+    ariaread::vm::ReaderViewModel& /*rvm*/,
+    ariaread::vm::SourceViewModel& /*srcvm*/) {
 
     register_misc_routes(svr, engine);
     register_search_routes(svr, engine);
@@ -33,4 +33,4 @@ void register_routes(
     register_rss_routes(svr, engine);
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

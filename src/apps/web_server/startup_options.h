@@ -6,7 +6,7 @@
 #include <string>
 #include <system_error>
 
-namespace openread::web {
+namespace ariaread::web {
 
 struct StartupOptions {
     std::uint16_t port = 9091;
@@ -76,4 +76,4 @@ inline StartupOptions parseStartupOptions(int argc, const char* const* argv) {
     return options;
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

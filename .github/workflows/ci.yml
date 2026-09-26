@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: openread-${{ github.workflow }}-${{ github.ref }}
+  group: ariaread-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -41,11 +41,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          python tools/ci/build_openread_deps.py
+          python tools/ci/build_ariaread_deps.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Configure tests
         run: |
-          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DOPENREAD_BUILD_TESTS=ON -DOPENREAD_BUILD_WEB_TESTS=ON
+          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build engine, ViewModels and Web server
         run: |
@@ -54,8 +54,8 @@ jobs:
       - name: Dump test-binary DLL dependencies on failure
         if: failure()
         run: |
-          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\openread-tests.exe
-          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\openread_web_server.exe
+          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\ariaread-tests.exe
+          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\ariaread_web_server.exe
       - name: Run engine, ViewModel and Web regressions
         # 这里曾经是阻塞门禁的例外：MSVC 侧的静态 CRT 与共享 Aria DLL 不匹配
         # （/MT 下每个模块各自一个 CRT 堆，跨模块释放堆内存即 0xc0000374 堆损坏），
@@ -66,13 +66,13 @@ jobs:
           ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error --parallel 3 --timeout 120
       - name: Web server smoke test
         run: |
-          ./build/ci-vs2026/bin/Release/openread_web_server.exe --help
+          ./build/ci-vs2026/bin/Release/ariaread_web_server.exe --help
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Upload build and test diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openread-diagnostics-vs2026
+          name: ariaread-diagnostics-vs2026
           path: |
             build/ci-vs2026/CMakeCache.txt
             build/ci-vs2026/CMakeFiles/CMakeConfigureLog.yaml
@@ -106,28 +106,28 @@ jobs:
       - name: Build pinned dependencies
         env:
           GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
-        run: python tools/ci/build_openread_deps.py
+        run: python tools/ci/build_ariaread_deps.py
       - name: Configure tests
         run: |
           cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DOPENREAD_BUILD_TESTS=ON -DOPENREAD_BUILD_WEB_TESTS=ON
+            -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON
       - name: Build engine, ViewModels and Web server
         run: cmake --build build/ci-win --parallel 3
       - name: Dump test-binary DLL dependencies on failure
         if: failure()
         run: |
-          objdump -p build/ci-win/bin/openread-tests.exe | grep -i "DLL Name"
-          objdump -p build/ci-win/bin/openread_web_server.exe | grep -i "DLL Name"
+          objdump -p build/ci-win/bin/ariaread-tests.exe | grep -i "DLL Name"
+          objdump -p build/ci-win/bin/ariaread_web_server.exe | grep -i "DLL Name"
       - name: Run engine, ViewModel and Web regressions
         run: |
           export PATH="$PWD/build/ci-win/bin:$PATH"
           ctest --test-dir build/ci-win --output-on-failure --no-tests=error --parallel 3 --timeout 120
-          ./build/ci-win/bin/openread_web_server.exe --help
+          ./build/ci-win/bin/ariaread_web_server.exe --help
       - name: Upload build and test diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openread-diagnostics-windows
+          name: ariaread-diagnostics-windows
           path: |
             build/ci-win/CMakeCache.txt
             build/ci-win/CMakeFiles/CMakeConfigureLog.yaml
@@ -174,13 +174,13 @@ jobs:
       - name: Build pinned dependencies
         env:
           GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
-        run: python3 tools/ci/build_openread_deps.py
+        run: python3 tools/ci/build_ariaread_deps.py
       - name: Configure tests
         run: |
           cmake -S . -B build/ci -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DOPENREAD_BUILD_TESTS=ON \
-            -DOPENREAD_BUILD_WEB_TESTS=ON
+            -DARIAREAD_BUILD_TESTS=ON \
+            -DARIAREAD_BUILD_WEB_TESTS=ON
 
       - name: Build engine, ViewModels and Web server
         run: cmake --build build/ci --parallel 3
@@ -189,16 +189,16 @@ jobs:
         run: ctest --test-dir build/ci --output-on-failure --no-tests=error --parallel 3 --timeout 120
 
       - name: Verify Web runtime layout and dynamic libraries
-        run: OPENREAD_BUILD_DIR="$PWD/build/ci" bash scripts/build_web_release.sh --skip-cmake
+        run: ARIAREAD_BUILD_DIR="$PWD/build/ci" bash scripts/build_web_release.sh --skip-cmake
 
       - name: Upload build and test diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openread-diagnostics-${{ matrix.os }}
+          name: ariaread-diagnostics-${{ matrix.os }}
           path: |
             build/ci/CMakeCache.txt
             build/ci/CMakeFiles/CMakeConfigureLog.yaml
             build/ci/Testing/Temporary/
-            build/deps/prefix/share/openread-deps/manifest.json
+            build/deps/prefix/share/ariaread-deps/manifest.json
           if-no-files-found: ignore

@@ -9,7 +9,7 @@
 #endif
 #endif
 
-#include "openread/http_client.h"
+#include "ariaread/http_client.h"
 
 #include <algorithm>
 #include <cctype>
@@ -19,7 +19,7 @@
 #include <mutex>
 #include <string>
 
-#ifdef OPENREAD_HAS_CURL
+#ifdef ARIAREAD_HAS_CURL
 #include <curl/curl.h>
 #endif
 
@@ -41,7 +41,7 @@
 #include <sys/stat.h>
 #endif
 
-namespace openread {
+namespace ariaread {
 
 namespace {
 
@@ -53,7 +53,7 @@ inline std::string trimCopy(const std::string& s) {
     return s.substr(l, r - l);
 }
 
-#ifdef OPENREAD_HAS_CURL
+#ifdef ARIAREAD_HAS_CURL
 struct ResponseBuffer {
     std::string body;
     size_t limit;
@@ -296,7 +296,7 @@ HttpResponse performCurlRequest(const HttpRequest& req) {
 } // namespace
 
 HttpClientFunc createDefaultHttpClient() {
-#ifdef OPENREAD_HAS_CURL
+#ifdef ARIAREAD_HAS_CURL
     return [](const HttpRequest& req) -> HttpResponse {
         return performCurlRequest(req);
     };
@@ -305,4 +305,4 @@ HttpClientFunc createDefaultHttpClient() {
 #endif
 }
 
-} // namespace openread
+} // namespace ariaread

@@ -1,16 +1,16 @@
 /// @file engine_source_adapter.cpp
 /// @brief EngineSourceBackend 的实现（唯一 include engine.h 的书源管理 TU）。
 
-#include "openread/vm/engine_source_adapter.h"
+#include "ariaread/vm/engine_source_adapter.h"
 
-#include "openread/engine.h"
+#include "ariaread/engine.h"
 
-namespace openread::vm {
+namespace ariaread::vm {
 
-EngineSourceBackend::EngineSourceBackend(openread::BookSourceEngine& engine)
+EngineSourceBackend::EngineSourceBackend(ariaread::BookSourceEngine& engine)
     : engine_(engine) {}
 
-openread::SourceListResult EngineSourceBackend::get_source_list() {
+ariaread::SourceListResult EngineSourceBackend::get_source_list() {
     return engine_.getSourceList();
 }
 
@@ -26,7 +26,7 @@ void EngineSourceBackend::validate_sources(
     const std::string& testQuery, int timeoutMs, int concurrency,
     std::function<void(size_t, const std::string&, SourceValidity, int)> perSource,
     std::function<void(int, int)> done,
-    std::shared_ptr<openread::CancelToken> cancelToken) {
+    std::shared_ptr<ariaread::CancelToken> cancelToken) {
     // 桥接：将 SourceValidity 映射到引擎的 ConcurrentValidateCallback 签名。
     engine_.validateSourcesConcurrent(
         testQuery, timeoutMs, concurrency,
@@ -49,4 +49,4 @@ std::string EngineSourceBackend::export_good_sources() {
     return engine_.exportGoodSources();
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

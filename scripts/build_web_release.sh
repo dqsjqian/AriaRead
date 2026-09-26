@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BUILD_DIR="${OPENREAD_BUILD_DIR:-$PROJECT_ROOT/build}"
+BUILD_DIR="${ARIAREAD_BUILD_DIR:-$PROJECT_ROOT/build}"
 CONFIG=Release
 SKIP_CMAKE=false
 CLEAN_BUILD=false
@@ -29,25 +29,25 @@ fi
 if [ "$SKIP_CMAKE" = false ]; then
     if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
         cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG" \
-            -DOPENREAD_ENFORCE_SELF_CONTAINED=ON -DOPENREAD_USE_SYSTEM_CURL=OFF
+            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
     fi
-    BUILD_ARGS=(--build "$BUILD_DIR" --config "$CONFIG" --target openread_web_server)
+    BUILD_ARGS=(--build "$BUILD_DIR" --config "$CONFIG" --target ariaread_web_server)
     if [ "$CLEAN_BUILD" = true ]; then BUILD_ARGS+=(--clean-first); fi
-    NPROC="${OPENREAD_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+    NPROC="${ARIAREAD_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
     cmake "${BUILD_ARGS[@]}" --parallel "$NPROC"
 fi
 
 RUNTIME_DIR="$BUILD_DIR/bin"
-if [ -f "$RUNTIME_DIR/$CONFIG/openread_web_server" ]; then
+if [ -f "$RUNTIME_DIR/$CONFIG/ariaread_web_server" ]; then
     RUNTIME_DIR="$RUNTIME_DIR/$CONFIG"
 fi
-BINARY="$RUNTIME_DIR/openread_web_server"
+BINARY="$RUNTIME_DIR/ariaread_web_server"
 if [ ! -x "$BINARY" ]; then
     echo "Server executable is missing: $BINARY" >&2
     exit 1
 fi
 if [ "$SKIP_CMAKE" = true ]; then
-    cmake "-DOPENREAD_SOURCE_DIR=$PROJECT_ROOT" "-DOPENREAD_OUTPUT_DIR=$RUNTIME_DIR" \
+    cmake "-DARIAREAD_SOURCE_DIR=$PROJECT_ROOT" "-DARIAREAD_OUTPUT_DIR=$RUNTIME_DIR" \
         -P "$PROJECT_ROOT/cmake/SyncWebRuntime.cmake"
 fi
 

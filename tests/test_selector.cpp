@@ -1,10 +1,10 @@
 #include <doctest/doctest.h>
-#include "openread/selector.h"
-#include "openread/engine_impl.h"
-#include "openread/js_runtime.h"
+#include "ariaread/selector.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/js_runtime.h"
 
-using namespace openread;
-using namespace openread::detail;
+using namespace ariaread;
+using namespace ariaread::detail;
 
 TEST_CASE("JsonPathSelector - basic") {
     std::string json = R"({

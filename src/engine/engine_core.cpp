@@ -1,13 +1,13 @@
 /// @file engine_core.cpp
 /// @brief 引擎核心：构造/析构、配置、书源管理、单源搜索、目录、正文、发现、状态查询
 
-#include "openread/engine_impl.h"
-#include "openread/version.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/version.h"
 
 #include <cstring>
 #include <algorithm>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -1227,7 +1227,7 @@ std::string BookSourceEngine::exportGoodSources() const {
 }
 
 std::string BookSourceEngine::version() {
-    return OPENREAD_VERSION;
+    return ARIAREAD_VERSION;
 }
 
-} // namespace openread
+} // namespace ariaread

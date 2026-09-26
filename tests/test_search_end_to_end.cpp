@@ -13,7 +13,7 @@
 
 #include <doctest/doctest.h>
 
-#include "openread/vm/search_view_model.h"
+#include "ariaread/vm/search_view_model.h"
 
 #include "aria/async/executor.hpp"
 #include "aria/binding/binding_engine.hpp"
@@ -26,7 +26,7 @@
 #include <string>
 #include <vector>
 
-using namespace openread;
+using namespace ariaread;
 using aria::async::InlineExecutor;
 using aria::binding::BindingEngine;
 using aria::binding::testing::FakeAdapter;
@@ -34,8 +34,8 @@ using aria::binding::testing::FakeView;
 
 namespace {
 
-openread::Book make_book(const std::string& name) {
-    openread::Book b;
+ariaread::Book make_book(const std::string& name) {
+    ariaread::Book b;
     b.name = name;
     b.bookUrl = "http://example.com/" + name;
     return b;

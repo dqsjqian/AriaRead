@@ -2,7 +2,7 @@
 /// @brief continuo_server.h 的实现：Continuo 事件循环 + 工作线程业务派发。
 ///
 /// 这一层只做组合：解析与分帧交给 modules/http，连接与监听交给
-/// modules/transport，线程调度是 OpenRead 自己的选择（业务是阻塞的，
+/// modules/transport，线程调度是 AriaRead 自己的选择（业务是阻塞的，
 /// 不能跑在事件循环线程上）。
 
 #include "continuo_server.h"
@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 
-namespace openread::web {
+namespace ariaread::web {
 namespace {
 
 using continuo::EventLoop;
@@ -258,7 +258,7 @@ http::Response make_response(const StreamBridge::Head& head) {
     if (!head.content_type.empty()) {
         response.headers.append("Content-Type", head.content_type);
     }
-    response.headers.append("Server", "OpenRead/Continuo");
+    response.headers.append("Server", "AriaRead/Continuo");
     response.headers.append("Cache-Control", "no-cache");
     response.headers.append("Access-Control-Allow-Origin", "*");
     response.headers.append("Access-Control-Allow-Headers", "*");
@@ -423,9 +423,9 @@ Task<Result<void>> dispatch(ServerState& state, EventLoop& loop, const http::Req
         try {
             std::rethrow_exception(failure);
         } catch (const std::exception& error) {
-            std::fprintf(stderr, "[OpenRead] 流式路由异常：%s\n", error.what());
+            std::fprintf(stderr, "[AriaRead] 流式路由异常：%s\n", error.what());
         } catch (...) {
-            std::fprintf(stderr, "[OpenRead] 流式路由异常（未知类型）\n");
+            std::fprintf(stderr, "[AriaRead] 流式路由异常（未知类型）\n");
         }
     }
     co_return co_await writer.finish();
@@ -522,7 +522,7 @@ void Server::run() {
     ServerState& state = impl_->state;
     Result<EventLoop> loop = EventLoop::create();
     if (!loop) {
-        std::fprintf(stderr, "[OpenRead] 无法创建事件循环\n");
+        std::fprintf(stderr, "[AriaRead] 无法创建事件循环\n");
         state.notify_failure();
         return;
     }
@@ -533,13 +533,13 @@ void Server::run() {
         state.host.empty() ? transport::Endpoint::any(port)
                            : transport::Endpoint::parse(state.host, port);
     if (!endpoint) {
-        std::fprintf(stderr, "[OpenRead] 监听地址无效：%s:%d\n", state.host.c_str(), state.port);
+        std::fprintf(stderr, "[AriaRead] 监听地址无效：%s:%d\n", state.host.c_str(), state.port);
         state.notify_failure();
         return;
     }
     Result<transport::tcp::Listener> listener = transport::tcp::Listener::bind(event_loop, *endpoint);
     if (!listener) {
-        std::fprintf(stderr, "[OpenRead] 绑定 %s:%d 失败（地址不可用或已被占用）\n",
+        std::fprintf(stderr, "[AriaRead] 绑定 %s:%d 失败（地址不可用或已被占用）\n",
                      state.host.c_str(), state.port);
         state.notify_failure();
         return;
@@ -558,4 +558,4 @@ void Server::run() {
 
 void Server::stop() { impl_->state.stop_source.request_stop(); }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

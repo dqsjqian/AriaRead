@@ -1,11 +1,11 @@
 // HTTP 代理层
 // 桥接 C++ 与外部 HTTP 实现（由上层注入）
 
-#include "openread/types.h"
+#include "ariaread/types.h"
 #include <string>
 #include <map>
 
-namespace openread {
+namespace ariaread {
 
 // ──────────────────────────────────────────────
 // URL 编码/解码工具
@@ -52,4 +52,4 @@ std::string decode(const std::string& value) {
 
 } // namespace UrlUtils
 
-} // namespace openread
+} // namespace ariaread

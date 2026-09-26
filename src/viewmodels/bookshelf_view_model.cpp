@@ -1,11 +1,11 @@
 /// @file bookshelf_view_model.cpp
 /// @brief BookshelfViewModel 的实现。
 
-#include "openread/vm/bookshelf_view_model.h"
+#include "ariaread/vm/bookshelf_view_model.h"
 
 #include "aria/async/task.hpp"
 
-namespace openread::vm {
+namespace ariaread::vm {
 
 BookshelfViewModel::BookshelfViewModel(aria::async::IExecutor& ui,
                                        aria::async::IExecutor& worker,
@@ -33,7 +33,7 @@ BookshelfViewModel::BookshelfViewModel(aria::async::IExecutor& ui,
       // add：worker 执行加入 + 重新加载 → 切回 ui 写 list。返回新 id。
       add_command_(
           ui, worker,
-          [this](openread::BookshelfItem item) -> aria::async::Task<int64_t> {
+          [this](ariaread::BookshelfItem item) -> aria::async::Task<int64_t> {
               int64_t id = backend_.add(item);
               auto items = backend_.load();
               ui_.post([this, items] { reload_into_list_(items); });
@@ -57,12 +57,12 @@ void BookshelfViewModel::remove(const std::string& bookUrl) {
     remove_command_.execute(bookUrl);
 }
 
-void BookshelfViewModel::add(const openread::BookshelfItem& item) {
+void BookshelfViewModel::add(const ariaread::BookshelfItem& item) {
     add_command_.execute(item);
 }
 
 void BookshelfViewModel::reload_into_list_(
-    const std::vector<openread::BookshelfDetail>& items) {
+    const std::vector<ariaread::BookshelfDetail>& items) {
     books.clear();
     for (const auto& d : items) {
         books.emplace_back(d);
@@ -70,4 +70,4 @@ void BookshelfViewModel::reload_into_list_(
     count.set(static_cast<int>(books.size()));
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

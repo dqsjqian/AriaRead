@@ -3,31 +3,31 @@
 
 #pragma once
 
-#include "openread/engine.h"
+#include "ariaread/engine.h"
 #include <nlohmann/json.hpp>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
 using json = nlohmann::json;
 
 /// Book → JSON（基础字段）
-json book_to_json(const openread::Book& b);
+json book_to_json(const ariaread::Book& b);
 
 /// Book → JSON（带回源信息：sourceName / sourceIndex / sourceUrl）
-json book_to_json_with_source(const openread::Book& b,
+json book_to_json_with_source(const ariaread::Book& b,
                               size_t sourceIndex,
                               const std::string& sourceName,
                               const std::string& sourceUrl);
 
 /// Chapter → JSON
-json chapter_to_json(const openread::Chapter& c);
+json chapter_to_json(const ariaread::Chapter& c);
 
 /// SourceSummary → JSON
-json source_summary_to_json(const openread::SourceSummary& s);
+json source_summary_to_json(const ariaread::SourceSummary& s);
 
 /// BookshelfDetail → JSON（含阅读进度）
-json bookshelf_detail_to_json(const openread::BookshelfDetail& d);
+json bookshelf_detail_to_json(const ariaread::BookshelfDetail& d);
 
 /// HTTP GET 下载（libcurl，用于 /api/sources/url）
 std::string httpDownload(const std::string& url, int timeoutSec = 30);
@@ -38,4 +38,4 @@ inline std::string safeDump(const json& j) {
     return j.dump(-1, ' ', false, json::error_handler_t::replace);
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

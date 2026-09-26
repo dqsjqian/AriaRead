@@ -1,15 +1,15 @@
 /// @file test_css_xpath.cpp
 /// @brief CSS3 / XPath 引擎 + JS 真实绑定 的单元测试
 #include <doctest/doctest.h>
-#include "openread/css_engine.h"
-#include "openread/xpath_engine.h"
-#include "openread/selector.h"
-#include "openread/js_runtime.h"
-#include "openread/engine_impl.h"
+#include "ariaread/css_engine.h"
+#include "ariaread/xpath_engine.h"
+#include "ariaread/selector.h"
+#include "ariaread/js_runtime.h"
+#include "ariaread/engine_impl.h"
 #include <gumbo.h>
 
-using namespace openread;
-using namespace openread::detail;
+using namespace ariaread;
+using namespace ariaread::detail;
 
 namespace {
 std::string htmlDoc = R"(<html><body>

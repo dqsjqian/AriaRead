@@ -4,15 +4,15 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
-void register_catalog_routes(Server& svr, openread::BookSourceEngine& engine) {
+void register_catalog_routes(Server& svr, ariaread::BookSourceEngine& engine) {
 
     // ── Catalog（带缓存抓取）─────────────────────────────────────────
     svr.Get("/api/catalog",
@@ -86,4 +86,4 @@ void register_catalog_routes(Server& svr, openread::BookSourceEngine& engine) {
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

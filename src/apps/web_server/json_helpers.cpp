@@ -3,17 +3,17 @@
 
 #include "json_helpers.h"
 
-#include "openread/engine.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine.h"
+#include "ariaread/engine_impl.h"
 
 #include <curl/curl.h>
 #include <stdexcept>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
-json book_to_json(const openread::Book& b) {
+json book_to_json(const ariaread::Book& b) {
     return {
         {"name", sanitizeUtf8(b.name)},
         {"url", sanitizeUtf8(b.bookUrl)},
@@ -28,7 +28,7 @@ json book_to_json(const openread::Book& b) {
     };
 }
 
-json book_to_json_with_source(const openread::Book& b,
+json book_to_json_with_source(const ariaread::Book& b,
                               size_t sourceIndex,
                               const std::string& sourceName,
                               const std::string& sourceUrl) {
@@ -40,7 +40,7 @@ json book_to_json_with_source(const openread::Book& b,
     return j;
 }
 
-json chapter_to_json(const openread::Chapter& c) {
+json chapter_to_json(const ariaread::Chapter& c) {
     return {
         {"title", sanitizeUtf8(c.title)},
         {"url", sanitizeUtf8(c.url)},
@@ -49,7 +49,7 @@ json chapter_to_json(const openread::Chapter& c) {
     };
 }
 
-json source_summary_to_json(const openread::SourceSummary& s) {
+json source_summary_to_json(const ariaread::SourceSummary& s) {
     json j = {
         {"name", sanitizeUtf8(s.name)},
         {"url", sanitizeUtf8(s.url)},
@@ -62,7 +62,7 @@ json source_summary_to_json(const openread::SourceSummary& s) {
     return j;
 }
 
-json bookshelf_detail_to_json(const openread::BookshelfDetail& d) {
+json bookshelf_detail_to_json(const ariaread::BookshelfDetail& d) {
     const auto& item = d.item;
     const auto& progress = d.progress;
     json j = {
@@ -106,7 +106,7 @@ std::string httpDownload(const std::string& url, int timeoutSec) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "OpenRead/1.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "AriaRead/1.0");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
@@ -129,4 +129,4 @@ std::string httpDownload(const std::string& url, int timeoutSec) {
     return result;
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

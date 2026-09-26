@@ -1,12 +1,12 @@
 /// @file elements_single.cpp
 /// @brief ElementsSingle 索引切片系统实现 —— 移植自 legado
 
-#include "openread/elements_single.h"
+#include "ariaread/elements_single.h"
 #include <algorithm>
 #include <sstream>
 #include <regex>
 
-namespace openread {
+namespace ariaread {
 
 std::vector<int> ElementsSingle::parseAndFilter(const std::string& rule, int elementsSize) {
     findIndexSet(rule);
@@ -221,4 +221,4 @@ std::tuple<int, int, int> ElementsSingle::parseRange(const std::string& s) {
     return std::make_tuple(start, end, step);
 }
 
-} // namespace openread
+} // namespace ariaread

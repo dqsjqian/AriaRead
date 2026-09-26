@@ -1,14 +1,14 @@
 /// @file engine_search_all.cpp
 /// @brief 多源搜索：串行多源搜索 + 并发多源搜索
 
-#include "openread/engine_impl.h"
-#include "openread/parallel.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/parallel.h"
 
 #include <cstring>
 #include <algorithm>
 #include <unordered_set>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -294,4 +294,4 @@ void BookSourceEngine::searchAllConcurrent(
     }
 }
 
-} // namespace openread
+} // namespace ariaread

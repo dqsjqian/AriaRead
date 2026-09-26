@@ -1,6 +1,6 @@
 """Local HTTP regressions; no external sources or user database are accessed.
 
-Run with --server /path/to/openread_web_server or OPENREAD_WEB_SERVER.
+Run with --server /path/to/ariaread_web_server or ARIAREAD_WEB_SERVER.
 Only Python's standard library is required.
 """
 
@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlencode, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVER_BINARY = ROOT / 'build/bin/openread_web_server'
+SERVER_BINARY = ROOT / 'build/bin/ariaread_web_server'
 RESPONSE_LIMIT = 4 * 1024 * 1024
 OVERSIZED_BODY = json.dumps({'books': [], 'padding': 'x' * RESPONSE_LIMIT}).encode()
 GZIP_OVERSIZED_BODY = gzip.compress(OVERSIZED_BODY)
@@ -125,7 +125,7 @@ from pathlib import Path
 import sys
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        data = b'openread-test-port-owner'
+        data = b'ariaread-test-port-owner'
         self.send_response(200)
         self.send_header('Content-Length', str(len(data)))
         self.end_headers()
@@ -180,7 +180,7 @@ class DebugHttpTests(unittest.TestCase):
     @staticmethod
     def server_command(port):
         return [str(SERVER_BINARY), '--host', '127.0.0.1', '--port', str(port),
-                '--db', ':memory:', '--web-root', str(ROOT / 'bindings/web/openread/web')]
+                '--db', ':memory:', '--web-root', str(ROOT / 'bindings/web/ariaread/web')]
 
     @classmethod
     def request(cls, method, path, body=None, timeout=15):
@@ -444,7 +444,7 @@ class DebugHttpTests(unittest.TestCase):
         # to bind an occupied port and must leave the owner serving.
         class MarkerHandler(BaseHTTPRequestHandler):
             def do_GET(self):
-                data = b'openread-test-port-owner'
+                data = b'ariaread-test-port-owner'
                 self.send_response(200)
                 self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
@@ -466,7 +466,7 @@ class DebugHttpTests(unittest.TestCase):
         self.addCleanup(stop_owner)
 
         self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'openread-test-port-owner')
+                         'ariaread-test-port-owner')
         log = tempfile.TemporaryFile(mode='w+b')
         self.addCleanup(log.close)
         contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
@@ -478,7 +478,7 @@ class DebugHttpTests(unittest.TestCase):
         self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
         self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
         self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'openread-test-port-owner')
+                         'ariaread-test-port-owner')
         log = tempfile.TemporaryFile(mode='w+b')
         self.addCleanup(log.close)
         contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
@@ -490,13 +490,13 @@ class DebugHttpTests(unittest.TestCase):
         self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
         self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
         self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'openread-test-port-owner')
+                         'ariaread-test-port-owner')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, add_help=False)
-    parser.add_argument('--server', default=os.environ.get('OPENREAD_WEB_SERVER', str(SERVER_BINARY)),
-                        help='Path to the built openread_web_server executable')
+    parser.add_argument('--server', default=os.environ.get('ARIAREAD_WEB_SERVER', str(SERVER_BINARY)),
+                        help='Path to the built ariaread_web_server executable')
     options, remaining = parser.parse_known_args()
     SERVER_BINARY = Path(options.server).expanduser().resolve()
     unittest.main(argv=[sys.argv[0], *remaining])

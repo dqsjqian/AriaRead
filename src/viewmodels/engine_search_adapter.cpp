@@ -2,17 +2,17 @@
 /// @brief make_engine_stream_search 的实现——把引擎 searchAllConcurrent 的
 ///        逐源回调桥接到 SearchViewModel 的 StreamSearchFn。
 
-#include "openread/vm/engine_search_adapter.h"
+#include "ariaread/vm/engine_search_adapter.h"
 
-#include "openread/engine.h"   // 仅此 TU 引入 engine.h（含其私有第三方传递依赖）
+#include "ariaread/engine.h"   // 仅此 TU 引入 engine.h（含其私有第三方传递依赖）
 
 #include <atomic>
 #include <memory>
 
-namespace openread::vm {
+namespace ariaread::vm {
 
 StreamSearchFn make_engine_stream_search(
-    openread::BookSourceEngine& engine,
+    ariaread::BookSourceEngine& engine,
     int concurrency,
     bool matchName,
     bool matchAuthor,
@@ -25,13 +25,13 @@ StreamSearchFn make_engine_stream_search(
         // 引擎用 shared_ptr<CancelToken> 表达取消；ViewModel 用 std::atomic<bool>。
         // 在逐源回调里把外部 atomic 的取消意图传播到引擎 token——逐源回调是
         // 天然的高频检查点，无需额外监视线程。
-        auto token = std::make_shared<openread::CancelToken>();
+        auto token = std::make_shared<ariaread::CancelToken>();
 
         // 逐源回调（worker 线程触发，线程安全）：
-        openread::ConcurrentSearchCallback on_source =
+        ariaread::ConcurrentSearchCallback on_source =
             [&emit, &cancel, token](std::size_t /*sourceIndex*/,
                                     const std::string& /*sourceName*/,
-                                    const std::vector<openread::Book>& books,
+                                    const std::vector<ariaread::Book>& books,
                                     int /*latencyMs*/,
                                     const std::string& error) {
                 // 外部已请求取消 → 传播给引擎 token，使其尽快停止后续源。
@@ -60,4 +60,4 @@ StreamSearchFn make_engine_stream_search(
     };
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

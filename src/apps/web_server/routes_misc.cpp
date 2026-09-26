@@ -4,13 +4,13 @@
 #include "routes_internal.h"
 #include "http_helpers.h"
 #include "debug_console.h"
-#include "openread/version.h"
+#include "ariaread/version.h"
 
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
-void register_misc_routes(Server& svr, openread::BookSourceEngine& engine) {
+void register_misc_routes(Server& svr, ariaread::BookSourceEngine& engine) {
 
     // ── Health ────────────────────────────────────────────────────────
     svr.Get("/api/health",
@@ -25,7 +25,7 @@ void register_misc_routes(Server& svr, openread::BookSourceEngine& engine) {
                 {"ok", true},
                 {"status", "ok"},
                 {"backend", "cpp"},
-                {"version", OPENREAD_VERSION},
+                {"version", ARIAREAD_VERSION},
                 {"sources", totalSources},
                 {"valid", validSources},
             });
@@ -92,4 +92,4 @@ void register_misc_routes(Server& svr, openread::BookSourceEngine& engine) {
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

@@ -1,10 +1,10 @@
 /// @file engine_export.cpp
 /// @brief D6: 将已全量缓存的书导出为 TXT
 
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 #include <sstream>
 
-namespace openread {
+namespace ariaread {
 
 // ──────────────────────────────────────────────
 // 导出为 TXT
@@ -84,4 +84,4 @@ std::string BookSourceEngine::exportBookToTxt(const std::string& bookUrl,
     return os.str();
 }
 
-} // namespace openread
+} // namespace ariaread

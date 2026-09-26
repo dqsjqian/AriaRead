@@ -4,7 +4,7 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <atomic>
 #include <chrono>
@@ -14,15 +14,15 @@
 #include <string>
 #include <vector>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
 namespace {
 
 /// 把"逐源并发搜索 → SSE 推送"这套在 all/selected 两处重复的逻辑收敛成一个函数。
 /// @param sourceNames 为空表示搜全部可用源；非空表示只搜指定名称的源。
-void stream_concurrent_search(openread::BookSourceEngine& engine,
+void stream_concurrent_search(ariaread::BookSourceEngine& engine,
                               Response& res,
                               const std::string& keyword,
                               bool matchName, bool matchAuthor, bool matchIntro,
@@ -38,8 +38,8 @@ void stream_concurrent_search(openread::BookSourceEngine& engine,
             if (sourceNames.empty()) {
                 for (const auto& s : sources) {
                     if (!s.searchUrl.empty() &&
-                        s.validity != openread::SourceValidity::Invalid &&
-                        s.validity != openread::SourceValidity::Poor) {
+                        s.validity != ariaread::SourceValidity::Invalid &&
+                        s.validity != ariaread::SourceValidity::Poor) {
                         ++searchableCount;
                     }
                 }
@@ -72,7 +72,7 @@ void stream_concurrent_search(openread::BookSourceEngine& engine,
             engine.searchAllConcurrent(
                 keyword, 8,
                 [&](size_t idx, const std::string& name,
-                    const std::vector<openread::Book>& books,
+                    const std::vector<ariaread::Book>& books,
                     int latencyMs, const std::string& error) {
                     if (!error.empty()) {
                         totalErrors.fetch_add(1);
@@ -132,7 +132,7 @@ void stream_concurrent_search(openread::BookSourceEngine& engine,
 
 }  // namespace
 
-void register_search_routes(Server& svr, openread::BookSourceEngine& engine) {
+void register_search_routes(Server& svr, ariaread::BookSourceEngine& engine) {
 
     // ── 单源搜索 ──────────────────────────────────────────────────────
     svr.Get("/api/search",
@@ -210,4 +210,4 @@ void register_search_routes(Server& svr, openread::BookSourceEngine& engine) {
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

@@ -1,11 +1,11 @@
-# OpenRead Unit Tests
+# AriaRead Unit Tests
 
-# 使用 doctest（轻量级测试框架）：来自依赖前缀，由 build_openread_deps.py 安装。
+# 使用 doctest（轻量级测试框架）：来自依赖前缀，由 build_ariaread_deps.py 安装。
 find_package(doctest REQUIRED)
 # doctest_discover_tests 的实现随包安装，位置在上游两种可能都出现过。
-find_path(OPENREAD_DOCTEST_CMAKE_DIR NAMES doctest.cmake
-    HINTS "${OPENREAD_DEPS_PREFIX}/lib/cmake/doctest"
-          "${OPENREAD_DEPS_PREFIX}/share/doctest"
+find_path(ARIAREAD_DOCTEST_CMAKE_DIR NAMES doctest.cmake
+    HINTS "${ARIAREAD_DEPS_PREFIX}/lib/cmake/doctest"
+          "${ARIAREAD_DEPS_PREFIX}/share/doctest"
     NO_DEFAULT_PATH)
 
 # ──────────────────────────────────────────────
@@ -25,24 +25,24 @@ set(ENGINE_TEST_SOURCES
     test_engine_rss.cpp
 )
 
-add_executable(openread-tests ${ENGINE_TEST_SOURCES})
+add_executable(ariaread-tests ${ENGINE_TEST_SOURCES})
 
-target_include_directories(openread-tests
+target_include_directories(ariaread-tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
-        SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
+        SYSTEM ${ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
 )
 
-target_link_libraries(openread-tests
-    PRIVATE openread
+target_link_libraries(ariaread-tests
+    PRIVATE ariaread
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE doctest::doctest
-    PRIVATE ${OPENREAD_SQLITE_TARGET}
+    PRIVATE ${ARIAREAD_SQLITE_TARGET}
 )
 
 # 注册测试
-if(OPENREAD_DOCTEST_CMAKE_DIR)
-    include(${OPENREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
+if(ARIAREAD_DOCTEST_CMAKE_DIR)
+    include(${ARIAREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
     # MSVC: doctest enumerates tests by executing the binary right after it
     # links; the shared Aria dylibs must sit next to it or the discovery run
     # dies with STATUS_DLL_NOT_FOUND. Copy every runtime DLL in place first.
@@ -50,24 +50,24 @@ if(OPENREAD_DOCTEST_CMAKE_DIR)
         # 明确按目标拷贝运行时 DLL：Aria 是 SHARED，MinGW 的发现测试执行
         # exe 时必须能在同目录找到它们。$<TARGET_RUNTIME_DLLS> 在 MinGW 上
         # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
-        add_custom_command(TARGET openread-tests POST_BUILD
+        add_custom_command(TARGET ariaread-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:aria_abi>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
-                $<TARGET_FILE_DIR:openread-tests>
+                $<TARGET_FILE_DIR:ariaread-tests>
             COMMAND_EXPAND_LISTS)
     endif()
-    doctest_discover_tests(openread-tests PROPERTIES TIMEOUT 60)
+    doctest_discover_tests(ariaread-tests PROPERTIES TIMEOUT 60)
 else()
     # 找不到 doctest 的 cmake 模块就退化成整包一个测试，不让测试静默消失。
-    add_test(NAME openread-tests COMMAND openread-tests)
+    add_test(NAME ariaread-tests COMMAND ariaread-tests)
 endif()
 
 # ──────────────────────────────────────────────
-# ViewModel 测试（仅当 Aria + openread_vm 可用时构建）
+# ViewModel 测试（仅当 Aria + ariaread_vm 可用时构建）
 # ──────────────────────────────────────────────
-if(TARGET openread_vm)
+if(TARGET ariaread_vm)
     set(VM_TEST_SOURCES
         test_main.cpp
         test_search_view_model.cpp
@@ -77,82 +77,82 @@ if(TARGET openread_vm)
         test_source_view_model.cpp
     )
 
-    add_executable(openread-vm-tests ${VM_TEST_SOURCES})
+    add_executable(ariaread-vm-tests ${VM_TEST_SOURCES})
 
-    target_include_directories(openread-vm-tests
+    target_include_directories(ariaread-vm-tests
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             # Aria binding 的测试辅助（FakeAdapter/FakeView），用于端到端示例
             ${CMAKE_SOURCE_DIR}/third_party/aria/modules/binding/tests
-            SYSTEM ${OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
+            SYSTEM ${ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
     )
 
-    target_link_libraries(openread-vm-tests
+    target_link_libraries(ariaread-vm-tests
         PRIVATE
-            openread_vm
+            ariaread_vm
             doctest::doctest
             nlohmann_json::nlohmann_json
-            ${OPENREAD_SQLITE_TARGET}   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
+            ${ARIAREAD_SQLITE_TARGET}   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
     )
 
     if(NOT MSVC)
-        target_compile_options(openread-vm-tests PRIVATE -Wno-deprecated-declarations)
+        target_compile_options(ariaread-vm-tests PRIVATE -Wno-deprecated-declarations)
     endif()
 
     if(WIN32 AND ARIA_BUILD_SHARED)
         # 明确按目标拷贝运行时 DLL：Aria 是 SHARED，MinGW 的发现测试执行
         # exe 时必须能在同目录找到它们。$<TARGET_RUNTIME_DLLS> 在 MinGW 上
         # 可能展开为空，会让 copy_if_different 报用法错误，因此不用它。
-        add_custom_command(TARGET openread-vm-tests POST_BUILD
+        add_custom_command(TARGET ariaread-vm-tests POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:aria_abi>
                 $<TARGET_FILE:aria_runtime>
                 $<TARGET_FILE:aria_binding>
-                $<TARGET_FILE_DIR:openread-vm-tests>
+                $<TARGET_FILE_DIR:ariaread-vm-tests>
             COMMAND_EXPAND_LISTS)
     endif()
-    if(OPENREAD_DOCTEST_CMAKE_DIR)
-        include(${OPENREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
-        doctest_discover_tests(openread-vm-tests)
+    if(ARIAREAD_DOCTEST_CMAKE_DIR)
+        include(${ARIAREAD_DOCTEST_CMAKE_DIR}/doctest.cmake)
+        doctest_discover_tests(ariaread-vm-tests)
     else()
-        add_test(NAME openread-vm-tests COMMAND openread-vm-tests)
+        add_test(NAME ariaread-vm-tests COMMAND ariaread-vm-tests)
     endif()
 endif()
 
 # Optional Web regressions use only Node.js / Python standard libraries.
-option(OPENREAD_BUILD_WEB_TESTS "Register local Web UI and HTTP regression tests" ON)
-if(OPENREAD_BUILD_WEB_TESTS)
-    find_program(OPENREAD_NODE_EXECUTABLE NAMES node nodejs)
-    if(OPENREAD_NODE_EXECUTABLE)
+option(ARIAREAD_BUILD_WEB_TESTS "Register local Web UI and HTTP regression tests" ON)
+if(ARIAREAD_BUILD_WEB_TESTS)
+    find_program(ARIAREAD_NODE_EXECUTABLE NAMES node nodejs)
+    if(ARIAREAD_NODE_EXECUTABLE)
         execute_process(
-            COMMAND "${OPENREAD_NODE_EXECUTABLE}" -e
+            COMMAND "${ARIAREAD_NODE_EXECUTABLE}" -e
                 "process.exit(Number(process.versions.node.split('.')[0]) >= 18 ? 0 : 1)"
-            RESULT_VARIABLE OPENREAD_NODE_VERSION_OK
+            RESULT_VARIABLE ARIAREAD_NODE_VERSION_OK
             OUTPUT_QUIET ERROR_QUIET TIMEOUT 5
         )
     endif()
-    if(OPENREAD_NODE_EXECUTABLE AND OPENREAD_NODE_VERSION_OK EQUAL 0)
-        add_test(NAME openread-debug-ui
-            COMMAND "${OPENREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_ui.cjs")
-        set_tests_properties(openread-debug-ui PROPERTIES TIMEOUT 20 LABELS "web;debug")
-        add_test(NAME openread-rss-ui
-            COMMAND "${OPENREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_rss_ui.cjs")
-        set_tests_properties(openread-rss-ui PROPERTIES TIMEOUT 20 LABELS "web;rss")
+    if(ARIAREAD_NODE_EXECUTABLE AND ARIAREAD_NODE_VERSION_OK EQUAL 0)
+        add_test(NAME ariaread-debug-ui
+            COMMAND "${ARIAREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_ui.cjs")
+        set_tests_properties(ariaread-debug-ui PROPERTIES TIMEOUT 20 LABELS "web;debug")
+        add_test(NAME ariaread-rss-ui
+            COMMAND "${ARIAREAD_NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_rss_ui.cjs")
+        set_tests_properties(ariaread-rss-ui PROPERTIES TIMEOUT 20 LABELS "web;rss")
     else()
-        message(STATUS "Skipping openread-debug-ui: Node.js 18 or newer was not found")
+        message(STATUS "Skipping ariaread-debug-ui: Node.js 18 or newer was not found")
     endif()
 
     find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
-    if(NOT TARGET openread_web_server)
-        message(STATUS "Skipping openread-debug-http: openread_web_server target is unavailable")
+    if(NOT TARGET ariaread_web_server)
+        message(STATUS "Skipping ariaread-debug-http: ariaread_web_server target is unavailable")
     elseif(NOT Python3_Interpreter_FOUND)
-        message(STATUS "Skipping openread-debug-http: Python 3.8 or newer was not found")
+        message(STATUS "Skipping ariaread-debug-http: Python 3.8 or newer was not found")
     else()
-        add_test(NAME openread-debug-http
+        add_test(NAME ariaread-debug-http
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_http.py"
-                --server "$<TARGET_FILE:openread_web_server>")
-        set_tests_properties(openread-debug-http PROPERTIES TIMEOUT 120 LABELS "web;debug")
+                --server "$<TARGET_FILE:ariaread_web_server>")
+        set_tests_properties(ariaread-debug-http PROPERTIES TIMEOUT 120 LABELS "web;debug")
     endif()
 else()
-    message(STATUS "Skipping Web regressions: OPENREAD_BUILD_WEB_TESTS=OFF")
+    message(STATUS "Skipping Web regressions: ARIAREAD_BUILD_WEB_TESTS=OFF")
 endif()

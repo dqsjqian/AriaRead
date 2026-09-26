@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
 /// 检测目标端口是否已被占用（本地 TCP connect 探测）。
 bool isPortInUse(const std::string& host, std::uint16_t port);
@@ -15,4 +15,4 @@ bool isPortInUse(const std::string& host, std::uint16_t port);
 /// macOS/Linux: lsof + SIGTERM/SIGKILL；Windows: PowerShell Get-NetTCPConnection。
 void killProcessOnPort(std::uint16_t port);
 
-}  // namespace openread::web
+}  // namespace ariaread::web

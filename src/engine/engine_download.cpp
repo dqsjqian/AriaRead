@@ -1,8 +1,8 @@
 /// @file engine_download.cpp
 /// @brief 书架全量下载缓存（B4 拆分：从 engine_bookshelf.cpp 独立出来）
 
-#include "openread/engine_impl.h"
-#include "openread/parallel.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/parallel.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
@@ -11,7 +11,7 @@
 #include <mutex>
 #include <atomic>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -257,11 +257,11 @@ BookSourceEngine::DownloadResult BookSourceEngine::downloadBook(
                         atomicFailed++;
                         status = "empty";
                         log("[WARN][download] 正文规则匹配为空 | " + ch.title + " | bodyLen=" + std::to_string(response.size()) + " | rule=" + rule.content.substr(0, 120));
-                        // 调试转储：仅当显式设置环境变量 OPENREAD_DEBUG_DUMP=<path> 时启用，
+                        // 调试转储：仅当显式设置环境变量 ARIAREAD_DEBUG_DUMP=<path> 时启用，
                         // 生产默认关闭，不再硬编码写 /tmp（避免无意的磁盘副作用）。
                         bool expected = false;
                         if (debugFileWritten.compare_exchange_strong(expected, true)) {
-                            const char* dumpPath = std::getenv("OPENREAD_DEBUG_DUMP");
+                            const char* dumpPath = std::getenv("ARIAREAD_DEBUG_DUMP");
                             if (dumpPath && *dumpPath) {
                                 try {
                                     std::ofstream ofs(dumpPath);
@@ -348,4 +348,4 @@ BookSourceEngine::DownloadResult BookSourceEngine::downloadBook(
     return result;
 }
 
-} // namespace openread
+} // namespace ariaread

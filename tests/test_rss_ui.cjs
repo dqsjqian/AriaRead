@@ -9,7 +9,7 @@ const node = id => {
 };
 const escape = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const ctx = vm.createContext({document:{getElementById:node},API:'',esc:escape,esc2:escape,stripHtml:s=>s,toast(){},console});
-vm.runInContext(fs.readFileSync(path.join(__dirname,'../bindings/web/openread/web/rss.js'),'utf8'),ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../bindings/web/ariaread/web/rss.js'),'utf8'),ctx);
 const run = text => vm.runInContext(text,ctx);
 (async()=>{
     run(`rssCurrentSource={sourceUrl:'https://a.test',sourceName:'A'}; rssArticlesData=[{id:1,title:'A'},{id:2,title:'B'}]`);

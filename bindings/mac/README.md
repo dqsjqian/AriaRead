@@ -1,15 +1,15 @@
-# OpenRead C++ 绑定 / Qt 集成
+# AriaRead C++ 绑定 / Qt 集成
 
 ## 两种集成方式
 
 ### 方式一：直接链接静态库（推荐）
 
-最简单，直接链接 `libopenread.a`，使用 C++ 便捷头文件：
+最简单，直接链接 `libariaread.a`，使用 C++ 便捷头文件：
 
 ```cpp
-#include <openread/wrapper.hpp>
+#include <ariaread/wrapper.hpp>
 
-openread::Engine engine;
+ariaread::Engine engine;
 engine.loadSourcesFromFile("sources.json");
 
 auto books = engine.search("斗破苍穹");
@@ -21,18 +21,18 @@ for (const auto& book : books) {
 **CMakeLists.txt**:
 ```cmake
 # 方式一：直接编译源码
-set(OPENREAD_DIR ${CMAKE_SOURCE_DIR}/third_party/OpenRead)
-add_subdirectory(${OPENREAD_DIR})
+set(ARIAREAD_DIR ${CMAKE_SOURCE_DIR}/third_party/AriaRead)
+add_subdirectory(${ARIAREAD_DIR})
 
-target_link_libraries(myapp PRIVATE openread)
+target_link_libraries(myapp PRIVATE ariaread)
 ```
 
 ### 方式二：链接共享库（适合闭源分发）
 
 ```cmake
 # 方式二：链接预编译共享库
-find_library(OPENREAD_LIBRARY openread PATHS /usr/local/lib)
-target_link_libraries(myapp PRIVATE ${OPENREAD_LIBRARY})
+find_library(ARIAREAD_LIBRARY ariaread PATHS /usr/local/lib)
+target_link_libraries(myapp PRIVATE ${ARIAREAD_LIBRARY})
 target_include_directories(myapp PRIVATE /usr/local/include)
 ```
 
@@ -51,7 +51,7 @@ target_include_directories(myapp PRIVATE /usr/local/include)
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include <openread/wrapper.hpp>
+#include <ariaread/wrapper.hpp>
 
 class ReaderWindow : public QMainWindow {
     Q_OBJECT
@@ -118,15 +118,15 @@ public:
     }
 
 private:
-    openread::Engine engine_;
+    ariaread::Engine engine_;
     QNetworkAccessManager network_;
     QLineEdit* searchEdit_;
     QPushButton* searchBtn_;
     QListWidget* bookList_;
     QListWidget* chapterList_;
     QTextEdit* contentEdit_;
-    std::vector<openread::Book> books_;
-    std::vector<openread::Chapter> chapters_;
+    std::vector<ariaread::Book> books_;
+    std::vector<ariaread::Chapter> chapters_;
 };
 
 int main(int argc, char* argv[]) {
@@ -140,14 +140,14 @@ int main(int argc, char* argv[]) {
 ## C API 直接调用（适用于纯 C / JNI / Swift 等）
 
 ```c
-#include <openread/bridge.h>
+#include <ariaread/bridge.h>
 
-OpenReadEngine engine = openread_engine_create();
-openread_engine_load_sources_from_file(engine, "sources.json");
+AriaReadEngine engine = ariaread_engine_create();
+ariaread_engine_load_sources_from_file(engine, "sources.json");
 
-char* result = openread_engine_search(engine, "斗破苍穹");
+char* result = ariaread_engine_search(engine, "斗破苍穹");
 printf("Search result: %s\n", result);
-openread_free_string(result);
+ariaread_free_string(result);
 
-openread_engine_destroy(engine);
+ariaread_engine_destroy(engine);
 ```

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "debug_console.h"
-#include "openread/engine.h"
-#include "openread/http_client.h"
+#include "ariaread/engine.h"
+#include "ariaread/http_client.h"
 
 #include <algorithm>
 #include <chrono>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
 using DebugEventSink = std::function<bool(const std::string&, const nlohmann::json&)>;
 
@@ -126,4 +126,4 @@ inline void runSourceDebug(const BookSource& source, const std::string& keyword,
     }
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

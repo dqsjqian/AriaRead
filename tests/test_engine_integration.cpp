@@ -2,9 +2,9 @@
 /// @brief 引擎集成测试（模拟用户行为的端到端场景）
 
 #include <doctest/doctest.h>
-#include "openread/engine.h"
-#include "openread/types.h"
-#include "openread/source_parser.h"
+#include "ariaread/engine.h"
+#include "ariaread/types.h"
+#include "ariaread/source_parser.h"
 
 #include <nlohmann/json.hpp>
 #include <filesystem>
@@ -13,7 +13,7 @@
 #include <thread>
 #include <chrono>
 
-using namespace openread;
+using namespace ariaread;
 using json = nlohmann::json;
 
 // ──────────────────────────────────────────────
@@ -33,7 +33,7 @@ static void removeTempDb(const std::string& dbPath) {
 }
 
 static std::string makeTempDbPath(const std::string& suffix = "") {
-    auto path = std::filesystem::temp_directory_path() / ("openread_integ" + suffix + ".db");
+    auto path = std::filesystem::temp_directory_path() / ("ariaread_integ" + suffix + ".db");
     removeTempDb(path.string());
     return path.string();
 }

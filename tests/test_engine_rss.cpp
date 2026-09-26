@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
-#include "openread/engine.h"
+#include "ariaread/engine.h"
 #include <nlohmann/json.hpp>
 
-using namespace openread;
+using namespace ariaread;
 using Json = nlohmann::json;
 
 namespace {

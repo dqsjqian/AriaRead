@@ -1,11 +1,11 @@
 /// @file engine_update_check.cpp
 /// @brief 书架批量更新检测（B4 拆分：从 engine_bookshelf.cpp 独立出来）
 
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 #include <thread>
 #include <chrono>
 
-namespace openread {
+namespace ariaread {
 
 // ──────────────────────────────────────────────
 // 批量更新检测（全书架）
@@ -42,4 +42,4 @@ int BookSourceEngine::checkAllUpdates(CheckUpdateCallback callback) {
     return updatedCount;
 }
 
-} // namespace openread
+} // namespace ariaread

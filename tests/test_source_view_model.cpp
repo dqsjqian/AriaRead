@@ -7,13 +7,13 @@
 
 #include <doctest/doctest.h>
 
-#include "openread/vm/source_view_model.h"
+#include "ariaread/vm/source_view_model.h"
 
 #include "aria/async/executor.hpp"
 
 #include <string>
 
-using namespace openread;
+using namespace ariaread;
 using aria::async::InlineExecutor;
 
 namespace {

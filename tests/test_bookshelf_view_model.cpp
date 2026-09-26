@@ -3,7 +3,7 @@
 
 #include <doctest/doctest.h>
 
-#include "openread/vm/bookshelf_view_model.h"
+#include "ariaread/vm/bookshelf_view_model.h"
 
 #include "aria/async/executor.hpp"
 
@@ -12,14 +12,14 @@
 #include <string>
 #include <vector>
 
-using namespace openread;
+using namespace ariaread;
 using aria::async::InlineExecutor;
 
 namespace {
 
-openread::BookshelfDetail make_detail(const std::string& url,
+ariaread::BookshelfDetail make_detail(const std::string& url,
                                       const std::string& name) {
-    openread::BookshelfDetail d;
+    ariaread::BookshelfDetail d;
     d.item.bookUrl = url;
     d.item.bookName = name;
     return d;
@@ -28,9 +28,9 @@ openread::BookshelfDetail make_detail(const std::string& url,
 /// 内存版书架后端：模拟引擎的 load/remove/add。
 class FakeBookshelfBackend : public vm::BookshelfBackend {
 public:
-    std::vector<openread::BookshelfDetail> items;
+    std::vector<ariaread::BookshelfDetail> items;
 
-    std::vector<openread::BookshelfDetail> load() override { return items; }
+    std::vector<ariaread::BookshelfDetail> load() override { return items; }
 
     bool remove(const std::string& bookUrl) override {
         auto before = items.size();
@@ -41,11 +41,11 @@ public:
         return items.size() < before;
     }
 
-    int64_t add(const openread::BookshelfItem& item) override {
+    int64_t add(const ariaread::BookshelfItem& item) override {
         for (const auto& d : items) {
             if (d.item.bookUrl == item.bookUrl) return -1;  // 已存在
         }
-        openread::BookshelfDetail d;
+        ariaread::BookshelfDetail d;
         d.item = item;
         items.push_back(d);
         return static_cast<int64_t>(items.size());
@@ -96,7 +96,7 @@ TEST_CASE("书架：add 后列表自动刷新，重复 add 不增加") {
     bvm.refresh();
     CHECK(bvm.books.size() == 0);
 
-    openread::BookshelfItem item;
+    ariaread::BookshelfItem item;
     item.bookUrl = "new";
     item.bookName = "新书";
     bvm.add(item);
@@ -113,11 +113,11 @@ TEST_CASE("书架：backend 抛异常时 last_error 被填充") {
     InlineExecutor ui, worker;
 
     struct ThrowingBackend : vm::BookshelfBackend {
-        std::vector<openread::BookshelfDetail> load() override {
+        std::vector<ariaread::BookshelfDetail> load() override {
             throw std::runtime_error("db locked");
         }
         bool remove(const std::string&) override { return false; }
-        int64_t add(const openread::BookshelfItem&) override { return -1; }
+        int64_t add(const ariaread::BookshelfItem&) override { return -1; }
     } backend;
 
     vm::BookshelfViewModel bvm{ui, worker, backend};

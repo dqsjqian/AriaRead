@@ -1,8 +1,8 @@
-#include "openread/database.h"
-#include "openread/engine_impl.h"
+#include "ariaread/database.h"
+#include "ariaread/engine_impl.h"
 #include <unordered_set>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 using detail::sanitizeUtf8;
@@ -1156,7 +1156,7 @@ static std::string serializeRssSourceExtras(const RssSource& s) {
     if (s.enableJs != 1) j["enableJs"] = s.enableJs;
     if (s.loadWithBaseUrl != 1) j["loadWithBaseUrl"] = s.loadWithBaseUrl;
     if (!s.injectJs.empty()) j["injectJs"] = sanitizeUtf8(s.injectJs);
-    // 检测评级（OpenRead 内部）
+    // 检测评级（AriaRead 内部）
     if (!s.validity.empty() && s.validity != "unknown") j["__validity"] = sanitizeUtf8(s.validity);
     if (s.latencyMs >= 0) j["__latencyMs"] = s.latencyMs;
     return j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
@@ -1585,4 +1585,4 @@ std::pair<int, std::string> SourceDatabase::importRssSourcesFromJson(const std::
     }
 }
 
-} // namespace openread
+} // namespace ariaread

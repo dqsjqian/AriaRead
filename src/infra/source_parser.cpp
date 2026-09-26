@@ -1,9 +1,9 @@
-#include "openread/source_parser.h"
+#include "ariaread/source_parser.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -395,4 +395,4 @@ std::string SourceParser::serializeArray(const std::vector<BookSource>& sources)
     return arr.dump(2);
 }
 
-} // namespace openread
+} // namespace ariaread

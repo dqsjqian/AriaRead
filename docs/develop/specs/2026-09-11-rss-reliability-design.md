@@ -3,7 +3,7 @@
 User goal: subscriptions marked fast/healthy must actually yield readable articles; failures must be visible and retryable. Reference: sibling legado model/rss/Rss.kt, RssParserByRule.kt, and ui/rss/read/ReadRssViewModel.kt.
 
 ## Evidence and scope
-OpenRead currently tests raw rule fragments instead of parsed articles, drops AnalyzeUrl method/body/headers, gives content JS a different HTTP context, and embeds short content as a remote iframe. These are concrete list/content failures. Standard feed parsing also uses incorrect relative URL joining and may pick Atom self links over article links. JSON URL import incorrectly requires RSS XML markers.
+AriaRead currently tests raw rule fragments instead of parsed articles, drops AnalyzeUrl method/body/headers, gives content JS a different HTTP context, and embeds short content as a remote iframe. These are concrete list/content failures. Standard feed parsing also uses incorrect relative URL joining and may pick Atom self links over article links. JSON URL import incorrectly requires RSS XML markers.
 
 ## Options
 1. UI-only error handling is small but leaves false ratings and fetch failures.

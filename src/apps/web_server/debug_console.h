@@ -1,13 +1,13 @@
 #pragma once
 
-#include "openread/js_runtime.h"
+#include "ariaread/js_runtime.h"
 #include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <stdexcept>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
 inline std::string debugTextPrefix(const std::string& text, size_t maxBytes) {
     if (text.size() <= maxBytes) return text;
@@ -61,4 +61,4 @@ inline nlohmann::json evaluateDebugScript(const nlohmann::json& body) {
             {"errorTruncated", error.size() > 64 * 1024}};
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

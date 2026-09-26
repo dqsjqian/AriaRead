@@ -2,11 +2,11 @@
 /// @brief 规则解析器状态机实现 —— 平衡组、三路分隔符、引号保护
 /// 移植自 legado 的 RuleAnalyzer.kt
 
-#include "openread/rule_analyzer.h"
+#include "ariaread/rule_analyzer.h"
 #include <algorithm>
 #include <stdexcept>
 
-namespace openread {
+namespace ariaread {
 
 RuleAnalyzer::RuleAnalyzer(const std::string& data, bool code)
     : queue_(data), code_(code) {}
@@ -321,4 +321,4 @@ std::string RuleAnalyzer::innerRule(const std::string& startStr,
     return st;
 }
 
-} // namespace openread
+} // namespace ariaread

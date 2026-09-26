@@ -1,12 +1,12 @@
 /// @file gumbo_helper.cpp
 /// @brief Gumbo HTML 解析辅助函数实现
 
-#include "openread/gumbo_helper.h"
+#include "ariaread/gumbo_helper.h"
 
 #include <sstream>
 #include <algorithm>
 
-namespace openread {
+namespace ariaread {
 namespace gumbo_helper {
 
 std::string getAttribute(const GumboNode* node, const std::string& attrName) {
@@ -290,4 +290,4 @@ bool hasAttribute(const GumboNode* node, const std::string& attrName) {
 }
 
 } // namespace gumbo_helper
-} // namespace openread
+} // namespace ariaread

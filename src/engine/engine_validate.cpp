@@ -16,8 +16,8 @@
 ///   * **9000ms 兜底** 即使有成功路径，体感不可用就判 Invalid。
 ///   * **随机偏移遍历前 N 本** 避开置顶广告/付费推广位的影响。
 
-#include "openread/engine_impl.h"
-#include "openread/parallel.h"
+#include "ariaread/engine_impl.h"
+#include "ariaread/parallel.h"
 
 #include <cstring>
 #include <climits>
@@ -29,7 +29,7 @@
 #include <array>
 #include <vector>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -409,7 +409,7 @@ struct GradeResult {
 //
 //   返回 grade + latencyMs（成功=最短路径；失败=并发墙钟）+ detail
 //
-//   暴露在 namespace openread 但不在 .h —— 头文件里 forward declare 给 test.
+//   暴露在 namespace ariaread 但不在 .h —— 头文件里 forward declare 给 test.
 // ──────────────────────────────────────────────
 struct JsHolder {
     std::function<std::unique_ptr<JsRuntime>()> acquire;
@@ -781,4 +781,4 @@ void BookSourceEngine::validateSourcesConcurrent(
     }
 }
 
-} // namespace openread
+} // namespace ariaread

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OpenRead VERSION 0.1.0 LANGUAGES CXX C)
+project(AriaRead VERSION 0.1.0 LANGUAGES CXX C)
 
 # ──────────────────────────────────────────────
 # C++20 标准，全平台统一
@@ -31,11 +31,11 @@ endif()
 # ──────────────────────────────────────────────
 # 构建选项
 # ──────────────────────────────────────────────
-option(OPENREAD_BUILD_SHARED    "Build shared library"              OFF)
-option(OPENREAD_BUILD_TESTS     "Build unit tests"                  ON)
-# OPENREAD_BUILD_PYTHON removed — C++ Web Server (Continuo) fully replaces Python/Flask
-# OPENREAD_ENFORCE_SELF_CONTAINED / OPENREAD_USE_SYSTEM_CURL removed — 依赖现在只有
-# 一个来源（tools/ci/build_openread_deps.py 的固定版本前缀），不再有"系统库 vs
+option(ARIAREAD_BUILD_SHARED    "Build shared library"              OFF)
+option(ARIAREAD_BUILD_TESTS     "Build unit tests"                  ON)
+# ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Continuo) fully replaces Python/Flask
+# ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
+# 一个来源（tools/ci/build_ariaread_deps.py 的固定版本前缀），不再有"系统库 vs
 # vendored"的开关。
 
 # ──────────────────────────────────────────────
@@ -49,13 +49,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # 版本号头文件（从 CMake 版本号自动生成，全项目唯一版本源）
 # ──────────────────────────────────────────────
 configure_file(
-    "${CMAKE_SOURCE_DIR}/include/openread/version.h.in"
-    "${CMAKE_BINARY_DIR}/generated/openread/version.h"
+    "${CMAKE_SOURCE_DIR}/include/ariaread/version.h.in"
+    "${CMAKE_BINARY_DIR}/generated/ariaread/version.h"
     @ONLY
 )
 
 # ──────────────────────────────────────────────
-# 第三方依赖：唯一来源是 tools/ci/build_openread_deps.py 构建的前缀
+# 第三方依赖：唯一来源是 tools/ci/build_ariaread_deps.py 构建的前缀
 #
 # 与 Continuo 一致的依赖哲学：
 #   * 依赖由显式脚本取（固定版本 + SHA256 + 许可证留档），只写仓库 build/；
@@ -66,23 +66,23 @@ configure_file(
 # Aria 是唯一例外：它是同一作者的兄弟项目（四库源码联动），按谦哥的要求
 # 继续以 submodule 源码接入。
 # ──────────────────────────────────────────────
-set(OPENREAD_DEPS_PREFIX "" CACHE PATH
-    "tools/ci/build_openread_deps.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
-if(NOT OPENREAD_DEPS_PREFIX
-        AND EXISTS "${CMAKE_SOURCE_DIR}/build/deps/prefix/share/openread-deps/manifest.json")
-    set(OPENREAD_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/build/deps/prefix")
+set(ARIAREAD_DEPS_PREFIX "" CACHE PATH
+    "tools/ci/build_ariaread_deps.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
+if(NOT ARIAREAD_DEPS_PREFIX
+        AND EXISTS "${CMAKE_SOURCE_DIR}/build/deps/prefix/share/ariaread-deps/manifest.json")
+    set(ARIAREAD_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/build/deps/prefix")
 endif()
-if(NOT OPENREAD_DEPS_PREFIX)
+if(NOT ARIAREAD_DEPS_PREFIX)
     message(FATAL_ERROR
-        "未找到依赖前缀。请先执行：python3 tools/ci/build_openread_deps.py\n"
-        "再用 -DOPENREAD_DEPS_PREFIX=<prefix> 配置（留空会自动探测 build/deps/prefix）。")
+        "未找到依赖前缀。请先执行：python3 tools/ci/build_ariaread_deps.py\n"
+        "再用 -DARIAREAD_DEPS_PREFIX=<prefix> 配置（留空会自动探测 build/deps/prefix）。")
 endif()
-if(NOT EXISTS "${OPENREAD_DEPS_PREFIX}/share/openread-deps/manifest.json")
+if(NOT EXISTS "${ARIAREAD_DEPS_PREFIX}/share/ariaread-deps/manifest.json")
     message(FATAL_ERROR
-        "OPENREAD_DEPS_PREFIX 缺少 manifest.json，不像依赖前缀：${OPENREAD_DEPS_PREFIX}")
+        "ARIAREAD_DEPS_PREFIX 缺少 manifest.json，不像依赖前缀：${ARIAREAD_DEPS_PREFIX}")
 endif()
-list(APPEND CMAKE_PREFIX_PATH "${OPENREAD_DEPS_PREFIX}")
-message(STATUS "Using pinned dependency prefix: ${OPENREAD_DEPS_PREFIX}")
+list(APPEND CMAKE_PREFIX_PATH "${ARIAREAD_DEPS_PREFIX}")
+message(STATUS "Using pinned dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
 
 # 前缀里同时有静态库和动态库时优先静态：产物是"拷走就能跑"的目录，
 # 不希望运行时再去 @rpath 找 dylib（zlib 的 CMake 两种都编）。
@@ -103,14 +103,14 @@ set(CURL_FOUND TRUE)
 find_package(Gumbo REQUIRED)
 find_package(QuickJS REQUIRED)
 find_package(SQLite3Amalgamation REQUIRED)
-# sqlite_modern_cpp（header-only C++ 封装，带 OpenRead 的 C++20 兼容补丁）
+# sqlite_modern_cpp（header-only C++ 封装，带 AriaRead 的 C++20 兼容补丁）
 find_package(sqlite_modern_cpp REQUIRED)
 
 # 统一的目标名，供 src/、tests/ 使用（前缀模式与后续可能的其它来源只改这里）
-set(OPENREAD_GUMBO_TARGET gumbo::gumbo)
-set(OPENREAD_QUICKJS_TARGET quickjs::quickjs)
-set(OPENREAD_SQLITE_TARGET sqlite3)
-set(OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${OPENREAD_DEPS_PREFIX}/include")
+set(ARIAREAD_GUMBO_TARGET gumbo::gumbo)
+set(ARIAREAD_QUICKJS_TARGET quickjs::quickjs)
+set(ARIAREAD_SQLITE_TARGET sqlite3)
+set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 
 
 # ──────────────────────────────────────────────
@@ -121,13 +121,13 @@ set(OPENREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${OPENREAD_DEPS_PREFIX}/include")
 if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/aria/CMakeLists.txt")
     message(STATUS "Using bundled Aria (third_party/aria)")
     # 关闭 Aria 自带的测试/示例/基准，避免：
-    #   1. doctest target 与 OpenRead 测试重名冲突
+    #   1. doctest target 与 AriaRead 测试重名冲突
     #   2. 编译大量无关的 examples/benchmark 拖慢构建
     set(ARIA_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
     set(ARIA_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
     set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
     # runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
-    # OpenRead 静态库照常链接其导出符号。
+    # AriaRead 静态库照常链接其导出符号。
     set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
     # 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Continuo，
     # Aria 的 adapter 会顺带把 vendored cpp-httplib 编进产物。Aria 在这里
@@ -147,7 +147,7 @@ add_subdirectory(src)
 
 # ──────────────────────────────────────────────
 # ViewModel 层（基于 Aria，可选——仅当 Aria submodule 存在时构建）
-# 先于 tests：tests/ 中的 ViewModel 测试需要 openread_vm target。
+# 先于 tests：tests/ 中的 ViewModel 测试需要 ariaread_vm target。
 # ──────────────────────────────────────────────
 if(TARGET aria::binding)
     add_subdirectory(src/viewmodels)
@@ -156,7 +156,7 @@ endif()
 # ──────────────────────────────────────────────
 # 单元测试（引擎 + ViewModel，统一在此引入 doctest）
 # ──────────────────────────────────────────────
-if(OPENREAD_BUILD_TESTS)
+if(ARIAREAD_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
@@ -168,12 +168,12 @@ include(GNUInstallDirs)
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS openread
+install(TARGETS ariaread
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 # ──────────────────────────────────────────────
-# Web 前端静态资源（由 C++ Web Server openread_web_server 提供服务）
+# Web 前端静态资源（由 C++ Web Server ariaread_web_server 提供服务）
 # ──────────────────────────────────────────────

@@ -1,13 +1,13 @@
 /// @file reader_view_model.cpp
 /// @brief ReaderViewModel 的实现。
 
-#include "openread/vm/reader_view_model.h"
+#include "ariaread/vm/reader_view_model.h"
 
 #include "aria/async/task.hpp"
 
 #include <memory>
 
-namespace openread::vm {
+namespace ariaread::vm {
 
 ReaderViewModel::ReaderViewModel(aria::async::IExecutor& ui,
                                  aria::async::IExecutor& worker,
@@ -60,7 +60,7 @@ ReaderViewModel::ReaderViewModel(aria::async::IExecutor& ui,
       save_command_(
           ui, worker,
           [this]() -> aria::async::Task<void> {
-              openread::ReadProgress p;
+              ariaread::ReadProgress p;
               p.bookUrl = book_url.get();
               p.chapterIndex = current_index.get();
               p.chapterTitle = current_title.get();
@@ -89,7 +89,7 @@ void ReaderViewModel::save_progress() {
     save_command_.execute();
 }
 
-void ReaderViewModel::apply_catalog_(const std::vector<openread::Chapter>& chs) {
+void ReaderViewModel::apply_catalog_(const std::vector<ariaread::Chapter>& chs) {
     chapters.clear();
     for (const auto& c : chs) {
         chapters.emplace_back(c);
@@ -105,4 +105,4 @@ void ReaderViewModel::apply_content_(int index, const std::string& title,
     read_percent.set(percent);
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

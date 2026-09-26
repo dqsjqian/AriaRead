@@ -1,11 +1,11 @@
 /// @file inline_rule.cpp
 /// @brief 内嵌规则替换实现 —— {{js}}、@get:{key}、$1/$2 正则捕获组
 
-#include "openread/inline_rule.h"
+#include "ariaread/inline_rule.h"
 #include <regex>
 #include <sstream>
 
-namespace openread {
+namespace ariaread {
 
 std::string InlineRuleReplacer::replace(
     const std::string& rule,
@@ -192,4 +192,4 @@ std::vector<std::pair<size_t, size_t>> InlineRuleReplacer::findRegexGroupPlaceho
     return placeholders;
 }
 
-} // namespace openread
+} // namespace ariaread

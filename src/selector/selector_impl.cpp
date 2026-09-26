@@ -1,11 +1,11 @@
 /// @file selector_impl.cpp
 /// @brief 各选择器实现：JsonPath、Regex、CSS、XPath、JsEval、DefaultJSoup
 
-#include "openread/selector.h"
-#include "openread/gumbo_helper.h"
-#include "openread/elements_single.h"
-#include "openread/css_engine.h"
-#include "openread/xpath_engine.h"
+#include "ariaread/selector.h"
+#include "ariaread/gumbo_helper.h"
+#include "ariaread/elements_single.h"
+#include "ariaread/css_engine.h"
+#include "ariaread/xpath_engine.h"
 #include <nlohmann/json.hpp>
 #include <functional>
 #include <regex>
@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <gumbo.h>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -807,4 +807,4 @@ std::vector<std::string> DefaultJSoupSelector::select(const std::string& content
     return results;
 }
 
-} // namespace openread
+} // namespace ariaread

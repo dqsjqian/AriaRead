@@ -21,7 +21,7 @@
 #include <signal.h>
 #endif
 
-namespace openread::web {
+namespace ariaread::web {
 
 bool isPortInUse(const std::string& host, std::uint16_t port) {
 #ifdef _WIN32
@@ -84,4 +84,4 @@ void killProcessOnPort(std::uint16_t port) {
 #endif
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

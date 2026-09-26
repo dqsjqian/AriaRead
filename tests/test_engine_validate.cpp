@@ -7,8 +7,8 @@
 ///      这类剧本喂给评级器，验证最短成功路径 / 9000ms 兜底 / 失败分支不累加）
 
 #include <doctest/doctest.h>
-#include "openread/engine.h"
-#include "openread/types.h"
+#include "ariaread/engine.h"
+#include "ariaread/types.h"
 
 #include <nlohmann/json.hpp>
 #include <atomic>
@@ -16,7 +16,7 @@
 #include <regex>
 #include <thread>
 
-using namespace openread;
+using namespace ariaread;
 using json = nlohmann::json;
 
 static std::string makeInvalidSourceJson(const std::string& name) {

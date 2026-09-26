@@ -1,4 +1,4 @@
-#include "openread/js_runtime.h"
+#include "ariaread/js_runtime.h"
 #include <quickjs.h>
 #include <nlohmann/json.hpp>
 #include <chrono>
@@ -8,7 +8,7 @@
 #include <map>
 #include <mutex>
 
-namespace openread {
+namespace ariaread {
 
 using json = nlohmann::json;
 
@@ -629,4 +629,4 @@ void JsRuntime::putVariable(const std::string& key, const std::string& value) {
     pImpl->varTable[key] = value;
 }
 
-} // namespace openread
+} // namespace ariaread

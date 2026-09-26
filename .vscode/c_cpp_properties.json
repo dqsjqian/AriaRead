@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "OpenRead",
+            "name": "AriaRead",
             "includePath": [
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/third_party/quickjs",

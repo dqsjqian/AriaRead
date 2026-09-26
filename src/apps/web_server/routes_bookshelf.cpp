@@ -3,7 +3,7 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <atomic>
 #include <chrono>
@@ -11,11 +11,11 @@
 #include <string>
 #include <thread>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
-void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
+void register_bookshelf_routes(Server& svr, ariaread::BookSourceEngine& engine,
                                aria::async::IExecutor& worker) {
 
     // ── 列表 ──────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
         [&engine, &worker](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
-                openread::BookshelfItem item;
+                ariaread::BookshelfItem item;
                 item.bookName = body.value("bookName", "");
                 item.bookAuthor = body.value("bookAuthor", "");
                 item.coverUrl = body.value("coverUrl", "");
@@ -104,7 +104,7 @@ void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
         [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
-                openread::ReadProgress p;
+                ariaread::ReadProgress p;
                 p.bookUrl = body.value("bookUrl", "");
                 p.chapterIndex = body.value("chapterIndex", 0);
                 p.chapterTitle = body.value("chapterTitle", "");
@@ -277,7 +277,7 @@ void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
                     std::mutex sink_mu;
                     engine.findAlternativeSources(
                         bookName, bookAuthor, excludeSourceUrl, 8,
-                        [&](const openread::BookSourceEngine::SourceCandidate& c) {
+                        [&](const ariaread::BookSourceEngine::SourceCandidate& c) {
                             json ev = {
                                 {"book", book_to_json(c.book)},
                                 {"sourceName", sanitizeUtf8(c.sourceName)},
@@ -305,4 +305,4 @@ void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

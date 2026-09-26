@@ -3,17 +3,17 @@
 
 #pragma once
 
-#include "openread/engine.h"
-#include "openread/vm/search_view_model.h"
-#include "openread/vm/bookshelf_view_model.h"
-#include "openread/vm/reader_view_model.h"
-#include "openread/vm/source_view_model.h"
+#include "ariaread/engine.h"
+#include "ariaread/vm/search_view_model.h"
+#include "ariaread/vm/bookshelf_view_model.h"
+#include "ariaread/vm/reader_view_model.h"
+#include "ariaread/vm/source_view_model.h"
 
 #include "aria/async/executor.hpp"
 
 #include "continuo_server.h"
 
-namespace openread::web {
+namespace ariaread::web {
 
 /// 注册所有 REST 路由到 Server。
 ///
@@ -31,12 +31,12 @@ namespace openread::web {
 ///   /api/shutdown        — 优雅关闭
 void register_routes(
     Server& svr,
-    openread::BookSourceEngine& engine,
+    ariaread::BookSourceEngine& engine,
     aria::async::IExecutor& ui,
     aria::async::IExecutor& worker,
-    openread::vm::SearchViewModel& svm,
-    openread::vm::BookshelfViewModel& bvm,
-    openread::vm::ReaderViewModel& rvm,
-    openread::vm::SourceViewModel& srcvm);
+    ariaread::vm::SearchViewModel& svm,
+    ariaread::vm::BookshelfViewModel& bvm,
+    ariaread::vm::ReaderViewModel& rvm,
+    ariaread::vm::SourceViewModel& srcvm);
 
-}  // namespace openread::web
+}  // namespace ariaread::web

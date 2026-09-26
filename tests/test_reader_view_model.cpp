@@ -7,14 +7,14 @@
 
 #include <doctest/doctest.h>
 
-#include "openread/vm/reader_view_model.h"
+#include "ariaread/vm/reader_view_model.h"
 
 #include "aria/async/executor.hpp"
 
 #include <string>
 #include <vector>
 
-using namespace openread;
+using namespace ariaread;
 using aria::async::InlineExecutor;
 
 namespace {

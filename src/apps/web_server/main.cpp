@@ -1,5 +1,5 @@
 /// @file main.cpp
-/// @brief OpenRead Web Server 入口。
+/// @brief AriaRead Web Server 入口。
 ///
 /// 架构：
 ///   主线程   = Aria 响应式图线程（MainThreadExecutor pump）
@@ -10,15 +10,15 @@
 /// Continuo：解析/分帧/keep-alive 交给 Continuo，路由与静态文件在
 /// continuo_server.{h,cpp}，业务仍跑在独立线程上，避免占住事件循环。
 
-#include "openread/engine.h"
-#include "openread/vm/search_view_model.h"
-#include "openread/vm/engine_search_adapter.h"
-#include "openread/vm/bookshelf_view_model.h"
-#include "openread/vm/engine_bookshelf_adapter.h"
-#include "openread/vm/reader_view_model.h"
-#include "openread/vm/engine_reader_adapter.h"
-#include "openread/vm/source_view_model.h"
-#include "openread/vm/engine_source_adapter.h"
+#include "ariaread/engine.h"
+#include "ariaread/vm/search_view_model.h"
+#include "ariaread/vm/engine_search_adapter.h"
+#include "ariaread/vm/bookshelf_view_model.h"
+#include "ariaread/vm/engine_bookshelf_adapter.h"
+#include "ariaread/vm/reader_view_model.h"
+#include "ariaread/vm/engine_reader_adapter.h"
+#include "ariaread/vm/source_view_model.h"
+#include "ariaread/vm/engine_source_adapter.h"
 
 #include "aria/async/executor.hpp"
 
@@ -61,12 +61,12 @@
 #endif
 
 // 全局运行标志（信号处理 + routes.cpp 共享）
-namespace openread::web {
+namespace ariaread::web {
 std::atomic<bool> g_running{true};
 }
 
 namespace {
-void on_signal(int) { openread::web::g_running.store(false); }
+void on_signal(int) { ariaread::web::g_running.store(false); }
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -76,20 +76,20 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, on_signal);
 
     // ── 命令行参数解析 ──────────────────────────────────────────────
-    openread::web::StartupOptions options;
+    ariaread::web::StartupOptions options;
     try {
-        options = openread::web::parseStartupOptions(argc, argv);
+        options = ariaread::web::parseStartupOptions(argc, argv);
     } catch (const std::invalid_argument& error) {
         std::cerr << error.what() << "\nUse --help for usage.\n";
         return 1;
     }
     if (options.help) {
-        std::cout << "OpenRead Web Server\n\n"
-                  << "Usage: openread [options] [port] [static_root] [db_path]\n\n"
+        std::cout << "AriaRead Web Server\n\n"
+                  << "Usage: ariaread [options] [port] [static_root] [db_path]\n\n"
                   << "Options:\n"
                   << "  -p, --port PORT   Listen port (1-65535, default: 9091)\n"
                   << "  --host HOST       Listen address (default: 127.0.0.1)\n"
-                  << "  --db PATH         Database path (default: $HOME/.openread/openread.db)\n"
+                  << "  --db PATH         Database path (default: $HOME/.ariaread/ariaread.db)\n"
                   << "  --web-root PATH   Frontend static files directory\n"
                   << "  -h, --help        Show this help\n";
         return 0;
@@ -149,20 +149,20 @@ int main(int argc, char** argv) {
         if (!home) home = std::getenv("USERPROFILE");
 #endif
         if (home && *home) {
-            std::string dir = std::string(home) + "/.openread";
+            std::string dir = std::string(home) + "/.ariaread";
 #ifdef _WIN32
             _mkdir(dir.c_str());
 #else
             mkdir(dir.c_str(), 0755);
 #endif
-            db_path = dir + "/openread.db";
+            db_path = dir + "/ariaread.db";
         } else {
-            db_path = exe_dir.empty() ? "openread.db" : exe_dir + "/openread.db";
+            db_path = exe_dir.empty() ? "ariaread.db" : exe_dir + "/ariaread.db";
         }
     }
 
     // ── 1. 引擎 ──────────────────────────────────────────────────────
-    openread::BookSourceEngine engine;
+    ariaread::BookSourceEngine engine;
     engine.setDatabasePath(db_path);
     engine.loadSourcesFromDatabase();
 
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
     {
         int removed = engine.removeInvalidSources();
         if (removed > 0) {
-            std::cout << "[OpenRead] cleaned " << removed
+            std::cout << "[AriaRead] cleaned " << removed
                       << " invalid/poor sources from previous run\n";
         }
     }
@@ -180,28 +180,28 @@ int main(int argc, char** argv) {
     ThreadPoolExecutor worker{4};
 
     // ── 3. 适配器 + ViewModels ───────────────────────────────────────
-    openread::vm::StreamSearchFn search_fn =
-        openread::vm::make_engine_stream_search(engine);
-    openread::vm::EngineBookshelfBackend bookshelf_backend(engine);
-    openread::vm::EngineReaderBackend reader_backend(engine);
-    openread::vm::EngineSourceBackend source_backend(engine);
+    ariaread::vm::StreamSearchFn search_fn =
+        ariaread::vm::make_engine_stream_search(engine);
+    ariaread::vm::EngineBookshelfBackend bookshelf_backend(engine);
+    ariaread::vm::EngineReaderBackend reader_backend(engine);
+    ariaread::vm::EngineSourceBackend source_backend(engine);
 
-    openread::vm::SearchViewModel svm{ui, worker, search_fn};
-    openread::vm::BookshelfViewModel bvm{ui, worker, bookshelf_backend};
-    openread::vm::ReaderViewModel rvm{ui, worker, reader_backend};
-    openread::vm::SourceViewModel srcvm{ui, worker, source_backend};
+    ariaread::vm::SearchViewModel svm{ui, worker, search_fn};
+    ariaread::vm::BookshelfViewModel bvm{ui, worker, bookshelf_backend};
+    ariaread::vm::ReaderViewModel rvm{ui, worker, reader_backend};
+    ariaread::vm::SourceViewModel srcvm{ui, worker, source_backend};
 
     // ── 4. Continuo HTTP 服务 ────────────────────────────────────────
-    openread::web::Server svr;
+    ariaread::web::Server svr;
     svr.set_static_root(static_root);
     // Revalidate assets after a build; stale CSS/JS can otherwise mix app versions.
-    svr.set_file_request_handler([](const openread::web::Request&,
-                                    openread::web::Response& response) {
+    svr.set_file_request_handler([](const ariaread::web::Request&,
+                                    ariaread::web::Response& response) {
         response.set_header("Cache-Control", "no-cache");
     });
 
     // ── 5. 注册 REST 路由（必须在事件循环起来之前，避免路由表读写竞争）──
-    openread::web::register_routes(svr, engine, ui, worker, svm, bvm, rvm, srcvm);
+    ariaread::web::register_routes(svr, engine, ui, worker, svm, bvm, rvm, srcvm);
 
     if (!svr.listen(host, port)) {
         std::cerr << "Invalid listen address: " << host << ":" << port << "\n";
@@ -215,14 +215,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "OpenRead Web Server running:\n"
+    std::cout << "AriaRead Web Server running:\n"
               << "  http://" << host << ":" << listening_port << "\n"
               << "  Backend: C++ (Continuo HTTP/1.1 + ViewModel)\n"
               << "  Static: " << static_root << "\n"
               << "  (Ctrl-C to stop)\n";
 
     // ── 6. 主循环：pump 图线程 ───────────────────────────────────────
-    while (openread::web::g_running.load()) {
+    while (ariaread::web::g_running.load()) {
         ui.pump_until([] { return false; }, std::chrono::milliseconds(100));
     }
 

@@ -2,14 +2,14 @@
 /// @brief 数据库层单元测试（书源持久化、书架 CRUD、目录缓存、正文缓存、阅读进度）
 
 #include <doctest/doctest.h>
-#include "openread/database.h"
-#include "openread/types.h"
+#include "ariaread/database.h"
+#include "ariaread/types.h"
 
 #include <filesystem>
 #include <string>
 #include <system_error>
 
-using namespace openread;
+using namespace ariaread;
 
 // ──────────────────────────────────────────────
 // 辅助：创建临时数据库
@@ -28,7 +28,7 @@ static void removeTempDb(const std::string& dbPath) {
 }
 
 static std::string makeTempDbPath(const std::string& suffix = "") {
-    auto path = std::filesystem::temp_directory_path() / ("openread_db_test" + suffix + ".db");
+    auto path = std::filesystem::temp_directory_path() / ("ariaread_db_test" + suffix + ".db");
     removeTempDb(path.string());
     return path.string();
 }

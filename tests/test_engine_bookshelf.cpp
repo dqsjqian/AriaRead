@@ -2,16 +2,16 @@
 /// @brief E4: engine_bookshelf 书架/缓存/换源/导出关键逻辑单测
 
 #include <doctest/doctest.h>
-#include "openread/engine.h"
-#include "openread/types.h"
+#include "ariaread/engine.h"
+#include "ariaread/types.h"
 
 #include <filesystem>
 
-using namespace openread;
+using namespace ariaread;
 namespace fs = std::filesystem;
 
 static std::string tmpDbPath(const std::string& tag) {
-    auto dir = fs::temp_directory_path() / "openread_ut";
+    auto dir = fs::temp_directory_path() / "ariaread_ut";
     fs::create_directories(dir);
     auto p = dir / ("test_bookshelf_" + tag + ".db");
     // 每次测试前清理

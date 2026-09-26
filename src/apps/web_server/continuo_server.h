@@ -1,5 +1,5 @@
 /// @file continuo_server.h
-/// @brief OpenRead 的 HTTP/1.1 服务层，建立在 Continuo 之上（取代 cpp-httplib）。
+/// @brief AriaRead 的 HTTP/1.1 服务层，建立在 Continuo 之上（取代 cpp-httplib）。
 ///
 /// 为什么自己有一层：Continuo 一期只提供「连接上的请求循环」（`serve_connection`）
 /// 与传输层，明确不做路由和静态文件——按它的分层，这些属于应用组合层。
@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-namespace openread::web {
+namespace ariaread::web {
 
 /// 一次请求。查询串已做百分号解码（`+` 视为空格）。
 struct Request {
@@ -140,4 +140,4 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace openread::web
+}  // namespace ariaread::web

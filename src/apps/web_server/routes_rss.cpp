@@ -3,17 +3,17 @@
 
 #include "routes_internal.h"
 #include "http_helpers.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <atomic>
 #include <mutex>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
-void register_rss_routes(Server& svr, openread::BookSourceEngine& engine) {
+void register_rss_routes(Server& svr, ariaread::BookSourceEngine& engine) {
 
     // ── 订阅源列表 ────────────────────────────────────────────────────
     svr.Get("/api/rss/sources",
@@ -44,7 +44,7 @@ void register_rss_routes(Server& svr, openread::BookSourceEngine& engine) {
         [&engine](const Request& req, Response& res) {
             with_error_handling(res, [&] {
                 json body = json::parse(req.body);
-                openread::RssSource src;
+                ariaread::RssSource src;
                 // 兼容两种字段命名（前端发 sourceUrl/sourceName/sourceGroup）
                 src.sourceName  = body.value("sourceName", body.value("name", ""));
                 src.sourceUrl   = body.value("sourceUrl",  body.value("url", ""));
@@ -247,4 +247,4 @@ void register_rss_routes(Server& svr, openread::BookSourceEngine& engine) {
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

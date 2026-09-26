@@ -1,13 +1,13 @@
 /// @file source_view_model.cpp
 /// @brief SourceViewModel 的实现。
 
-#include "openread/vm/source_view_model.h"
+#include "ariaread/vm/source_view_model.h"
 
 #include "aria/async/task.hpp"
 
 #include <memory>
 
-namespace openread::vm {
+namespace ariaread::vm {
 
 SourceViewModel::SourceViewModel(aria::async::IExecutor& ui,
                                 aria::async::IExecutor& worker,
@@ -53,7 +53,7 @@ SourceViewModel::SourceViewModel(aria::async::IExecutor& ui,
               ui_.post([this, json] { exported_json.set(json); });
               co_return json;
           }),
-      cancel_token_(std::make_shared<openread::CancelToken>()) {}
+      cancel_token_(std::make_shared<ariaread::CancelToken>()) {}
 
 aria::Property<std::string>& SourceViewModel::last_error_message() {
     return refresh_cmd_.last_error_message;
@@ -115,7 +115,7 @@ void SourceViewModel::export_good() {
     export_cmd_.execute();
 }
 
-void SourceViewModel::apply_list_(const openread::SourceListResult& result) {
+void SourceViewModel::apply_list_(const ariaread::SourceListResult& result) {
     sources.clear();
     for (const auto& s : result.sources) {
         sources.emplace_back(s);
@@ -129,4 +129,4 @@ void SourceViewModel::apply_list_(const openread::SourceListResult& result) {
     total_count.set(result.totalCount);
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

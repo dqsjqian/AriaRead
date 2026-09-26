@@ -3,7 +3,7 @@
 #include <doctest/doctest.h>
 #include <quickjs.h>
 #include "../src/apps/web_server/startup_options.h"
-#include "openread/js_runtime.h"
+#include "ariaread/js_runtime.h"
 
 #include <chrono>
 #include <initializer_list>
@@ -11,61 +11,61 @@
 
 namespace {
 
-openread::web::StartupOptions parseOptions(std::initializer_list<const char*> args) {
-    return openread::web::parseStartupOptions(static_cast<int>(args.size()), args.begin());
+ariaread::web::StartupOptions parseOptions(std::initializer_list<const char*> args) {
+    return ariaread::web::parseStartupOptions(static_cast<int>(args.size()), args.begin());
 }
 
 TEST_CASE("StartupOptions - 默认值和帮助") {
-    const auto options = parseOptions({"openread"});
+    const auto options = parseOptions({"ariaread"});
     CHECK(options.port == 9091);
     CHECK(options.host == "127.0.0.1");
     CHECK(options.web_root.empty());
     CHECK(options.db_path.empty());
     CHECK_FALSE(options.help);
-    CHECK(parseOptions({"openread", "--help"}).help);
-    CHECK(parseOptions({"openread", "-h"}).help);
+    CHECK(parseOptions({"ariaread", "--help"}).help);
+    CHECK(parseOptions({"ariaread", "-h"}).help);
 }
 
 TEST_CASE("StartupOptions - 命名参数互不干扰") {
-    auto options = parseOptions({"openread", "--port", "9092"});
+    auto options = parseOptions({"ariaread", "--port", "9092"});
     CHECK(options.port == 9092);
     CHECK(options.web_root.empty());
-    options = parseOptions({"openread", "--db", "123", "--web-root", "web assets",
+    options = parseOptions({"ariaread", "--db", "123", "--web-root", "web assets",
                             "--host", "0.0.0.0", "-p", "65535"});
     CHECK(options.port == 65535);
     CHECK(options.db_path == "123");
     CHECK(options.web_root == "web assets");
     CHECK(options.host == "0.0.0.0");
-    CHECK(parseOptions({"openread", "--port", "1"}).port == 1);
+    CHECK(parseOptions({"ariaread", "--port", "1"}).port == 1);
 }
 
 TEST_CASE("StartupOptions - 兼容位置参数及混合参数") {
-    auto options = parseOptions({"openread", "9093", "web", "books.db"});
+    auto options = parseOptions({"ariaread", "9093", "web", "books.db"});
     CHECK(options.port == 9093);
     CHECK(options.web_root == "web");
     CHECK(options.db_path == "books.db");
-    options = parseOptions({"openread", "--host", "::1", "--port", "9094", "web"});
+    options = parseOptions({"ariaread", "--host", "::1", "--port", "9094", "web"});
     CHECK(options.port == 9094);
     CHECK(options.host == "::1");
     CHECK(options.web_root == "web");
-    CHECK(parseOptions({"openread", "9091", "--", "-web"}).web_root == "-web");
+    CHECK(parseOptions({"ariaread", "9091", "--", "-web"}).web_root == "-web");
 }
 
 TEST_CASE("StartupOptions - 拒绝无效端口及参数") {
     for (const char* port : {"0", "-1", "65536", "999999999999999999999", "abc", "80x", "1.5", ""}) {
-        CHECK_THROWS_AS(parseOptions({"openread", "--port", port}), std::invalid_argument);
+        CHECK_THROWS_AS(parseOptions({"ariaread", "--port", port}), std::invalid_argument);
     }
     for (const char* option : {"--port", "-p", "--host", "--db", "--web-root"}) {
-        CHECK_THROWS_AS(parseOptions({"openread", option}), std::invalid_argument);
-        CHECK_THROWS_AS(parseOptions({"openread", option, "--help"}), std::invalid_argument);
-        CHECK_THROWS_AS(parseOptions({"openread", option, ""}), std::invalid_argument);
+        CHECK_THROWS_AS(parseOptions({"ariaread", option}), std::invalid_argument);
+        CHECK_THROWS_AS(parseOptions({"ariaread", option, "--help"}), std::invalid_argument);
+        CHECK_THROWS_AS(parseOptions({"ariaread", option, ""}), std::invalid_argument);
     }
-    CHECK_THROWS_AS(parseOptions({"openread", "--unknown"}), std::invalid_argument);
-    CHECK_THROWS_AS(parseOptions({"openread", "9091", "web", "db", "extra"}), std::invalid_argument);
+    CHECK_THROWS_AS(parseOptions({"ariaread", "--unknown"}), std::invalid_argument);
+    CHECK_THROWS_AS(parseOptions({"ariaread", "9091", "web", "db", "extra"}), std::invalid_argument);
 }
 
 TEST_CASE("JsRuntime - 死循环超时后仍可复用") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     runtime.setExecutionTimeout(20);
     const auto started = std::chrono::steady_clock::now();
     CHECK(runtime.eval("while (true) {}").empty());
@@ -78,7 +78,7 @@ TEST_CASE("JsRuntime - 死循环超时后仍可复用") {
 }
 
 TEST_CASE("JsRuntime - 规则超时不会回退原文且错误不污染后续执行") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     runtime.setExecutionTimeout(50);
     CHECK(runtime.evalRuleJs("while (true) {}", "original").empty());
     CHECK(runtime.getLastError().find("timed out") != std::string::npos);
@@ -93,7 +93,7 @@ TEST_CASE("JsRuntime - 规则超时不会回退原文且错误不污染后续执
 }
 
 TEST_CASE("JsRuntime - 结果转换期间同样受超时约束") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     runtime.setExecutionTimeout(20);
     CHECK(runtime.eval("({toString() { while (true) {} }, toJSON() { while (true) {} }})").empty());
     CHECK(runtime.getLastError().find("timed out") != std::string::npos);
@@ -103,7 +103,7 @@ TEST_CASE("JsRuntime - 结果转换期间同样受超时约束") {
 }
 
 TEST_CASE("JsRuntime - 序列化异常被报告和消费且不会回退原文") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     auto* ctx = static_cast<JSContext*>(runtime.rawContext());
     CHECK(runtime.eval("({toJSON() { throw new Error('serialize failed'); }})").empty());
     CHECK(runtime.getLastError().find("serialize failed") != std::string::npos);
@@ -121,7 +121,7 @@ TEST_CASE("JsRuntime - 序列化异常被报告和消费且不会回退原文") 
 }
 
 TEST_CASE("JsRuntime - 读取序列化函数异常保留原始错误") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     CHECK(runtime.eval(R"(
         var savedStringify = JSON.stringify;
         Object.defineProperty(JSON, 'stringify', {
@@ -140,7 +140,7 @@ TEST_CASE("JsRuntime - 读取序列化函数异常保留原始错误") {
 }
 
 TEST_CASE("JsRuntime - 异常格式化再次异常或超时均被消费") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     auto* ctx = static_cast<JSContext*>(runtime.rawContext());
     CHECK(runtime.eval("throw {toString() { throw new Error('format failed'); }}").empty());
     CHECK_FALSE(runtime.getLastError().empty());
@@ -154,7 +154,7 @@ TEST_CASE("JsRuntime - 异常格式化再次异常或超时均被消费") {
 }
 
 TEST_CASE("JsRuntime - 执行前中断不执行脚本且清除回调后可复用") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     runtime.eval("var ran = false;");
     runtime.setInterruptCallback([] { return true; });
     CHECK(runtime.eval("ran = true;").empty());
@@ -166,7 +166,7 @@ TEST_CASE("JsRuntime - 执行前中断不执行脚本且清除回调后可复用
 }
 
 TEST_CASE("JsRuntime - 执行中中断不会被脚本捕获吞掉") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     int checks = 0;
     runtime.setInterruptCallback([&] { return ++checks >= 3; });
     CHECK(runtime.eval("try { while (true) {} } catch (e) { 'ignored'; }").empty());
@@ -179,7 +179,7 @@ TEST_CASE("JsRuntime - 执行中中断不会被脚本捕获吞掉") {
 }
 
 TEST_CASE("JsRuntime - 中断回调抛出的异常不会跨越 QuickJS 边界") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     int checks = 0;
     runtime.setInterruptCallback([&] {
         if (++checks >= 3) throw std::runtime_error("cancelled");
@@ -196,7 +196,7 @@ TEST_CASE("JsRuntime - 中断回调抛出的异常不会跨越 QuickJS 边界") 
 }
 
 TEST_CASE("JsRuntime - 序列化时同样响应中断且错误不污染后续执行") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     bool cancelled = false;
     runtime.setLogCallback([&](const std::string&) { cancelled = true; });
     runtime.setInterruptCallback([&] { return cancelled; });
@@ -209,7 +209,7 @@ TEST_CASE("JsRuntime - 序列化时同样响应中断且错误不污染后续执
 }
 
 TEST_CASE("JsRuntime - 拒绝非正数超时") {
-    openread::JsRuntime runtime;
+    ariaread::JsRuntime runtime;
     CHECK_THROWS_AS(runtime.setExecutionTimeout(0), std::invalid_argument);
     CHECK_THROWS_AS(runtime.setExecutionTimeout(-1), std::invalid_argument);
     CHECK_NOTHROW(runtime.setExecutionTimeout(100));

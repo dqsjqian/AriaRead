@@ -1,11 +1,11 @@
 /// @file selector_factory.cpp
 /// @brief 选择器工厂：类型检测、创建、|| 链式组合
 
-#include "openread/selector.h"
+#include "ariaread/selector.h"
 #include <string>
 #include <algorithm>
 
-namespace openread {
+namespace ariaread {
 
 // ──────────────────────────────────────────────
 // 选择器工厂
@@ -140,4 +140,4 @@ std::vector<std::unique_ptr<Selector>> SelectorFactory::createOrChain(const std:
     return chain;
 }
 
-} // namespace openread
+} // namespace ariaread

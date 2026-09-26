@@ -4,7 +4,7 @@
 #include "routes_internal.h"
 #include "http_helpers.h"
 #include "source_debug.h"
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
 #include <atomic>
 #include <chrono>
@@ -12,11 +12,11 @@
 #include <mutex>
 #include <string>
 
-namespace openread::web {
+namespace ariaread::web {
 
-using openread::detail::sanitizeUtf8;
+using ariaread::detail::sanitizeUtf8;
 
-void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
+void register_sources_routes(Server& svr, ariaread::BookSourceEngine& engine,
                              aria::async::IExecutor& /*worker*/) {
 
     // ── 列表 ──────────────────────────────────────────────────────────
@@ -126,11 +126,11 @@ void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                     std::atomic<int> poorCount{0};
                     std::mutex sink_mu;
 
-                    auto gradeStr = [](openread::SourceValidity v) -> std::string {
+                    auto gradeStr = [](ariaread::SourceValidity v) -> std::string {
                         switch (v) {
-                            case openread::SourceValidity::Excellent: return "excellent";
-                            case openread::SourceValidity::Good:      return "good";
-                            case openread::SourceValidity::Poor:      return "poor";
+                            case ariaread::SourceValidity::Excellent: return "excellent";
+                            case ariaread::SourceValidity::Good:      return "good";
+                            case ariaread::SourceValidity::Poor:      return "poor";
                             default:                                   return "invalid";
                         }
                     };
@@ -138,7 +138,7 @@ void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                     engine.validateSourcesConcurrent(
                         testQuery, 10000, 8,
                         [&](size_t idx, const std::string& name,
-                            openread::SourceValidity validity, int latencyMs,
+                            ariaread::SourceValidity validity, int latencyMs,
                             const std::string& detail) {
                             doneCount.fetch_add(1);
                             int done = doneCount.load();
@@ -146,8 +146,8 @@ void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                             std::string url = idx < sources.size() ? sanitizeUtf8(sources[idx].url) : "";
 
                             std::lock_guard<std::mutex> lk(sink_mu);
-                            if (validity == openread::SourceValidity::Excellent ||
-                                validity == openread::SourceValidity::Good) {
+                            if (validity == ariaread::SourceValidity::Excellent ||
+                                validity == ariaread::SourceValidity::Good) {
                                 validCount.fetch_add(1);
                                 write_sse("source_valid", {
                                     {"index", static_cast<int>(idx)},
@@ -157,7 +157,7 @@ void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
                                     {"latency", latencyMs},
                                     {"detail", sanitizeUtf8(detail)},
                                 });
-                            } else if (validity == openread::SourceValidity::Poor) {
+                            } else if (validity == ariaread::SourceValidity::Poor) {
                                 poorCount.fetch_add(1);
                                 write_sse("source_removed", {
                                     {"index", static_cast<int>(idx)},
@@ -249,4 +249,4 @@ void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
         });
 }
 
-}  // namespace openread::web
+}  // namespace ariaread::web

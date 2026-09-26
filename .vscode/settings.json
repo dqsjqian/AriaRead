@@ -5,8 +5,8 @@
     "cmake.generator": "Ninja",
     "cmake.configureArgs": [
         "-DCMAKE_BUILD_TYPE=Debug",
-        "-DOPENREAD_BUILD_TESTS=ON",
-        "-DOPENREAD_BUILD_CONSOLE=ON"
+        "-DARIAREAD_BUILD_TESTS=ON",
+        "-DARIAREAD_BUILD_CONSOLE=ON"
     ],
 
     // C/C++ 配置

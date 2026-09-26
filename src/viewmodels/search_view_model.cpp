@@ -1,13 +1,13 @@
 /// @file search_view_model.cpp
 /// @brief SearchViewModel 的实现。
 
-#include "openread/vm/search_view_model.h"
+#include "ariaread/vm/search_view_model.h"
 
 #include "aria/async/task.hpp"
 
 #include <atomic>
 
-namespace openread::vm {
+namespace ariaread::vm {
 
 SearchViewModel::SearchViewModel(aria::async::IExecutor& ui,
                                  aria::async::IExecutor& worker,
@@ -28,7 +28,7 @@ SearchViewModel::SearchViewModel(aria::async::IExecutor& ui,
               std::atomic<int> total{0};
               if (search_) {
                   SearchEmit emit = [this, &total](
-                      const std::vector<openread::Book>& books) {
+                      const std::vector<ariaread::Book>& books) {
                       if (books.empty()) return;
                       total.fetch_add(static_cast<int>(books.size()),
                                       std::memory_order_relaxed);
@@ -69,11 +69,11 @@ void SearchViewModel::start_(const std::string& kw) {
     search_command_.execute(kw);
 }
 
-void SearchViewModel::append_results_(const std::vector<openread::Book>& books) {
+void SearchViewModel::append_results_(const std::vector<ariaread::Book>& books) {
     for (const auto& b : books) {
         results.emplace_back(b);
     }
     found_count.set(static_cast<int>(results.size()));
 }
 
-}  // namespace openread::vm
+}  // namespace ariaread::vm

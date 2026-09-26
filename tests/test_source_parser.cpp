@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
-#include "openread/source_parser.h"
+#include "ariaread/source_parser.h"
 
-using namespace openread;
+using namespace ariaread;
 
 TEST_CASE("SourceParser - parse single source") {
     std::string json = R"({

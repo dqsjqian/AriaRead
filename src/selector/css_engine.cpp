@@ -11,15 +11,15 @@
 /// 求值采用「从右往左」匹配：先用最右复合选择器收集候选元素，
 /// 再对每个候选回溯验证左侧组合链是否成立。这是 CSS 引擎的标准高效做法。
 
-#include "openread/css_engine.h"
-#include "openread/gumbo_helper.h"
+#include "ariaread/css_engine.h"
+#include "ariaread/gumbo_helper.h"
 
 #include <algorithm>
 #include <cctype>
 #include <sstream>
 #include <unordered_set>
 
-namespace openread {
+namespace ariaread {
 
 namespace {
 
@@ -560,4 +560,4 @@ std::vector<const GumboNode*> CssEngine::select(const std::vector<const GumboNod
     return out;
 }
 
-} // namespace openread
+} // namespace ariaread

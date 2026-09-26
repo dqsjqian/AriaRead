@@ -2,10 +2,10 @@
 /// @brief 工具函数单元测试（normalizeText、bookMatchScore、cleanContent 等）
 
 #include <doctest/doctest.h>
-#include "openread/engine_impl.h"
+#include "ariaread/engine_impl.h"
 
-using namespace openread;
-using namespace openread::detail;
+using namespace ariaread;
+using namespace ariaread::detail;
 
 // ──────────────────────────────────────────────
 // normalizeText 文本归一化
@@ -322,7 +322,7 @@ TEST_CASE("trimCopy") {
 // AnalyzeUrl::getAbsoluteURL —— URL 绝对化（对齐 legado URL(base, rel)）
 // 修复「正文取到也点不开」次因之一：link 拼接畸形（host 重复 / 协议相对 // 未处理）
 // ──────────────────────────────────────────────
-#include "openread/analyze_url.h"
+#include "ariaread/analyze_url.h"
 
 TEST_CASE("getAbsoluteURL - 协议相对 // 继承 scheme，不重复 host") {
     // 修复前：base=https://m.zol.com.cn + rel=//m.zol.com.cn/a.html

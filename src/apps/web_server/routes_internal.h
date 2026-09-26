@@ -6,35 +6,35 @@
 
 #pragma once
 
-#include "openread/engine.h"
-#include "openread/vm/search_view_model.h"
-#include "openread/vm/bookshelf_view_model.h"
-#include "openread/vm/reader_view_model.h"
-#include "openread/vm/source_view_model.h"
+#include "ariaread/engine.h"
+#include "ariaread/vm/search_view_model.h"
+#include "ariaread/vm/bookshelf_view_model.h"
+#include "ariaread/vm/reader_view_model.h"
+#include "ariaread/vm/source_view_model.h"
 
 #include "aria/async/executor.hpp"
 
 #include <atomic>
 #include "continuo_server.h"
 
-namespace openread::web {
+namespace ariaread::web {
 
 /// 全局运行标志（main.cpp 定义；信号处理 + 长任务 SSE 提前退出共享）。
 extern std::atomic<bool> g_running;
 
 // ── 分组注册函数 ───────────────────────────────────────────────────
-void register_misc_routes(Server& svr, openread::BookSourceEngine& engine);
+void register_misc_routes(Server& svr, ariaread::BookSourceEngine& engine);
 
-void register_search_routes(Server& svr, openread::BookSourceEngine& engine);
+void register_search_routes(Server& svr, ariaread::BookSourceEngine& engine);
 
-void register_catalog_routes(Server& svr, openread::BookSourceEngine& engine);
+void register_catalog_routes(Server& svr, ariaread::BookSourceEngine& engine);
 
-void register_bookshelf_routes(Server& svr, openread::BookSourceEngine& engine,
+void register_bookshelf_routes(Server& svr, ariaread::BookSourceEngine& engine,
                                aria::async::IExecutor& worker);
 
-void register_sources_routes(Server& svr, openread::BookSourceEngine& engine,
+void register_sources_routes(Server& svr, ariaread::BookSourceEngine& engine,
                              aria::async::IExecutor& worker);
 
-void register_rss_routes(Server& svr, openread::BookSourceEngine& engine);
+void register_rss_routes(Server& svr, ariaread::BookSourceEngine& engine);
 
-}  // namespace openread::web
+}  // namespace ariaread::web
