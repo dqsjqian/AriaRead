@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(AriaRead VERSION 0.1.0 LANGUAGES CXX C)
+project(AriaRead VERSION 0.2.0 LANGUAGES CXX C)
 
 # ──────────────────────────────────────────────
 # C++20 标准，全平台统一
