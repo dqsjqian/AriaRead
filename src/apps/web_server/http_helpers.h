@@ -12,7 +12,7 @@
 
 #include "json_helpers.h"
 
-#include "continuo_server.h"
+#include "mira_server.h"
 
 #include <initializer_list>
 #include <string>

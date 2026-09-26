@@ -1,10 +1,10 @@
-/// @file continuo_server.h
-/// @brief AriaRead 的 HTTP/1.1 服务层，建立在 Continuo 之上（取代 cpp-httplib）。
+/// @file mira_server.h
+/// @brief AriaRead 的 HTTP/1.1 服务层，建立在 Mira 之上（取代 cpp-httplib）。
 ///
-/// 为什么自己有一层：Continuo 一期只提供「连接上的请求循环」（`serve_connection`）
+/// 为什么自己有一层：Mira 一期只提供「连接上的请求循环」（`serve_connection`）
 /// 与传输层，明确不做路由和静态文件——按它的分层，这些属于应用组合层。
 /// 因此这里只做三件薄的事：路由表、静态文件、把阻塞业务挪出事件循环线程；
-/// 解析、分帧、keep-alive、限额全部由 Continuo 负责。
+/// 解析、分帧、keep-alive、限额全部由 Mira 负责。
 ///
 /// 线程模型（与之前的 httplib 一致，但只用一个事件循环线程）：
 ///   - 一个 EventLoop 线程负责 accept + 读写 + keep-alive；
@@ -75,7 +75,7 @@ public:
     std::vector<std::pair<std::string, std::string>> headers{};
     std::string body{};
 
-    /// 设置完整响应体（Content-Length 由 Continuo 自己算，不接受手填）。
+    /// 设置完整响应体（Content-Length 由 Mira 自己算，不接受手填）。
     void set_content(const std::string& data, const std::string& mime) {
         body = data;
         content_type = mime;
@@ -105,7 +105,7 @@ private:
     ContentProvider provider_{};
 };
 
-/// 一个 Continuo 驱动的 HTTP 服务。
+/// 一个 Mira 驱动的 HTTP 服务。
 class Server {
 public:
     using Handler = std::function<void(const Request&, Response&)>;

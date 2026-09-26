@@ -1,22 +1,22 @@
-/// @file continuo_server.cpp
-/// @brief continuo_server.h 的实现：Continuo 事件循环 + 工作线程业务派发。
+/// @file mira_server.cpp
+/// @brief mira_server.h 的实现：Mira 事件循环 + 工作线程业务派发。
 ///
 /// 这一层只做组合：解析与分帧交给 modules/http，连接与监听交给
 /// modules/transport，线程调度是 AriaRead 自己的选择（业务是阻塞的，
 /// 不能跑在事件循环线程上）。
 
-#include "continuo_server.h"
+#include "mira_server.h"
 
-#include <continuo/core/error.hpp>
-#include <continuo/core/event_loop.hpp>
-#include <continuo/core/operation.hpp>
-#include <continuo/core/task.hpp>
-#include <continuo/core/task_scope.hpp>
-#include <continuo/http/connection.hpp>
-#include <continuo/http/limits.hpp>
-#include <continuo/http/message.hpp>
-#include <continuo/transport/endpoint.hpp>
-#include <continuo/transport/tcp.hpp>
+#include <mira/core/error.hpp>
+#include <mira/core/event_loop.hpp>
+#include <mira/core/operation.hpp>
+#include <mira/core/task.hpp>
+#include <mira/core/task_scope.hpp>
+#include <mira/http/connection.hpp>
+#include <mira/http/limits.hpp>
+#include <mira/http/message.hpp>
+#include <mira/transport/endpoint.hpp>
+#include <mira/transport/tcp.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -42,13 +42,13 @@
 namespace ariaread::web {
 namespace {
 
-using continuo::EventLoop;
-using continuo::OperationOptions;
-using continuo::Result;
-using continuo::Task;
-using continuo::TaskScope;
-namespace http = continuo::http;
-namespace transport = continuo::transport;
+using Mira::EventLoop;
+using Mira::OperationOptions;
+using Mira::Result;
+using Mira::Task;
+using Mira::TaskScope;
+namespace http = Mira::http;
+namespace transport = Mira::transport;
 
 using Clock = EventLoop::Clock;
 
@@ -121,7 +121,7 @@ struct Route {
 
 /// 工作线程 → 事件循环线程的单向通道。
 ///
-/// 事件循环侧用 `sleep_until(无穷远, stop_token)` 停车（Continuo 的
+/// 事件循环侧用 `sleep_until(无穷远, stop_token)` 停车（Mira 的
 /// transport resolver 就是这么等线程池结果的），工作线程产出数据或结束时
 /// `request_stop()` 把它唤醒，于是所有 I/O 仍然只发生在循环线程上。
 class StreamBridge {
@@ -242,7 +242,7 @@ struct ServerState {
 // ── 响应构造 ────────────────────────────────────────────────────────────────
 
 bool header_forbidden(const std::string& name) {
-    // 分帧由 Continuo 独占：手填这两个头会被序列化器拒绝或覆盖。
+    // 分帧由 Mira 独占：手填这两个头会被序列化器拒绝或覆盖。
     const std::string lower = [&] {
         std::string out(name);
         std::transform(out.begin(), out.end(), out.begin(),
@@ -258,7 +258,7 @@ http::Response make_response(const StreamBridge::Head& head) {
     if (!head.content_type.empty()) {
         response.headers.append("Content-Type", head.content_type);
     }
-    response.headers.append("Server", "AriaRead/Continuo");
+    response.headers.append("Server", "AriaRead/Mira");
     response.headers.append("Cache-Control", "no-cache");
     response.headers.append("Access-Control-Allow-Origin", "*");
     response.headers.append("Access-Control-Allow-Headers", "*");

@@ -1,4 +1,4 @@
-# AriaRead Web Server（Continuo HTTP/1.1 + ViewModel 替代 Python Flask）
+# AriaRead Web Server（Mira HTTP/1.1 + ViewModel 替代 Python Flask）
 #
 # 完整 C++ Web 后端：把 AriaRead 的业务逻辑直接暴露给浏览器——零 Python、
 # 零 Flask，也不再 vendored cpp-httplib（原先经 Aria HttpAdapter 带入）。
@@ -8,15 +8,15 @@
 #   例：./ariaread_web_server 9091 ../web ariaread.db
 #   然后浏览器打开 http://127.0.0.1:9091
 
-if(NOT TARGET continuo::http)
-    message(FATAL_ERROR "ariaread_web_server 需要 Continuo："
+if(NOT TARGET Mira::http)
+    message(FATAL_ERROR "ariaread_web_server 需要 Mira："
         "先执行 python3 tools/ci/build_ariaread_deps.py，再用 "
         "-DCMAKE_PREFIX_PATH=<prefix> 配置")
 endif()
 
 add_executable(ariaread_web_server
     main.cpp
-    continuo_server.cpp
+    mira_server.cpp
     json_helpers.cpp
     port_utils.cpp
     routes.cpp
@@ -31,15 +31,15 @@ add_executable(ariaread_web_server
 target_link_libraries(ariaread_web_server
     PRIVATE
         ariaread_vm       # ViewModel 层（PUBLIC 传递 ariaread/aria::core/aria::binding）
-        continuo::http    # HTTP/1.1（传递 continuo::core）
-        continuo::transport  # TCP 监听与连接
+        Mira::http    # HTTP/1.1（传递 Mira::core）
+        Mira::transport  # TCP 监听与连接
         nlohmann_json::nlohmann_json  # JSON 序列化
         CURL::libcurl     # json_helpers.cpp 直接使用 curl 头文件与 API
         sqlite3           # sqlite_modern_cpp.h → sqlite3.h 的传递包含；引擎 PRIVATE
                           # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
 )
 
-# 静态 OpenSSL（Continuo TLS 传递）在 Windows 上会拉到证书库后端
+# 静态 OpenSSL（Mira TLS 传递）在 Windows 上会拉到证书库后端
 # winstore_store，它需要系统的 crypt32；MinGW 静态链接不会自动补系统库。
 if(MINGW)
     # OpenSSL's exported interface places crypt32 *before* libcrypto.a,
@@ -67,7 +67,7 @@ target_include_directories(ariaread_web_server
             COMMAND_EXPAND_LISTS)
     endif()
 
-# Continuo 以 C++23 发布（公开头用 std::expected），本目标的源码按 C++23 编译；
+# Mira 以 C++23 发布（公开头用 std::expected），本目标的源码按 C++23 编译；
 # 其余目标仍是 C++20，二者通过 libc++/libstdc++ 的稳定 ABI 链接。
 target_compile_features(ariaread_web_server PRIVATE cxx_std_23)
 

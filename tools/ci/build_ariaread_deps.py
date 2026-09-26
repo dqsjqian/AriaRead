@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """显式构建 AriaRead 的固定版本第三方依赖；不由项目 CMake 自动调用。
 
-设计原则与 Continuo 的 tools/ci/build_protocol_deps.py 一致：
+设计原则与 Mira 的 tools/ci/build_protocol_deps.py 一致：
 
   * **固定版本 + SHA256**：每个依赖锁定到一份官方发行归档，下载前后都校验
     哈希；哈希来自官方 release asset 摘要或本机实测（见 MANIFEST 注释）。
@@ -47,12 +47,12 @@ from pathlib import Path, PurePosixPath
 
 REPO = Path(__file__).resolve().parents[2]
 PATCHES = Path(__file__).resolve().parent / "patches"
-CONTINUO_REPO = "dqsjqian/continuo"
+MIRA_REPO = "dqsjqian/Mira"
 # 固定到 v0.1.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
-CONTINUO_TAG = "v0.1.5"
-CONTINUO_REF = "1a749ff8e4bc74db54a264be47d001b5ec05e5b9"
+MIRA_TAG = "v0.2.0"
+MIRA_REF = "23b0bb68a1d6f712f74f87df3d5eb80b15b8e34a"
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ class Dependency:
     license_files: tuple[str, ...]
     #: 归档内的顶层目录名；空串表示解压后自行定位唯一顶层目录
     root: str
-    #: cmake | openssl | generated | continuo
+    #: cmake | openssl | generated | Mira
     kind: str
     #: 传给 cmake 的额外参数
     options: tuple[str, ...] = ()
@@ -313,12 +313,12 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
     Dependency(
-        name="continuo", version=CONTINUO_TAG,
-        url=f"https://github.com/{CONTINUO_REPO}.git",
-        sha256="",  # 由 git 按 CONTINUO_REF 校验，不用归档字节哈希
+        name="Mira", version=MIRA_TAG,
+        url=f"https://github.com/{MIRA_REPO}.git",
+        sha256="",  # 由 git 按 MIRA_REF 校验，不用归档字节哈希
         license="MIT", license_files=("LICENSE",), root="", kind="git",
         uses_libdir=True,
-        hash_note=f"git 检出校验：tag {CONTINUO_TAG} 必须指向 commit {CONTINUO_REF}",
+        hash_note=f"git 检出校验：tag {MIRA_TAG} 必须指向 commit {MIRA_REF}",
     ),
 )
 
@@ -332,7 +332,7 @@ def sha256(path: Path) -> str:
 
 
 def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
-    """下载（或复用）归档并校验 SHA256；Continuo 走 GitHub API 以取到私有仓库。"""
+    """下载（或复用）归档并校验 SHA256；Mira 走 GitHub API 以取到私有仓库。"""
     archive = cache / dependency.archive_name
     expected = dependency.sha256
     if archive.exists():
@@ -608,7 +608,7 @@ def artifact_present(prefix: Path, artifact: str) -> bool:
 
 
 def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
-    """按固定 commit 取 Continuo。
+    """按固定 commit 取 Mira。
 
     不下载归档而是 git clone，是因为归档的字节在 GitHub 侧不稳定；git 用
     commit SHA 做完整性校验，比"下载后比对哈希"更强：标签可以被挪动，
@@ -623,18 +623,18 @@ def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
                                    capture_output=True, text=True)
         return completed.stdout.strip() if completed.returncode == 0 else ""
 
-    if head() == CONTINUO_REF:
-        print(f"复用已校验的 Continuo 检出：{target}", flush=True)
+    if head() == MIRA_REF:
+        print(f"复用已校验的 Mira 检出：{target}", flush=True)
         return target
     if offline:
-        raise ValueError(f"离线模式缺少已校验的 Continuo 检出：{target}")
+        raise ValueError(f"离线模式缺少已校验的 Mira 检出：{target}")
     if target.exists():
         raise ValueError(f"{target} 与固定 commit 不一致，请手动删除后重跑")
     run(["git", "clone", "--depth", "1", "--branch", dependency.version,
          dependency.url, str(target)])
-    if head() != CONTINUO_REF:
-        raise ValueError(f"Continuo tag {dependency.version} 指向 {head()}，"
-                         f"与固定 commit {CONTINUO_REF} 不一致")
+    if head() != MIRA_REF:
+        raise ValueError(f"Mira tag {dependency.version} 指向 {head()}，"
+                         f"与固定 commit {MIRA_REF} 不一致")
     return target
 
 
@@ -714,7 +714,7 @@ def main() -> None:
               f"-DCMAKE_PREFIX_PATH={prefix}"]
     if shutil.which("cl"):
         # CJK-locale Windows (cp936): cl defaults to the ANSI code page and
-        # UTF-8 sources trip C4819, a hard error under continuo's /WX. Inject
+        # UTF-8 sources trip C4819, a hard error under Mira's /WX. Inject
         # /utf-8 through the CL env var -- replacing CMAKE_CXX_FLAGS instead
         # would wipe CMake's /EHsc /GR defaults and turn C4530 into a hard
         # error for any exception-using target.
@@ -734,7 +734,7 @@ def main() -> None:
         print(f"\n=== {dependency.name} {dependency.version} ===", flush=True)
         # 断点续跑：前缀已有全部预期产物就不再重建（openssl 全量重建约 40 分钟），
         # 只补 manifest 记录；manifest.json 在 CMake 侧仅做存在性检查。
-        # 注意 artifacts 为空的依赖（如 continuo）不能跳过，必须每次构建。
+        # 注意 artifacts 为空的依赖（如 Mira）不能跳过，必须每次构建。
         if dependency.artifacts and all(artifact_present(prefix, artifact)
                                         for artifact in dependency.artifacts):
             license_dir = prefix / "share" / "licenses" / dependency.name
@@ -742,8 +742,8 @@ def main() -> None:
                                if p.is_file()) if license_dir.is_dir() else [])
             version = dependency.version
             if dependency.kind == "git":
-                version = f"{dependency.version} ({CONTINUO_REF})"
-                digest = CONTINUO_REF
+                version = f"{dependency.version} ({MIRA_REF})"
+                digest = MIRA_REF
             else:
                 digest = dependency.sha256 or "installed"
             manifest.append({
@@ -770,14 +770,14 @@ def main() -> None:
                 raise ValueError(f"{dependency.name} 缺少预期产物：{missing}")
             manifest.append({
                 "name": dependency.name,
-                "version": f"{dependency.version} ({CONTINUO_REF})",
+                "version": f"{dependency.version} ({MIRA_REF})",
                 "url": dependency.url,
-                "sha256": CONTINUO_REF,
+                "sha256": MIRA_REF,
                 "sha256_source": dependency.hash_note,
                 "license": dependency.license,
                 "license_files": licenses,
                 "artifacts": list(dependency.artifacts),
-                "expected_sha256": CONTINUO_REF,
+                "expected_sha256": MIRA_REF,
             })
             continue
         archive = download(cache, dependency, args.offline)
@@ -809,7 +809,7 @@ def main() -> None:
         # 生成的 CMakeLists / 本地补丁每次都重新写入与套用：内容由本脚本决定，
         # 源码树里的旧版本不该被默默沿用（patch 已套过时 --forward 会跳过）。
         prepare_source(source, dependency)
-        if dependency.kind in ("cmake", "generated", "continuo"):
+        if dependency.kind in ("cmake", "generated", "Mira"):
             build_cmake(source, builds / dependency.name, prefix, args.jobs,
                         dependency, common)
         elif dependency.kind == "openssl":

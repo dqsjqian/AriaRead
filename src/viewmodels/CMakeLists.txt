@@ -66,8 +66,8 @@ if(NOT MSVC)
 endif()
 
 # ──────────────────────────────────────────────
-# Web Server（Continuo HTTP/1.1 + ViewModel，取代 Aria HttpAdapter）
+# Web Server（Mira HTTP/1.1 + ViewModel，取代 Aria HttpAdapter）
 # ──────────────────────────────────────────────
-if(TARGET continuo::http)
+if(TARGET Mira::http)
     add_subdirectory(${CMAKE_SOURCE_DIR}/src/apps/web_server ${CMAKE_BINARY_DIR}/apps/web_server)
 endif()

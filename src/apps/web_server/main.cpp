@@ -4,11 +4,11 @@
 /// 架构：
 ///   主线程   = Aria 响应式图线程（MainThreadExecutor pump）
 ///   后台     = ThreadPoolExecutor（worker，搜索/目录/正文在其上执行）
-///   HTTP 线程 = Continuo 事件循环（Server，/api/* REST + 静态资源）
+///   HTTP 线程 = Mira 事件循环（Server，/api/* REST + 静态资源）
 ///
 /// HTTP 层原先是 Aria HttpAdapter（内部 vendored cpp-httplib），现改为
-/// Continuo：解析/分帧/keep-alive 交给 Continuo，路由与静态文件在
-/// continuo_server.{h,cpp}，业务仍跑在独立线程上，避免占住事件循环。
+/// Mira：解析/分帧/keep-alive 交给 Mira，路由与静态文件在
+/// mira_server.{h,cpp}，业务仍跑在独立线程上，避免占住事件循环。
 
 #include "ariaread/engine.h"
 #include "ariaread/vm/search_view_model.h"
@@ -22,7 +22,7 @@
 
 #include "aria/async/executor.hpp"
 
-#include "continuo_server.h"
+#include "mira_server.h"
 #include "json_helpers.h"
 #include "startup_options.h"
 #include "routes.h"
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
     ariaread::vm::ReaderViewModel rvm{ui, worker, reader_backend};
     ariaread::vm::SourceViewModel srcvm{ui, worker, source_backend};
 
-    // ── 4. Continuo HTTP 服务 ────────────────────────────────────────
+    // ── 4. Mira HTTP 服务 ────────────────────────────────────────
     ariaread::web::Server svr;
     svr.set_static_root(static_root);
     // Revalidate assets after a build; stale CSS/JS can otherwise mix app versions.
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
 
     std::cout << "AriaRead Web Server running:\n"
               << "  http://" << host << ":" << listening_port << "\n"
-              << "  Backend: C++ (Continuo HTTP/1.1 + ViewModel)\n"
+              << "  Backend: C++ (Mira HTTP/1.1 + ViewModel)\n"
               << "  Static: " << static_root << "\n"
               << "  (Ctrl-C to stop)\n";
 

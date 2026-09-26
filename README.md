@@ -19,10 +19,10 @@
 
 - **C++23 响应式 MVVM**：基于 Aria 框架，支持协程异步、响应式状态与 ViewModel
 - **跨平台引擎**：CSS3/XPath 选择器、JS 运行时桥接、Gumbo HTML5 解析
-- **自包含第三方依赖**：Continuo/OpenSSL/libcurl 等由脚本按固定版本取源码编译，零系统依赖
+- **自包含第三方依赖**：Mira/OpenSSL/libcurl 等由脚本按固定版本取源码编译，零系统依赖
 - **扩展 ViewModel 层**：SearchViewModel、BookshelfViewModel、ReaderViewModel、SourceViewModel
 - **Engine Adapters**：engine_reader_adapter、engine_source_adapter，将 engine.h 的私有依赖隔离在 .cpp 内
-- **C++ Web Server**：Continuo（自研 C++23 协程网络库）+ Aria ViewModel，39 条 REST 路由，SSE 推送，零 Python 依赖
+- **C++ Web Server**：Mira（自研 C++23 协程网络库）+ Aria ViewModel，39 条 REST 路由，SSE 推送，零 Python 依赖
 
 ## 构建
 
@@ -66,7 +66,7 @@ AriaRead/
 │   ├── rule/               # 规则解析器
 │   ├── infra/              # 基础设施（HTTP/JS/DB）
 │   ├── viewmodels/         # ViewModel 层
-│   └── apps/web_server/    # Web Server（Continuo HTTP/1.1 + REST API）
+│   └── apps/web_server/    # Web Server（Mira HTTP/1.1 + REST API）
 ├── tools/ci/
 │   ├── build_ariaread_deps.py  # 第三方依赖唯一来源：固定版本 + SHA256（见下）
 │   └── fetch_aria.py           # Aria 固定 commit SHA 取回脚本 -> build/deps/aria
@@ -76,7 +76,7 @@ AriaRead/
 
 ## 依赖：一条路，不由 CMake 联网
 
-所有第三方库（Continuo / OpenSSL / libcurl / zlib / nlohmann_json / SQLite3 /
+所有第三方库（Mira / OpenSSL / libcurl / zlib / nlohmann_json / SQLite3 /
 QuickJS / Gumbo / doctest / sqlite_modern_cpp）由显式脚本取：固定版本 + SHA256
 校验 + 许可证留档，只写进仓库的 `build/deps/`。CMake 只做 `find_package`，
 配置时不联网、没有 vendored 回退分支。Aria（兄弟框架）同理：由

@@ -38,10 +38,10 @@ jobs:
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py
       # 依赖的唯一来源：固定版本 + SHA256，由脚本显式构建到 build/deps/prefix。
-      # Continuo 仓库目前是私有的，抓取需要能读它的 token（仓库 secret）。
+      # Mira 仓库目前是私有的，抓取需要能读它的 token（仓库 secret）。
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           python tools/ci/build_ariaread_deps.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -106,7 +106,7 @@ jobs:
             mingw-w64-ucrt-x86_64-nodejs
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: python tools/ci/build_ariaread_deps.py
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py
@@ -179,7 +179,7 @@ jobs:
 
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: python3 tools/ci/build_ariaread_deps.py
       - name: Configure tests
         run: |

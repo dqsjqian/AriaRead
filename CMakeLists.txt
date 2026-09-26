@@ -33,7 +33,7 @@ endif()
 # ──────────────────────────────────────────────
 option(ARIAREAD_BUILD_SHARED    "Build shared library"              OFF)
 option(ARIAREAD_BUILD_TESTS     "Build unit tests"                  ON)
-# ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Continuo) fully replaces Python/Flask
+# ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Mira) fully replaces Python/Flask
 # ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
 # 一个来源（tools/ci/build_ariaread_deps.py 的固定版本前缀），不再有"系统库 vs
 # vendored"的开关。
@@ -57,7 +57,7 @@ configure_file(
 # ──────────────────────────────────────────────
 # 第三方依赖：唯一来源是 tools/ci/build_ariaread_deps.py 构建的前缀
 #
-# 与 Continuo 一致的依赖哲学：
+# 与 Mira 一致的依赖哲学：
 #   * 依赖由显式脚本取（固定版本 + SHA256 + 许可证留档），只写仓库 build/；
 #   * CMake 侧只 find_package，配置时不联网、不 FetchContent、不 add_subdirectory
 #     第三方源码；
@@ -98,8 +98,8 @@ elseif(WIN32)
         CACHE FILEPATH "Prefer the static zlib from the pinned prefix")
 endif()
 
-# Continuo（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib
-find_package(continuo 0.1 REQUIRED)
+# Mira（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib
+find_package(Mira 0.1 REQUIRED)
 # nlohmann/json（header-only JSON 库）
 find_package(nlohmann_json 3.12 REQUIRED)
 # zlib：libcurl 的 gzip 解压后端，缺了书源会 CURLE_BAD_CONTENT_ENCODING
@@ -146,7 +146,7 @@ set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
 # runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
 # AriaRead 静态库照常链接其导出符号。
 set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
-# 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Continuo，
+# 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Mira，
 # Aria 在这里只提供响应式/协程/ViewModel（core + async + binding）。
 set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
 set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
