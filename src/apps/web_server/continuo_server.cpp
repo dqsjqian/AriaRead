@@ -134,11 +134,18 @@ public:
     };
 
     // ── 事件循环线程 ──
-    std::stop_token arm() {
+    /// 重新武装唤醒信号。`for_stream` 用于流式等待循环：那里 `streaming_`
+    /// 恒为 true，不能作为「别睡」条件——否则每次 arm 都立即 request_stop，
+    /// park 在提交前就被取消检查放行，事件循环被空转自旋打满，饿死所有
+    /// 其它请求（实测 4 秒空转 235 万次：书源校验期间全站 loading 的根因）。
+    /// 流式等待只看「已结束或已有待发数据」。
+    std::stop_token arm(bool for_stream = false) {
         const std::lock_guard<std::mutex> lock(mutex_);
         signal_ = std::stop_source{};
         // 已有数据或已结束时就别睡了，否则这一侧会错过上一次的信号。
-        if (streaming_ || finished_ || !outbox_.empty()) signal_.request_stop();
+        if (finished_ || !outbox_.empty() || (!for_stream && streaming_)) {
+            signal_.request_stop();
+        }
         return signal_.get_token();
     }
     [[nodiscard]] bool streaming() {
@@ -409,7 +416,7 @@ Task<Result<void>> dispatch(ServerState& state, EventLoop& loop, const http::Req
             }
         }
         if (bridge.finished() && !bridge.has_pending()) break;
-        co_await park(loop, bridge.arm());
+        co_await park(loop, bridge.arm(/*for_stream=*/true));
     }
     worker.join();
     if (failure) {
