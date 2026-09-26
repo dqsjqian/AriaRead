@@ -27,6 +27,15 @@ if [ "$SKIP_CMAKE" = true ] && [ "$CLEAN_BUILD" = true ]; then
 fi
 
 if [ "$SKIP_CMAKE" = false ]; then
+    # 依赖前缀引导：CMake 配置强制要求钉定依赖前缀（manifest 校验）。
+    # 缺失时自动执行依赖脚本——幂等可续跑，已有产物按存在性跳过，
+    # 只有真正缺失的组件才会下载构建。显式设置 ARIAREAD_DEPS_PREFIX
+    # 时跳过引导，尊重调用方指定的前缀。
+    if [ -z "${ARIAREAD_DEPS_PREFIX:-}" ] \
+            && [ ! -f "$PROJECT_ROOT/build/deps/prefix/share/ariaread-deps/manifest.json" ]; then
+        echo "[deps] pinned dependency prefix not found; bootstrapping via tools/ci/build_ariaread_deps.py (idempotent)..." >&2
+        python3 "$PROJECT_ROOT/tools/ci/build_ariaread_deps.py"
+    fi
     if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
         cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG" \
             -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
