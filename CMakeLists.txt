@@ -63,8 +63,9 @@ configure_file(
 #     第三方源码；
 #   * 没有前缀就直接失败并提示先跑脚本——不再维护 vendored third_party 回退。
 #
-# Aria 是唯一例外：它是同一作者的兄弟项目（四库源码联动），按谦哥的要求
-# 继续以 submodule 源码接入。
+# Aria（兄弟项目，四库源码联动）同样去 submodule 化：由 tools/ci/fetch_aria.py
+# 以固定 commit SHA 取到 build/deps/aria，CMake 只 add_subdirectory 已取回的
+# 源码树，配置期同样不联网。
 # ──────────────────────────────────────────────
 set(ARIAREAD_DEPS_PREFIX "" CACHE PATH
     "tools/ci/build_ariaread_deps.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
@@ -114,31 +115,35 @@ set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 
 
 # ──────────────────────────────────────────────
-# Aria（C++20 响应式 MVVM 框架，git submodule 源码接入）
+# Aria（C++23 响应式 MVVM 框架，固定 commit SHA 源码接入）
 # 用于在 C++ 层承载响应式状态/协程异步/ViewModel，供各端 UI 复用同一业务逻辑。
-# 以 vendored 源码方式接入（与 openssl/curl 一致），非预编译二进制。
+# 由 tools/ci/fetch_aria.py 取到 build/deps/aria（无 git submodule、无 vendored
+# 源码），配置前先跑一次脚本。
 # ──────────────────────────────────────────────
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/aria/CMakeLists.txt")
-    message(STATUS "Using bundled Aria (third_party/aria)")
-    # 关闭 Aria 自带的测试/示例/基准，避免：
-    #   1. doctest target 与 AriaRead 测试重名冲突
-    #   2. 编译大量无关的 examples/benchmark 拖慢构建
-    set(ARIA_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
-    set(ARIA_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
-    set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
-    # runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
-    # AriaRead 静态库照常链接其导出符号。
-    set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
-    # 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Continuo，
-    # Aria 的 adapter 会顺带把 vendored cpp-httplib 编进产物。Aria 在这里
-    # 只提供响应式/协程/ViewModel（core + async + binding）。
-    set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
-    set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
-    add_subdirectory(third_party/aria EXCLUDE_FROM_ALL)
-else()
-    message(STATUS "Aria submodule not found at third_party/aria. "
-        "Run: git submodule update --init --recursive")
+set(ARIA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria CACHE PATH
+    "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
+if(NOT EXISTS ${ARIA_DIR}/CMakeLists.txt)
+    message(FATAL_ERROR
+        "Aria not found at ${ARIA_DIR}.\n"
+        "Run once before configuring:\n"
+        "  python tools/ci/fetch_aria.py\n"
+        "(no git submodules -- Aria is fetched at a pinned commit SHA)")
 endif()
+message(STATUS "Using pinned Aria at ${ARIA_DIR}")
+# 关闭 Aria 自带的测试/示例/基准，避免：
+#   1. doctest target 与 AriaRead 测试重名冲突
+#   2. 编译大量无关的 examples/benchmark 拖慢构建
+set(ARIA_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
+set(ARIA_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
+set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
+# runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
+# AriaRead 静态库照常链接其导出符号。
+set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
+# 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Continuo，
+# Aria 在这里只提供响应式/协程/ViewModel（core + async + binding）。
+set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
+set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
+add_subdirectory(${ARIA_DIR} aria)
 
 # ──────────────────────────────────────────────
 # 核心库
@@ -146,7 +151,7 @@ endif()
 add_subdirectory(src)
 
 # ──────────────────────────────────────────────
-# ViewModel 层（基于 Aria，可选——仅当 Aria submodule 存在时构建）
+# ViewModel 层（基于 Aria，可选——仅当 Aria 已取回时构建）
 # 先于 tests：tests/ 中的 ViewModel 测试需要 ariaread_vm target。
 # ──────────────────────────────────────────────
 if(TARGET aria::binding)

@@ -23,8 +23,7 @@
 
     // 搜索排除
     "search.exclude": {
-        "**/build": true,
-        "**/third_party": true
+        "**/build": true
     },
 
     // 文件排除

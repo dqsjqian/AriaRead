@@ -83,7 +83,7 @@ if(TARGET ariaread_vm)
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             # Aria binding 的测试辅助（FakeAdapter/FakeView），用于端到端示例
-            ${CMAKE_SOURCE_DIR}/third_party/aria/modules/binding/tests
+            ${ARIA_DIR}/modules/binding/tests
             SYSTEM ${ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
     )
 

@@ -24,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
       # OpenSSL 的 MSVC 构建走 nmake + cl（ExternalProject），
       # configure 期 find_program(nmake REQUIRED) 与 build 期 nmake 执行
@@ -35,6 +34,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      # Aria（兄弟框架）不走 submodule：固定 SHA 取到 build/deps/aria。
+      - name: Fetch pinned Aria
+        run: python tools/ci/fetch_aria.py
       # 依赖的唯一来源：固定版本 + SHA256，由脚本显式构建到 build/deps/prefix。
       # Continuo 仓库目前是私有的，抓取需要能读它的 token（仓库 secret）。
       - name: Build pinned dependencies
@@ -89,7 +91,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
       - uses: msys2/setup-msys2@v2
         with:
@@ -107,6 +108,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.CONTINUO_READ_TOKEN || secrets.GITHUB_TOKEN }}
         run: python tools/ci/build_ariaread_deps.py
+      - name: Fetch pinned Aria
+        run: python tools/ci/fetch_aria.py
       - name: Configure tests
         run: |
           cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -148,7 +151,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
 
       - uses: actions/setup-node@v4
@@ -158,6 +160,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+
+      # Aria (sibling framework) is not a submodule: fetch at a pinned SHA.
+      - name: Fetch pinned Aria
+        run: python3 tools/ci/fetch_aria.py
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'

@@ -67,10 +67,9 @@ AriaRead/
 │   ├── infra/              # 基础设施（HTTP/JS/DB）
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Continuo HTTP/1.1 + REST API）
-├── third_party/
-│   └── aria/               # Aria C++23 协程 MVVM 框架（git submodule，四库源码联动）
 ├── tools/ci/
-│   └── build_ariaread_deps.py  # 依赖的唯一来源：固定版本 + SHA256（见下）
+│   ├── build_ariaread_deps.py  # 第三方依赖唯一来源：固定版本 + SHA256（见下）
+│   └── fetch_aria.py           # Aria 固定 commit SHA 取回脚本 -> build/deps/aria
 ├── bindings/web/ariaread/web/  # 前端静态资源
 └── tests/                  # 单元测试
 ```
@@ -80,10 +79,12 @@ AriaRead/
 所有第三方库（Continuo / OpenSSL / libcurl / zlib / nlohmann_json / SQLite3 /
 QuickJS / Gumbo / doctest / sqlite_modern_cpp）由显式脚本取：固定版本 + SHA256
 校验 + 许可证留档，只写进仓库的 `build/deps/`。CMake 只做 `find_package`，
-配置时不联网、没有 vendored 回退分支。
+配置时不联网、没有 vendored 回退分支。Aria（兄弟框架）同理：由
+`tools/ci/fetch_aria.py` 以固定 commit SHA 取到 `build/deps/aria`，无 submodule。
 
 ```bash
 python3 tools/ci/build_ariaread_deps.py            # 首次构建（约 10 分钟，主要是 OpenSSL）
+python3 tools/ci/fetch_aria.py                     # 取回 Aria（固定 commit SHA，无 submodule）
 cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON      # 自动探测 build/deps/prefix
 cmake --build build
 ctest --test-dir build --output-on-failure

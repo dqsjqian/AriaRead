@@ -4,8 +4,7 @@
             "name": "AriaRead",
             "includePath": [
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/third_party/quickjs",
-                "${workspaceFolder}/build/_deps/json-src/include"
+                "${workspaceFolder}/build/deps/prefix/include"
             ],
             "defines": [],
             "macFrameworkPath": [

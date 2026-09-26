@@ -66,13 +66,9 @@ AriaRead/
 │   ├── infra/              # infrastructure (HTTP/JS/DB)
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Continuo HTTP/1.1 + REST API)
-├── third_party/
-│   ├── aria/               # Aria C++23 coroutine MVVM framework (git submodule)
-│   ├── curl/               # libcurl, built from source
-│   ├── nlohmann_json/      # nlohmann/json
-│   ├── openssl/            # OpenSSL
-│   ├── quickjs/            # QuickJS
-│   └── sqlite3_src/        # SQLite3 amalgamation
+├── tools/ci/
+│   ├── build_ariaread_deps.py  # sole dependency source: pinned versions + SHA256
+│   └── fetch_aria.py           # fetches Aria at a pinned commit -> build/deps/aria
 ├── bindings/web/ariaread/web/  # frontend static assets
 └── tests/                  # unit tests
 ```
@@ -103,7 +99,7 @@ HTTP tests use local mock sources and an in-memory database to cover console val
 ## Release checklist
 
 - [x] All sources compile from source (no prebuilt binaries)
-- [x] `.gitmodules` declares every third-party dependency
+- [x] No git submodules; all dependencies pinned and fetched by tools/ci scripts
 - [x] MIT LICENSE
 - [x] README.md (Chinese) + README.en.md (English)
 

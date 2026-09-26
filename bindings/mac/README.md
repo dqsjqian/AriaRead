@@ -21,7 +21,7 @@ for (const auto& book : books) {
 **CMakeLists.txt**:
 ```cmake
 # 方式一：直接编译源码
-set(ARIAREAD_DIR ${CMAKE_SOURCE_DIR}/third_party/AriaRead)
+set(ARIAREAD_DIR ${CMAKE_SOURCE_DIR}/external/AriaRead)
 add_subdirectory(${ARIAREAD_DIR})
 
 target_link_libraries(myapp PRIVATE ariaread)
