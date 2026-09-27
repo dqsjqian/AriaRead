@@ -48,11 +48,11 @@ from pathlib import Path, PurePosixPath
 REPO = Path(__file__).resolve().parents[2]
 PATCHES = Path(__file__).resolve().parent / "patches"
 MIRA_REPO = "dqsjqian/Mira"
-# 固定到 v0.2.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
+# 固定到 v0.4.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
 # 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
 # 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
-MIRA_TAG = "v0.2.0"
-MIRA_REF = "b648e47227eae76002baa923b3f7ae80296e6087"
+MIRA_TAG = "v0.4.0"
+MIRA_REF = "4fe72621c9f5b904aae2ac49bb61fd581ff046f9"
 
 
 @dataclass(frozen=True)
