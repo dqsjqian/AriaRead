@@ -6,6 +6,12 @@ param(
     [string]$Config = "Release"
 )
 $ErrorActionPreference = "Stop"
+# The pinned dependency prefix (build\deps\prefix) ships Release-only static
+# libs; any other build type compiles /MDd objects against /MD libraries and
+# dies in LNK2038 _ITERATOR_DEBUG_LEVEL mismatches. Fail fast here instead.
+if ($Config -ne "Release") {
+    throw "Only -Config Release is supported: the pinned dependency prefix ships Release-only static libs."
+}
 if ($Clean -and $SkipCMake) { throw "-Clean cannot be combined with -SkipCMake" }
 $PROJECT_ROOT = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BUILD_DIR = if ($env:ARIAREAD_BUILD_DIR) { $env:ARIAREAD_BUILD_DIR } else { Join-Path $PROJECT_ROOT "build" }
@@ -63,21 +69,24 @@ if (-not $SkipCMake) {
         & python (Join-Path $PROJECT_ROOT "tools\ci\build_ariaread_deps.py")
         if ($LASTEXITCODE -ne 0) { throw "Dependency prefix build failed" }
     }
-    if (-not (Test-Path (Join-Path $BUILD_DIR "CMakeCache.txt"))) {
-        $cl = Get-Command cl -ErrorAction SilentlyContinue
-        if ($cl) {
-            & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G Ninja `
-                -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=$Config" `
-                -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
-        } else {
-            $gcc = (Get-Command gcc -ErrorAction Stop).Source
-            $gxx = (Get-Command g++ -ErrorAction Stop).Source
-            & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G "MinGW Makefiles" `
-                "-DCMAKE_C_COMPILER=$gcc" "-DCMAKE_CXX_COMPILER=$gxx" "-DCMAKE_BUILD_TYPE=$Config" `
-                -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
-        }
-        if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
+    # Always (re)configure: the pinned deps prefix ships Release-only static
+    # libs, so a stale cache in any other build type links /MDd objects
+    # against /MD libraries and dies in LNK2038 mismatches. Re-running cmake
+    # overrides the cached build type in place and rebuilds only what the
+    # change touches.
+    $cl = Get-Command cl -ErrorAction SilentlyContinue
+    if ($cl) {
+        & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G Ninja `
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=$Config" `
+            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
+    } else {
+        $gcc = (Get-Command gcc -ErrorAction Stop).Source
+        $gxx = (Get-Command g++ -ErrorAction Stop).Source
+        & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G "MinGW Makefiles" `
+            "-DCMAKE_C_COMPILER=$gcc" "-DCMAKE_CXX_COMPILER=$gxx" "-DCMAKE_BUILD_TYPE=$Config" `
+            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
     }
+    if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
     $buildArgs = @("--build", $BUILD_DIR, "--config", $Config, "--target", "ariaread_web_server")
     if ($Clean) { $buildArgs += "--clean-first" }
     $jobs = if ($env:ARIAREAD_BUILD_JOBS) { $env:ARIAREAD_BUILD_JOBS } else { [Environment]::ProcessorCount }

@@ -86,15 +86,19 @@ if "%STEP%"=="clean" (
     exit /b 0
 )
 
-if not exist "%BUILD_DIR%\build.ninja" (
-    echo [configure] Ninja + cl ...
-    rem CRT stays the repo default (dynamic /MD): the shared aria DLLs and the
-    rem exe must share one CRT heap; static /MT re-triggers the known
-      rem cross-module heap corruption documented in .github/workflows/ci.yml.
-    cmake -S . -B build -G Ninja ^
-        -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
-        -DCMAKE_BUILD_TYPE=Release || exit /b 1
-)
+rem Always (re)configure: the pinned deps prefix ships Release-only static
+rem libs, so the cached build type must be Release. A stale cache (Debug, or
+rem an aborted configure) used to compile /MDd objects against /MD libraries
+rem and died in LNK2038 _ITERATOR_DEBUG_LEVEL mismatches. Re-running cmake
+rem overrides the cached type in place and rebuilds only what the change
+rem touches.
+echo [configure] Ninja + cl (Release) ...
+rem CRT stays the repo default (dynamic /MD): the shared aria DLLs and the
+rem exe must share one CRT heap; static /MT re-triggers the known
+rem cross-module heap corruption documented in .github/workflows/ci.yml.
+cmake -S . -B build -G Ninja ^
+    -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl ^
+    -DCMAKE_BUILD_TYPE=Release || exit /b 1
 if "%STEP%"=="configure" exit /b 0
 
 echo [build] ariaread_web_server Release ...
