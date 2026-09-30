@@ -2,7 +2,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.2.2** · Aria **3.1.0**
+Current version **0.2.2** · Aria **3.1.1**
 
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
 

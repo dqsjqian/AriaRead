@@ -7,7 +7,7 @@ identities. Explicit overrides must be reviewed using their actual sources.
 
 | Component | Current resolution | License | Use |
 |---|---|---|---|
-| Aria | 3.1.0 | MIT | Shared framework runtime and bindings |
+| Aria | 3.1.1 | MIT | Shared framework runtime and bindings |
 | Mira | 1.0.0 | MIT | Static HTTP/1.1 transport; its TLS/WebSocket/HTTP2/HTTP3 modules are disabled here |
 | nlohmann/json | 3.12.0 | MIT | Compiled header implementation |
 | OpenSSL | 4.0.3 | Apache-2.0 | Static TLS backend used by curl |
