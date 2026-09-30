@@ -81,6 +81,8 @@ add_custom_target(ariaread_web_assets
         "-DARIAREAD_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
         "-DARIAREAD_OUTPUT_DIR=${ARIAREAD_WEB_OUTPUT_DIR}"
         "-DARIAREAD_MINGW=${MINGW}"
+        "-DARIAREAD_DEPS_PREFIX=${ARIAREAD_DEPS_PREFIX}"
+        "-DARIA_DIR=${ARIA_DIR}"
         "-DARIAREAD_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
         -P "${CMAKE_SOURCE_DIR}/cmake/SyncWebRuntime.cmake"
     COMMENT "Syncing Web runtime in ${ARIAREAD_WEB_OUTPUT_DIR}"

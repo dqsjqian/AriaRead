@@ -7,11 +7,11 @@
       "resolved": {
         "request_hash": "c3cedb9c8f1e082d0e43c45619a796a44b77bd4c8a09a40d8451f57146d73f97",
         "requested": "latest",
-        "revision": "4fe72621c9f5b904aae2ac49bb61fd581ff046f9",
+        "revision": "9386d89d2a259303a0a2c3b1539a5cb0e3fc0be5",
         "sha256": "",
-        "tag": "v0.4.0",
+        "tag": "v1.0.0",
         "url": "https://github.com/dqsjqian/Mira.git",
-        "version": "0.4.0"
+        "version": "1.0.0"
       },
       "tag_prefix": "v"
     },
@@ -22,11 +22,11 @@
       "resolved": {
         "request_hash": "2c6620ad60a1854f8c761cdfd7caebc063116d49a2d34f36c920a1a617d014ce",
         "requested": "latest",
-        "revision": "c39ad3f21c706b36e1480f325838381423495fcf",
+        "revision": "7f957a8764e69d02e8487a2d128ace9f0605ccdd",
         "sha256": "",
-        "tag": "v3.0.1",
+        "tag": "v3.1.0",
         "url": "https://github.com/dqsjqian/Aria.git",
-        "version": "3.0.1"
+        "version": "3.1.0"
       },
       "tag_prefix": "v"
     },

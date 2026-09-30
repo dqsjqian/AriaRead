@@ -58,9 +58,10 @@ if [ ! -x "$BINARY" ]; then
 fi
 if [ "$SKIP_CMAKE" = true ]; then
     cmake "-DARIAREAD_SOURCE_DIR=$PROJECT_ROOT" "-DARIAREAD_OUTPUT_DIR=$RUNTIME_DIR" \
+        "-DARIAREAD_RUNTIME_CONFIG=$BUILD_DIR/AriaReadRuntimePaths.cmake" \
         -P "$PROJECT_ROOT/cmake/SyncWebRuntime.cmake"
 fi
 
 # CMake supplies relative runtime search paths. Do not copy or patch the binary.
 "$BINARY" --help >/dev/null
-printf '\nReady: %s\nRun: "%s"\nDistribute this directory with its libraries and web/ assets.\n' "$RUNTIME_DIR" "$BINARY"
+printf '\nReady: %s\nRun: "%s"\nDistribute this directory with its libraries, web/ assets and licenses/. Review the runtime redistribution terms in THIRD_PARTY_NOTICES.md.\n' "$RUNTIME_DIR" "$BINARY"

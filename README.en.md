@@ -2,7 +2,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.2.1** · Aria **3.0.1**
+Current version **0.2.2** · Aria **3.1.0**
 
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
 
@@ -30,7 +30,7 @@ One C++ core drives two web shapes side by side:
 
 ## Build
 
-Requires CMake 3.20+, a C++23 compiler, and Python 3.10+. Run from the repository root:
+Requires CMake 3.21+, a C++23 compiler, and Python 3.10+. Run from the repository root:
 
 ```bash
 python3 tools/ci/build_ariaread_deps.py
@@ -149,3 +149,5 @@ HTTP tests use local mock sources and an in-memory database to cover console val
 ## License
 
 MIT License — see [LICENSE](LICENSE).
+
+Own code is MIT-licensed; third-party components retain their licenses. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for distribution requirements.

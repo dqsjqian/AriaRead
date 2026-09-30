@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.20)
-project(AriaRead VERSION 0.2.1 LANGUAGES CXX C)
+cmake_minimum_required(VERSION 3.21)
+project(AriaRead VERSION 0.2.2 LANGUAGES CXX C)
 
 # ──────────────────────────────────────────────
 # C++23 标准，全平台统一，与 Aria 和 Mira 的公开接口要求一致。
@@ -112,7 +112,7 @@ elseif(WIN32)
 endif()
 
 # Mira（C++23 协程网络库）：Web Server 的 HTTP/1.1 引擎，取代 cpp-httplib
-find_package(Mira 0.4 REQUIRED)
+find_package(Mira 1.0 REQUIRED COMPONENTS core transport http)
 # nlohmann/json（header-only JSON 库）
 find_package(nlohmann_json 3.12 REQUIRED)
 # zlib：libcurl 的 gzip 解压后端，缺了书源会 CURLE_BAD_CONTENT_ENCODING
@@ -190,6 +190,17 @@ endif()
 # 安装配置（供 iOS/Android/Qt 集成）
 # ──────────────────────────────────────────────
 include(GNUInstallDirs)
+
+# Reuse the selected prefix/source in packaging scripts, including --skip-cmake.
+file(WRITE "${CMAKE_BINARY_DIR}/AriaReadRuntimePaths.cmake"
+    "set(ARIAREAD_DEPS_PREFIX [==[${ARIAREAD_DEPS_PREFIX}]==])\n"
+    "set(ARIA_DIR [==[${ARIA_DIR}]==])\n")
+set(ARIAREAD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+set(ARIAREAD_LICENSE_OUTPUT "${CMAKE_BINARY_DIR}/license-bundle")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/StageLicenses.cmake")
+install(DIRECTORY "${ARIAREAD_LICENSE_OUTPUT}/"
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/ariaread")
+
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 

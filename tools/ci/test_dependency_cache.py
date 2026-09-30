@@ -23,6 +23,65 @@ class InstallationTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.prefix = self.root / 'prefix'
 
+    def test_license_collection_keeps_embedded_notices_and_sqlite_dedication(self):
+        source = self.root / 'source'
+        headers = source / 'include/nlohmann/detail'
+        headers.mkdir(parents=True)
+        (source / 'LICENSE.MIT').write_text('selected MIT license')
+        (source / 'NOTICE').write_text('selected upstream attribution')
+        (headers / 'one.hpp').write_text('// SPDX-FileCopyrightText: First Author\n// SPDX-License-Identifier: MIT\n')
+        (headers / 'two.hpp').write_text('// SPDX-FileCopyrightText: Second Author\n// SPDX-License-Identifier: MIT\n')
+        dep = next(dep for dep in builder.RECIPES if dep.name == 'json')
+        copied = builder.copy_licenses(self.prefix, source, dep)
+        out = self.prefix / 'share/licenses/json'
+        self.assertEqual((out / 'LICENSE.MIT').read_text(), 'selected MIT license')
+        self.assertEqual((out / 'NOTICE').read_text(), 'selected upstream attribution')
+        self.assertIn('ATTRIBUTIONS.txt', copied)
+        self.assertIn('First Author', (out / 'ATTRIBUTIONS.txt').read_text())
+        self.assertIn('Second Author', (out / 'ATTRIBUTIONS.txt').read_text())
+        self.assertEqual((out / 'ATTRIBUTIONS.txt').read_text().count('SPDX-License-Identifier'), 1)
+        dedication = '/*\n** The author disclaims copyright to this source code.\n** Blessing.\n'
+        (source / 'sqlite3.h').write_text(dedication + '*' * 73 + '\nprivate implementation')
+        sqlite = next(dep for dep in builder.RECIPES if dep.name == 'sqlite3')
+        builder.copy_licenses(self.prefix, source, sqlite)
+        self.assertEqual((self.prefix / 'share/licenses/sqlite3/PUBLIC-DOMAIN.txt').read_text(), dedication)
+
+    def test_runtime_license_staging_uses_selected_prefix_without_private_receipt(self):
+        source = self.root / 'project'
+        aria = self.root / 'selected aria'
+        source.mkdir(); aria.mkdir()
+        (source / 'LICENSE').write_text('own MIT')
+        (source / 'THIRD_PARTY_NOTICES.md').write_text('own notices')
+        (aria / 'LICENSE').write_text('selected Aria MIT')
+        license_dir = self.prefix / 'share/licenses/library'
+        license_dir.mkdir(parents=True)
+        (license_dir / 'LICENSE').write_text('selected dependency license')
+        receipt = self.prefix / 'share/ariaread-deps/manifest.json'
+        receipt.parent.mkdir(parents=True)
+        receipt.write_text(json.dumps({'context': {'prefix': 'private-build-path'},
+            'dependencies': [{'name': 'library', 'version': '2.0', 'license_files': ['LICENSE']}]}))
+        output = self.root / 'runtime licenses'
+        script = Path(__file__).resolve().parents[2] / 'cmake/StageLicenses.cmake'
+        command = ['cmake', '-DARIAREAD_SOURCE_DIR=' + str(source),
+                   '-DARIA_DIR=' + str(aria), '-DARIAREAD_DEPS_PREFIX=' + str(self.prefix),
+                   '-DARIAREAD_LICENSE_OUTPUT=' + str(output), '-P', str(script)]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertEqual((output / 'dependencies/library/LICENSE').read_text(), 'selected dependency license')
+        self.assertEqual((output / 'aria/LICENSE').read_text(), 'selected Aria MIT')
+        exported = (output / 'components.json').read_text()
+        self.assertNotIn('private-build-path', exported)
+        self.assertEqual(json.loads(exported)[0]['version'], '2.0')
+        (license_dir / 'NOTICE').write_text('old optional notice')
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertTrue((output / 'dependencies/library/NOTICE').exists())
+        (license_dir / 'NOTICE').unlink()
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertFalse((output / 'dependencies/library/NOTICE').exists())
+        (license_dir / 'LICENSE').unlink()
+        result = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Missing or invalid license file', result.stderr)
+
     def install(self, identity='one', content='1.0', selected=None):
         selected = selected or {'library'}
         with cache.installation(self.prefix, identity, selected, {'lock': identity}) as (done, state):
@@ -401,6 +460,7 @@ class BuilderIntegrationTests(unittest.TestCase):
 
             def archive(version, fail=False):
                 contents = {'LICENSE.MIT': 'Fixture license', 'json.hpp': version,
+                            'include/nlohmann/notice.hpp': '// SPDX-FileCopyrightText: Fixture Author\n// SPDX-License-Identifier: MIT\n',
                             'CMakeLists.txt': ('cmake_minimum_required(VERSION 3.20)\n'
                               'project(Fixture C CXX)\n' + ('message(FATAL_ERROR "fixture build failure")\n' if fail else
                               'install(FILES json.hpp DESTINATION include/nlohmann)\n'))}

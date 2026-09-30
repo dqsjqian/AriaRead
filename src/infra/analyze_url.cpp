@@ -183,21 +183,24 @@ void AnalyzeUrl::replaceKeyPageJs() {
     std::string url = ruleUrl_;
     std::string newUrl;
     size_t lastPos = 0;
+    bool inUrl = true;
+    static const std::regex optionSeparator(R"(,[ \t\r\n]*\{)");
     std::sregex_iterator it(url.begin(), url.end(), innerJsPattern);
     std::sregex_iterator end;
 
     for (; it != end; ++it) {
         auto& match = *it;
-        newUrl += url.substr(lastPos, match.position() - lastPos);
+        const std::string literal = url.substr(lastPos, match.position() - lastPos);
+        // Only direct URL placeholders are components. Options/body values and
+        // JavaScript receive the original key, so their existing rules still apply.
+        if (inUrl && std::regex_search(literal, optionSeparator)) inUrl = false;
+        newUrl += literal;
 
         std::string inner = match[1].str();
 
         // 先检查是否是 key/page 等简单变量
         if (inner == "key") {
-            // 在 replaceKeyPageJs 阶段不做 URL 编码
-            // URL 编码在 analyzeUrl 阶段根据上下文处理
-            // （URL 路径中需要编码，body 中可能需要也可能不需要）
-            newUrl += key_;
+            newUrl += inUrl ? urlEncode(key_) : key_;
         } else if (inner == "page") {
             newUrl += std::to_string(page_);
         } else if (js_ && !inner.empty()) {
@@ -288,11 +291,12 @@ void AnalyzeUrl::analyzeUrl() {
     // URL 拼接：相对路径 → 绝对路径
     result_.url = getAbsoluteURL(baseUrl_, urlNoOption);
 
-    // 对 URL 中的非 ASCII 字符做 URL 编码（中文等）
+    // Encode literal whitespace/control bytes and UTF-8, retaining URL syntax
+    // and existing percent escapes, including those returned by JavaScript.
     {
         std::string encoded;
         for (unsigned char c : result_.url) {
-            if (c > 0x7F) {
+            if (c <= 0x20 || c >= 0x7F) {
                 char buf[4];
                 snprintf(buf, sizeof(buf), "%%%02X", c);
                 encoded += buf;
@@ -562,7 +566,8 @@ std::string AnalyzeUrl::urlEncode(const std::string& value, const std::string& c
     // 简单的 URL 编码实现
     std::string result;
     for (unsigned char c : value) {
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
             result += c;
         } else {
             char buf[4];

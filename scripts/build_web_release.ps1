@@ -108,6 +108,7 @@ if ($SkipCMake) {
     $mingw = $compiler -match '(g\+\+|clang\+\+)\.exe$' -and $compiler -match '(mingw|msys)'
     & cmake "-DARIAREAD_SOURCE_DIR=$PROJECT_ROOT" "-DARIAREAD_OUTPUT_DIR=$RUNTIME_DIR" `
         "-DARIAREAD_MINGW=$mingw" "-DARIAREAD_CXX_COMPILER=$compiler" `
+        "-DARIAREAD_RUNTIME_CONFIG=$BUILD_DIR/AriaReadRuntimePaths.cmake" `
         -P (Join-Path $PROJECT_ROOT "cmake/SyncWebRuntime.cmake")
     if ($LASTEXITCODE -ne 0) { throw "Runtime asset sync failed" }
 }
@@ -115,4 +116,4 @@ if ($SkipCMake) {
 if ($LASTEXITCODE -ne 0) { throw "Runtime executable check failed" }
 Write-Host "Ready: $RUNTIME_DIR"
 Write-Host "Run: & '$binary'"
-Write-Host "Distribute this directory with its libraries and web/ assets."
+Write-Host "Distribute this directory with its libraries, web/ assets and licenses/. Review the runtime redistribution terms in THIRD_PARTY_NOTICES.md."

@@ -2,7 +2,7 @@
 
 [依赖更新完整指南](docs/dependencies.md) — 版本固定、选择性更新、离线、回退与提交步骤。
 
-当前版本 **0.2.1** · Aria **3.0.1**
+当前版本 **0.2.2** · Aria **3.1.0**
 
 📖 跨平台阅读引擎，专注于开源中文书源生态。
 
@@ -30,7 +30,7 @@
 
 ## 构建
 
-需要 CMake 3.20+、支持 C++23 的编译器和 Python 3.10+。从仓库根目录执行：
+需要 CMake 3.21+、支持 C++23 的编译器和 Python 3.10+。从仓库根目录执行：
 
 ```bash
 python3 tools/ci/build_ariaread_deps.py     # 按依赖文件取依赖（首次发现最新稳定版，只写 build/deps）
@@ -157,3 +157,5 @@ HTTP 测试只使用本地模拟书源和内存数据库，覆盖控制台输入
 ## 许可证
 
 MIT License — 详见 [LICENSE](LICENSE)。
+
+自有代码采用 MIT；第三方组件保留各自协议。分发说明见 [第三方许可声明](THIRD_PARTY_NOTICES.md)。

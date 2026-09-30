@@ -323,6 +323,40 @@ TEST_CASE("trimCopy") {
 // 修复「正文取到也点不开」次因之一：link 拼接畸形（host 重复 / 协议相对 // 未处理）
 // ──────────────────────────────────────────────
 #include "ariaread/analyze_url.h"
+#include "ariaread/js_runtime.h"
+
+TEST_CASE("AnalyzeUrl - query keywords preserve component boundaries and existing escapes") {
+    AnalyzeUrl analyzer("/search?q={{key}}&fixed=%2F&next=/a?b=c", "https://source.test",
+                        "two words+中文&x=1%20");
+    CHECK(analyzer.result().url ==
+          "https://source.test/search?q=two%20words%2B%E4%B8%AD%E6%96%87%26x%3D1%2520"
+          "&fixed=%2F&next=/a?b=c");
+    AnalyzeUrl literal("/folder name/search?q=%E4%B8%AD&other=a+b", "https://source.test");
+    CHECK(literal.result().url ==
+          "https://source.test/folder%20name/search?q=%E4%B8%AD&other=a+b");
+}
+
+TEST_CASE("AnalyzeUrl - JavaScript sees the original keyword and keeps its escaping") {
+    JsRuntime js;
+    const std::string key = "two words+中文&x=1";
+    const std::string expected =
+        "https://source.test/search?q=two%20words%2B%E4%B8%AD%E6%96%87%26x%3D1&fixed=%2F";
+    AnalyzeUrl inlineJs("/search?q={{encodeURIComponent(key)}}&fixed=%2F",
+                        "https://source.test", key, 1, &js);
+    CHECK(inlineJs.result().url == expected);
+    AnalyzeUrl script("@js:return baseUrl + '/search?q=' + encodeURIComponent(key) + '&fixed=%2F';",
+                      "https://source.test", key, 1, &js);
+    CHECK(script.result().url == expected);
+}
+
+TEST_CASE("AnalyzeUrl - URL key escaping does not change option body substitution") {
+    AnalyzeUrl analyzer(R"(/search?q={{key}},{"method":"POST","body":"q={{key}}"})",
+                        "https://source.test", "two words+中文&x=1");
+    CHECK(analyzer.result().url ==
+          "https://source.test/search?q=two%20words%2B%E4%B8%AD%E6%96%87%26x%3D1");
+    CHECK(analyzer.result().method == "POST");
+    CHECK(analyzer.result().body == "q=two words+中文&x=1");
+}
 
 TEST_CASE("getAbsoluteURL - 协议相对 // 继承 scheme，不重复 host") {
     // 修复前：base=https://m.zol.com.cn + rel=//m.zol.com.cn/a.html

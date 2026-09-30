@@ -289,10 +289,11 @@ RECIPES: tuple[Dependency, ...] = (
         name="Mira", version="",
         url="",
         sha256="",
-        license="MIT", license_files=("LICENSE",), root="", kind="git",
+        license="MIT", license_files=("LICENSE", "THIRD_PARTY_NOTICES.md"), root="", kind="git",
         uses_libdir=True,
         options=("-DMIRA_BUILD_TESTS=OFF", "-DMIRA_BUILD_EXAMPLES=OFF", "-DMIRA_BUILD_BENCH=OFF",
-                 "-DMIRA_ENABLE_TLS=OFF", "-DMIRA_ENABLE_HTTP2=OFF", "-DMIRA_ENABLE_HTTP3=OFF"),
+                 "-DMIRA_ENABLE_TLS=OFF", "-DMIRA_ENABLE_WEBSOCKET=OFF",
+                 "-DMIRA_ENABLE_HTTP2=OFF", "-DMIRA_ENABLE_HTTP3=OFF"),
         artifacts=("lib/cmake/Mira/MiraConfig.cmake", "include/mira/http/connection.hpp"),
     ),
 )
@@ -501,6 +502,30 @@ def copy_licenses(prefix: Path, source: Path, dependency: Dependency) -> list[st
             raise ValueError(f"{dependency.name} 许可证文件缺失：{origin}")
         shutil.copyfile(origin, target / origin.name)
         copied.append(origin.name)
+    # Preserve optional upstream notices without inventing one when absent.
+    for filename in ('NOTICE', 'NOTICE.txt'):
+        origin = source / filename
+        if origin.is_file() and filename not in copied:
+            shutil.copyfile(origin, target / filename)
+            copied.append(filename)
+    if dependency.name == 'json':
+        notices = set()
+        for header in (source / 'include/nlohmann').rglob('*.hpp'):
+            for line in header.read_text(encoding='utf-8').splitlines():
+                if 'SPDX-FileCopyrightText:' in line or 'SPDX-License-Identifier:' in line:
+                    notices.add(line)
+        if not notices:
+            raise ValueError('JSON embedded copyright notices are missing')
+        (target / 'ATTRIBUTIONS.txt').write_text('\n'.join(sorted(notices)) + '\n', encoding='utf-8')
+        copied.append('ATTRIBUTIONS.txt')
+    if dependency.name == 'sqlite3':
+        # The official amalgamation has a public-domain dedication, not LICENSE.
+        header = (source / 'sqlite3.h').read_text(encoding='utf-8')
+        dedication, separator, _ = header.partition('*************************************************************************')
+        if not separator or 'author disclaims copyright' not in dedication:
+            raise ValueError('SQLite public-domain dedication needs review')
+        (target / 'PUBLIC-DOMAIN.txt').write_text(dedication, encoding='utf-8')
+        copied.append('PUBLIC-DOMAIN.txt')
     return copied
 
 

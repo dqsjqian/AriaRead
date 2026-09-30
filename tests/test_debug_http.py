@@ -186,10 +186,10 @@ class DebugHttpTests(unittest.TestCase):
     def request(cls, method, path, body=None, timeout=15):
         return http_request(cls.port, method, path, body, timeout)
 
-    def load_source(self, scenario='ok'):
+    def load_source(self, scenario='ok', name=None):
         base = f'http://127.0.0.1:{self.source_server.server_port}/{scenario}'
         source = {
-            'bookSourceName': '本地诊断源-' + scenario, 'bookSourceUrl': base,
+            'bookSourceName': name or '本地诊断源-' + scenario, 'bookSourceUrl': base,
             'searchUrl': base + '/search?q={{key}}',
             'ruleSearch': {'bookList': '$.books[*]', 'name': '$.name', 'bookUrl': '$.url'},
             'ruleToc': {'chapterList': '$.chapters[*]', 'chapterName': '$.title', 'chapterUrl': '$.url'},
@@ -285,6 +285,32 @@ class DebugHttpTests(unittest.TestCase):
         self.assertEqual(requests[0]['url'], origin + '/ok/search?q=%E6%88%91')
         self.assertTrue(all(request['status'] == 200 for request in requests))
         self.assertIn(CONTENT, stream)
+
+    def test_query_plus_decodes_as_space_and_preserves_encoded_plus(self):
+        self.load_source(name='two words+literal')
+        for encoded in ('two+words%2Bliteral', 'two%20words%2Bliteral'):
+            with self.subTest(encoded=encoded):
+                query = 'source_name=' + encoded
+                status, stream, _ = self.request('GET', '/api/source/debug?' + query)
+                self.assertEqual(status, 200, stream)
+                events = [(frame.splitlines()[0][7:], json.loads(frame.splitlines()[1][6:]))
+                          for frame in stream.strip().split('\n\n')]
+                requests = [data for event, data in events if event == 'debug_http']
+                self.assertEqual(len(requests), 3, stream)
+                self.assertEqual(events[0][1]['sourceName'], 'two words+literal')
+
+    def test_search_keyword_is_encoded_once_in_outgoing_url(self):
+        source = self.load_source()
+        query = urlencode({'source_url': source, 'q': 'two words+中文&literal%20'})
+        status, stream, _ = self.request('GET', '/api/source/debug?' + query)
+        self.assertEqual(status, 200, stream)
+        events = [(frame.splitlines()[0][7:], json.loads(frame.splitlines()[1][6:]))
+                  for frame in stream.strip().split('\n\n')]
+        requests = [data for event, data in events if event == 'debug_http']
+        self.assertEqual(len(requests), 3, stream)
+        self.assertEqual(requests[0]['url'], source +
+                         '/search?q=two%20words%2B%E4%B8%AD%E6%96%87%26literal%2520')
+        self.assertTrue(all(request['status'] == 200 for request in requests), stream)
 
     def test_relocated_runtime_uses_adjacent_assets(self):
         runtime_temp = tempfile.TemporaryDirectory()

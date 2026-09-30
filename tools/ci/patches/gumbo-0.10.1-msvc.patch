@@ -1,10 +1,11 @@
 diff --git a/src/attribute.c b/src/attribute.c
 --- a/src/attribute.c
 +++ b/src/attribute.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else
@@ -18,10 +19,11 @@ diff --git a/src/attribute.c b/src/attribute.c
 diff --git a/src/parser.c b/src/parser.c
 --- a/src/parser.c
 +++ b/src/parser.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <stdarg.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else
@@ -35,10 +37,11 @@ diff --git a/src/parser.c b/src/parser.c
 diff --git a/src/string_buffer.c b/src/string_buffer.c
 --- a/src/string_buffer.c
 +++ b/src/string_buffer.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else
@@ -52,10 +55,11 @@ diff --git a/src/string_buffer.c b/src/string_buffer.c
 diff --git a/src/string_piece.c b/src/string_piece.c
 --- a/src/string_piece.c
 +++ b/src/string_piece.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else
@@ -69,11 +73,12 @@ diff --git a/src/string_piece.c b/src/string_piece.c
 diff --git a/src/utf8.c b/src/utf8.c
 --- a/src/utf8.c
 +++ b/src/utf8.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdint.h>
  #include <string.h>
 -#include <strings.h>  // For strncasecmp.
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
 +#include <strings.h>
 +#else
@@ -87,10 +92,11 @@ diff --git a/src/utf8.c b/src/utf8.c
 diff --git a/src/util.c b/src/util.c
 --- a/src/util.c
 +++ b/src/util.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else
@@ -104,10 +110,11 @@ diff --git a/src/util.c b/src/util.c
 diff --git a/src/vector.c b/src/vector.c
 --- a/src/vector.c
 +++ b/src/vector.c
-@@ -19,7 +19,13 @@
+@@ -19,7 +19,14 @@
  #include <assert.h>
  #include <stdlib.h>
  #include <string.h>
++/* Modified by AriaRead: MSVC string-comparison compatibility. */
 +#ifndef _MSC_VER
  #include <strings.h>
 +#else

@@ -61,6 +61,7 @@ std::string url_decode(std::string_view input) {
         const char c = input[i];
         if (c == '+') {
             out.push_back(' ');
+            continue;
         } else if (c == '%' && i + 2 < input.size()) {
             const auto hex = [](char digit) -> int {
                 if (digit >= '0' && digit <= '9') return digit - '0';
