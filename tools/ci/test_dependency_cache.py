@@ -2,6 +2,7 @@
 """Offline regressions for dependency identity, rollback and source protection."""
 import io
 import json
+import os
 import sys
 import tarfile
 import subprocess
@@ -148,7 +149,13 @@ class SourceTests(unittest.TestCase):
         data = b'locked archive'
         dep = self.dep(data)
         (self.root / dep.sha256).write_bytes(data)
-        archive = builder.download(self.root, dep, True)
+        # Imported helpers may use a Windows redirected console, unlike main()
+        # which explicitly configures UTF-8. Progress must work in that case.
+        output = io.BytesIO()
+        with io.TextIOWrapper(output, encoding='cp1252') as console, patch.object(builder.sys, 'stdout', console):
+            archive = builder.download(self.root, dep, True)
+            console.flush()
+            self.assertIn(b'Reusing verified archive', output.getvalue())
         self.assertEqual(archive.read_bytes(), data)
 
     def test_changed_hash_cannot_reuse_same_archive_basename(self):
@@ -181,6 +188,37 @@ class SourceTests(unittest.TestCase):
         self.assertFalse(builder.artifact_present(self.root, 'lib/libz.a'))
         (lib / 'zlibstatic.lib').write_text('correct static spelling')
         self.assertTrue(builder.artifact_present(self.root, 'lib/libz.a'))
+
+    def test_windows_zlib_static_names_preserve_exports_and_support_findzlib(self):
+        for original, compatible in [('zs.lib', 'zlibstatic.lib'), ('libzs.a', 'libz.a')]:
+            with self.subTest(original=original):
+                prefix = self.root / original
+                (prefix / 'lib').mkdir(parents=True)
+                (prefix / 'lib' / original).write_bytes(b'compiled static library')
+                builder.normalize_zlib_static(prefix)
+                self.assertEqual((prefix / 'lib' / original).read_bytes(), b'compiled static library')
+                self.assertEqual((prefix / 'lib' / compatible).read_bytes(), b'compiled static library')
+                self.assertTrue(builder.artifact_present(prefix, 'lib/libz.a'))
+                if cache.shutil.which('cmake'):
+                    (prefix / 'include').mkdir()
+                    (prefix / 'include/zlib.h').write_text('#define ZLIB_VERSION "1.3.2"\n')
+                    script = prefix / 'CMakeLists.txt'
+                    script.write_text('cmake_minimum_required(VERSION 3.20)\n'
+                                      'set(CMAKE_SYSTEM_NAME Windows)\nproject(FindZlibFixture NONE)\n'
+                                      'set(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")\n'
+                                      'set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")\n'
+                                      f'set(ZLIB_ROOT "{prefix.as_posix()}")\n'
+                                      'set(ZLIB_USE_STATIC_LIBS ON)\nfind_package(ZLIB REQUIRED)\n'
+                                      f'if(NOT ZLIB_LIBRARY_RELEASE STREQUAL "{(prefix / "lib" / compatible).as_posix()}")\n'
+                                      'message(FATAL_ERROR "FindZLIB selected another library: ${ZLIB_LIBRARY_RELEASE}")\nendif()\n')
+                    found = subprocess.run(['cmake', '-S', str(prefix), '-B', str(prefix / 'build')], encoding='utf-8', errors='replace',
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                    self.assertEqual(found.returncode, 0, found.stdout)
+                builder.normalize_zlib_static(prefix)
+                (prefix / 'lib' / compatible).write_bytes(b'local modification')
+                with self.assertRaisesRegex(ValueError, 'Conflicting zlib'):
+                    builder.normalize_zlib_static(prefix)
+                self.assertEqual((prefix / 'lib' / compatible).read_bytes(), b'local modification')
 
     def test_corrupt_content_cache_is_rejected_and_preserved(self):
         dep = self.dep(b'original')
@@ -292,6 +330,19 @@ class SourceTests(unittest.TestCase):
 
 
 class BuilderIntegrationTests(unittest.TestCase):
+    def test_cli_and_resolver_emit_utf8_with_legacy_parent_encoding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            missing = root / '\u4f9d\u8d56-missing.json'
+            result = subprocess.run([sys.executable, str(Path(builder.__file__)),
+                '--path', str(root / 'work'), '--file', str(missing), '--offline'],
+                env={**os.environ, 'PYTHONIOENCODING': 'cp1252'}, encoding='utf-8',
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(missing.name, result.stdout)
+            self.assertNotIn('UnicodeEncodeError', result.stdout)
+            self.assertNotIn('UnicodeDecodeError', result.stdout)
+
     def test_real_offline_install_upgrade_and_failed_upgrade(self):
         if not cache.shutil.which('cmake'):
             self.skipTest('CMake unavailable')
@@ -334,7 +385,7 @@ class BuilderIntegrationTests(unittest.TestCase):
             def invoke(*extra):
                 return subprocess.run([sys.executable, str(Path(builder.__file__)),
                     '--path', str(work), '--file', str(file),
-                    '--only', 'json', '--offline', '--jobs', '1', *extra], text=True,
+                    '--only', 'json', '--offline', '--jobs', '1', *extra], text=True, encoding='utf-8', errors='replace',
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
             archive('1.0')

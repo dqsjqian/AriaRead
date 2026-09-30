@@ -325,14 +325,14 @@ def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
             raise ValueError(f"缓存路径不是普通文件：{archive}")
         if expected and sha256(archive) != expected:
             raise ValueError(f"缓存 SHA256 校验失败，未覆盖文件：{archive}")
-        print(f"复用已校验缓存：{archive.name}", flush=True)
+        print(f"Reusing verified archive: {archive.name}", flush=True)
         return archive
     if offline:
         raise ValueError(f"离线缓存缺失：{archive}")
 
     request = urllib.request.Request(dependency.url,
                                      headers={"User-Agent": "ariaread-deps"})
-    print(f"下载：{dependency.url}\n期望 SHA256：{expected or '(未固定，稍后打印实测值)'}",
+    print(f"Downloading: {dependency.url}\nExpected SHA256: {expected or '(not pinned)'}",
           flush=True)
     # 下载中断或校验失败只删除本次临时文件，不覆盖已有归档。
     with tempfile.TemporaryDirectory(prefix="download-", dir=cache) as temporary:
@@ -348,7 +348,7 @@ def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
         if expected and actual != expected:
             raise ValueError(f"下载 SHA256 校验失败：{dependency.url}\n实测：{actual}")
         if not expected:
-            print(f"未固定哈希，实测 SHA256：{actual}", flush=True)
+            print(f"Downloaded SHA256: {actual}", flush=True)
         candidate.replace(archive)
     return archive
 
@@ -579,6 +579,23 @@ def artifact_present(prefix: Path, artifact: str) -> bool:
     return any(entry.is_file() and entry.name.lower() in names for entry in candidate.parent.iterdir())
 
 
+def normalize_zlib_static(prefix: Path) -> None:
+    """Keep zlib's exports intact and supply names understood by FindZLIB.
+
+    zlib 1.3.2 names Windows static libraries zs.lib/libzs.a. Older CMake
+    FindZLIB modules do not search these names, so retain the original export
+    location and add a byte-identical static-library compatibility name.
+    """
+    for original, compatible in [('zs.lib', 'zlibstatic.lib'), ('libzs.a', 'libz.a')]:
+        source, target = prefix / 'lib' / original, prefix / 'lib' / compatible
+        if source.is_file():
+            if target.exists() or target.is_symlink():
+                if target.is_symlink() or not target.is_file() or sha256(source) != sha256(target):
+                    raise ValueError(f'Conflicting zlib static library preserved: {target}')
+            else:
+                shutil.copy2(source, target)
+
+
 def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
     """Cache a clean checkout by immutable revision; never overwrite edited sources."""
     target = work / "git" / dependency.name / dependency.revision
@@ -670,7 +687,7 @@ def recipe_digest(dependencies):
     functions = (run, download, fetch_git, extract, apply_patch, prepare_source,
                  copy_licenses, windows_toolchain, build_cmake, build_openssl,
                  artifact_present, build_environment, cmake_arguments, install_component,
-                 dependency_selection, cache_state.compiler, cache_state.build_context)
+                 dependency_selection, normalize_zlib_static, cache_state.compiler, cache_state.build_context)
     return cache_state.fingerprint({'recipes': [asdict(dep) for dep in dependencies],
                                     'patches': patches,
                                     'pipeline': {fn.__name__: inspect.getsource(fn)
@@ -756,6 +773,7 @@ def install_component(dep, available, run_root, prefix, jobs, common):
         build_cmake(source, holder / 'build', prefix, jobs, dep, common)
     licenses = copy_licenses(prefix, source, dep)
     if dep.name == 'zlib' and sys.platform == 'win32':
+        normalize_zlib_static(prefix)
         for junk in ('lib/zlib.lib', 'lib/zlib.dll', 'lib/zlib1.dll',
                      'lib/libzlib.dll.a', 'bin/zlib.dll', 'bin/zlib1.dll', 'bin/libzlib.dll'):
             (prefix / junk).unlink(missing_ok=True)
@@ -768,6 +786,9 @@ def install_component(dep, available, run_root, prefix, jobs, common):
 
 
 def main():
+    # Keep Python child processes (including the resolver) on the same protocol
+    # when output is redirected by CMake, CI, or a parent process on Windows.
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding='utf-8', errors='replace')
