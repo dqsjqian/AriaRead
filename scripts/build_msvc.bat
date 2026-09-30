@@ -1,6 +1,6 @@
 @echo off
 rem Build AriaRead web server with the local MSVC toolchain (self-contained).
-rem vcvarsall.bat is NOT used: it calls reg.exe which is blocked by sandbox.
+rem Avoid vcvarsall.bat for restricted environments that block reg.exe.
 rem Ninja generator is used instead of "Visual Studio 18 2026": MSBuild throws
 rem MSB6001 (duplicate "Path"/"PATH" env keys injected by the host shell chain).
 rem Environment is assembled manually below (equivalent to vcvarsall x64).
@@ -9,20 +9,31 @@ rem path is only a fallback candidate, never a requirement.
 rem Usage: build_msvc.bat [configure|build|clean]
 setlocal enabledelayedexpansion
 
+rem Repo root = the directory that contains this scripts\ folder.
+set "PROJECT_ROOT=%~dp0.."
+set "BUILD_DIR=%PROJECT_ROOT%\build"
+set "STEP=%1"
+if "%STEP%"=="" set STEP=all
+
+if "%STEP%"=="clean" (
+    if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
+    echo [clean] removed %BUILD_DIR%
+    exit /b 0
+)
+
 rem ---- locate toolchain ----
 set "VSDIR="
 if defined ARIAREAD_VS_ROOT if exist "%ARIAREAD_VS_ROOT%\VC\Tools\MSVC" set "VSDIR=%ARIAREAD_VS_ROOT%"
 if not defined VSDIR if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" (
     for /f "usebackq delims=" %%P in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do if not defined VSDIR set "VSDIR=%%P"
 )
-if not defined VSDIR if exist "C:\DevTools\VS2026\VC\Tools\MSVC" set "VSDIR=C:\DevTools\VS2026"
-if not defined VSDIR if exist "D:\VS2026\VC\Tools\MSVC" set "VSDIR=D:\VS2026"
 if not defined VSDIR if exist "C:\Program Files\Microsoft Visual Studio\VC\Tools\MSVC" set "VSDIR=C:\Program Files\Microsoft Visual Studio"
 if not defined VSDIR if exist "C:\Program Files (x86)\Microsoft Visual Studio\VC\Tools\MSVC" set "VSDIR=C:\Program Files (x86)\Microsoft Visual Studio"
 if "%VSDIR%"=="" (echo [error] Visual Studio installation not found; set ARIAREAD_VS_ROOT & exit /b 1)
 
-set "KITSDIR=D:\Windows Kits\10"
-if not exist "%KITSDIR%" set "KITSDIR=C:\Program Files (x86)\Windows Kits\10"
+set "KITSDIR=%ARIAREAD_WINDOWS_KITS_ROOT%"
+if not defined KITSDIR set "KITSDIR=%WindowsSdkDir%"
+if not defined KITSDIR set "KITSDIR=%ProgramFiles(x86)%\Windows Kits\10"
 if not exist "%KITSDIR%" (echo [error] Windows Kits directory not found & exit /b 1)
 
 rem Highest SDK version directory under Include\ (dir /b sorts by name).
@@ -43,7 +54,7 @@ rem locations, native MSYS2 ucrt64 first.
 set "PERLDIR="
 if defined ARIAREAD_PERL_DIR if exist "%ARIAREAD_PERL_DIR%\perl.exe" set "PERLDIR=%ARIAREAD_PERL_DIR%"
 for %%P in (
-  "C:\DevTools\msys64\ucrt64\bin"
+  "%MSYS2_ROOT%\ucrt64\bin"
   "C:\msys64\ucrt64\bin"
   "C:\Strawberry\perl\bin"
   "%ProgramFiles%\Strawberry\perl\bin"
@@ -59,17 +70,15 @@ set "WindowsSdkDir=%KITSDIR%\"
 set "WindowsSDKVersion=%SDKVER%\"
 set "VCToolsInstallDir=%VCTOOLS%\"
 
-rem Repo root = the directory that contains this scripts\ folder.
-set "PROJECT_ROOT=%~dp0.."
-set "BUILD_DIR=%PROJECT_ROOT%\build"
-set "STEP=%1"
-if "%STEP%"=="" set STEP=all
-
 cd /d "%PROJECT_ROOT%" || exit /b 1
 
 where cl >nul 2>&1 || (echo [error] cl.exe not on PATH & exit /b 1)
 where ninja >nul 2>&1 || (echo [error] ninja.exe not on PATH & exit /b 1)
 echo [env] MSVC %VCTOOLVER% / SDK %SDKVER% / Ninja + cl
+
+rem Validate the pinned Aria checkout on every build; ARIA_SOURCE may select a local source.
+where python >nul 2>&1 || (echo [error] python not on PATH & exit /b 1)
+python tools\ci\fetch_aria.py || exit /b 1
 
 rem Pinned dependency prefix: built once by tools\ci\build_ariaread_deps.py
 rem (downloads + SHA256-verified builds; ~40 min on first run because of
@@ -78,12 +87,6 @@ if not exist "%PROJECT_ROOT%\build\deps\prefix\share\ariaread-deps\manifest.json
     echo [deps] pinned dependency prefix missing - building it now ^(first run only^) ...
     where python >nul 2>&1 || (echo [error] python not on PATH; run: python tools\ci\build_ariaread_deps.py & exit /b 1)
     python tools\ci\build_ariaread_deps.py || exit /b 1
-)
-
-if "%STEP%"=="clean" (
-    if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
-    echo [clean] removed %BUILD_DIR%
-    exit /b 0
 )
 
 rem Always (re)configure: the pinned deps prefix ships Release-only static

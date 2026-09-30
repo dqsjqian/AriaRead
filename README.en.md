@@ -61,6 +61,8 @@ bash scripts/build_web_release.sh
 
 On Windows, use `scripts/build_web_release.ps1` and run `build/bin/ariaread_web_server.exe`; multi-config generators use `build/bin/Release/`. The pinned Windows dependency prefix provides Release libraries only, so the script accepts only `-Config Release`. `ARIAREAD_BUILD_DIR` selects another build directory.
 
+Windows toolchain overrides: `MSYS2_ROOT`, `ARIAREAD_VS_ROOT`, and `ARIAREAD_WINDOWS_KITS_ROOT`. The optional `scripts/build_msvc.bat` entry point uses MSVC and verifies the same pinned Aria checkout.
+
 The project no longer uses a `release/` directory; run and distribute the build output above.
 
 ## Project layout

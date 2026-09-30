@@ -17,7 +17,10 @@ $PROJECT_ROOT = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BUILD_DIR = if ($env:ARIAREAD_BUILD_DIR) { $env:ARIAREAD_BUILD_DIR } else { Join-Path $PROJECT_ROOT "build" }
 
 # Preserve the existing MinGW workflow while also allowing an existing MSVC cache.
-foreach ($candidate in @("C:\DevTools\msys64\ucrt64\bin", "C:\DevTools\msys64\mingw64\bin", "C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin", "D:\msys64\mingw64\bin")) {
+$mingwCandidates = @()
+if ($env:MSYS2_ROOT) { $mingwCandidates += (Join-Path $env:MSYS2_ROOT "ucrt64\bin") }
+$mingwCandidates += @("C:\msys64\ucrt64\bin", "C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin")
+foreach ($candidate in $mingwCandidates) {
     if (Test-Path $candidate -PathType Container) {
         $env:PATH = "$candidate;$env:PATH"
         break
@@ -32,18 +35,20 @@ if (-not $clOnPath) {
     # vswhere first: it finds the VS installation root wherever it is
     # installed; the hardcoded paths below are only fallback candidates.
     $vsRoots = @()
+    if ($env:ARIAREAD_VS_ROOT) { $vsRoots += $env:ARIAREAD_VS_ROOT }
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
         $detected = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null | Select-Object -First 1
         if ($detected) { $vsRoots += $detected }
     }
-    $vsRoots += @("C:\DevTools\VS2026", "D:\VS2026", "C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")
+    $vsRoots += @("C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")
     foreach ($vsRoot in $vsRoots) {
         if (-not (Test-Path $vsRoot)) { continue }
         $msvcDir = Get-ChildItem (Join-Path $vsRoot "VC\Tools\MSVC") -Directory -ErrorAction SilentlyContinue |
             Sort-Object Name | Select-Object -Last 1
-        $kitsRoot = "D:\Windows Kits\10"
-        if (-not (Test-Path $kitsRoot)) { $kitsRoot = "C:\Program Files (x86)\Windows Kits\10" }
+        $kitsRoot = if ($env:ARIAREAD_WINDOWS_KITS_ROOT) { $env:ARIAREAD_WINDOWS_KITS_ROOT }
+                    elseif ($env:WindowsSdkDir) { $env:WindowsSdkDir }
+                    else { Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10" }
         $sdkDir = Get-ChildItem (Join-Path $kitsRoot "Include") -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '^\d+\.' } | Sort-Object Name -Descending | Select-Object -First 1
         if (-not $msvcDir -or -not $sdkDir) { continue }
@@ -80,14 +85,12 @@ if (-not $SkipCMake) {
     $cl = Get-Command cl -ErrorAction SilentlyContinue
     if ($cl) {
         & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G Ninja `
-            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=$Config" `
-            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=$Config"
     } else {
         $gcc = (Get-Command gcc -ErrorAction Stop).Source
         $gxx = (Get-Command g++ -ErrorAction Stop).Source
         & cmake -S $PROJECT_ROOT -B $BUILD_DIR -G "MinGW Makefiles" `
-            "-DCMAKE_C_COMPILER=$gcc" "-DCMAKE_CXX_COMPILER=$gxx" "-DCMAKE_BUILD_TYPE=$Config" `
-            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
+            "-DCMAKE_C_COMPILER=$gcc" "-DCMAKE_CXX_COMPILER=$gxx" "-DCMAKE_BUILD_TYPE=$Config"
     }
     if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
     $buildArgs = @("--build", $BUILD_DIR, "--config", $Config, "--target", "ariaread_web_server")

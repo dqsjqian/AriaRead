@@ -40,8 +40,7 @@ if [ "$SKIP_CMAKE" = false ]; then
         python3 "$PROJECT_ROOT/tools/ci/build_ariaread_deps.py"
     fi
     if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
-        cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG" \
-            -DARIAREAD_ENFORCE_SELF_CONTAINED=ON -DARIAREAD_USE_SYSTEM_CURL=OFF
+        cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG"
     fi
     BUILD_ARGS=(--build "$BUILD_DIR" --config "$CONFIG" --target ariaread_web_server)
     if [ "$CLEAN_BUILD" = true ]; then BUILD_ARGS+=(--clean-first); fi
