@@ -50,6 +50,10 @@ def compiler(command):
     executable = shutil.which(parts[0]) if parts else None
     if not executable:
         raise ValueError(f'Compiler is unavailable: {command}')
+    # MSVC /Bv includes the compiler-pass paths in its output. Invoke the
+    # canonical executable so PATH lookup and CMake's absolute spelling produce
+    # the same banner without dropping any compiler-version information.
+    executable = str(Path(executable).resolve())
     argument = '/Bv' if Path(executable).stem.lower() == 'cl' else '--version'
     result = subprocess.run([executable, *parts[1:], argument], text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -68,6 +72,22 @@ def same_compiler(recorded, actual):
         value['version'] = banner[1] if len(banner) == 2 else banner[0]
         return value
     return identity(recorded) == identity(actual)
+
+
+def verify_location(context, prefix):
+    # Native Windows and MSYS Python can spell the same directory and CPU
+    # differently; these are host identities, not the target compiler flags.
+    aliases = {'amd64': 'x86_64', 'x64': 'x86_64', 'aarch64': 'arm64'}
+    def architecture(machine):
+        return aliases.get(machine.lower(), machine.lower())
+    actual = {'prefix': str(prefix.resolve()), 'platform': platform.system(),
+              'machine': platform.machine()}
+    if (Path(context['prefix']).resolve() != prefix.resolve()
+            or context['platform'].lower() != actual['platform'].lower()
+            or architecture(context['machine']) != architecture(actual['machine'])):
+        recorded = {name: context[name] for name in actual}
+        raise ValueError(f'Dependency prefix location/platform changed; rebuild required; '
+                         f'recorded={recorded!r}, actual={actual!r}')
 
 
 def build_context(prefix, c=None, cxx=None):

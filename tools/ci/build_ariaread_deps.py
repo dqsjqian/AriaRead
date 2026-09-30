@@ -724,13 +724,14 @@ def verify_prefix(prefix, resolution, dependencies, selected, c=None, cxx=None, 
         raise ValueError('Dependency prefix is incomplete: run tools/ci/build_ariaread_deps.py')
     context = state['context']
     cache_state.verify_environment(context, toolchain)
-    if context['prefix'] != str(prefix) or context['platform'] != cache_state.platform.system() or context['machine'] != cache_state.platform.machine():
-        raise ValueError('Dependency prefix location/platform changed; rebuild required')
+    cache_state.verify_location(context, prefix)
     for name, command in [('c', c), ('cxx', cxx)]:
         if command:
-            if cache_state.same_compiler(context[name], cache_state.compiler(command)):
+            actual = cache_state.compiler(command)
+            if cache_state.same_compiler(context[name], actual):
                 continue
-            raise ValueError(f'Dependency {name} compiler differs from project compiler; rebuild required')
+            raise ValueError(f'Dependency {name} compiler differs from project compiler; rebuild required; '
+                             f'recorded={context[name]!r}, actual={actual!r}')
     return state
 
 

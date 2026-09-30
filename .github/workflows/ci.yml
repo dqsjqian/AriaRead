@@ -96,6 +96,7 @@ jobs:
             build/ci-vs2026/CMakeCache.txt
             build/ci-vs2026/CMakeFiles/CMakeConfigureLog.yaml
             build/ci-vs2026/Testing/Temporary/
+            build/deps/prefix/share/ariaread-deps/manifest.json
           if-no-files-found: ignore
 
   windows:
@@ -152,6 +153,7 @@ jobs:
             build/ci-win/CMakeCache.txt
             build/ci-win/CMakeFiles/CMakeConfigureLog.yaml
             build/ci-win/Testing/Temporary/
+            build/deps/prefix/share/ariaread-deps/manifest.json
           if-no-files-found: ignore
 
   build-and-test:

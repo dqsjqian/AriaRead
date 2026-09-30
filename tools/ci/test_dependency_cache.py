@@ -322,8 +322,28 @@ class SourceTests(unittest.TestCase):
         with patch.object(cache.shutil, 'which', return_value=str(executable)), \
                 patch.object(cache.subprocess, 'run', return_value=result) as run:
             record = cache.compiler(str(executable))
-        self.assertEqual(run.call_args.args[0], [str(executable), '--version'])
+        self.assertEqual(run.call_args.args[0], [str(executable.resolve()), '--version'])
         self.assertEqual(record['path'], str(executable.resolve()))
+
+    def test_native_windows_and_msys_host_spellings_are_equivalent(self):
+        context = {'prefix': self.root.as_posix(), 'platform': 'Windows', 'machine': 'AMD64'}
+        with patch.object(cache.platform, 'system', return_value='Windows'), \
+                patch.object(cache.platform, 'machine', return_value='x86_64'):
+            cache.verify_location(context, self.root)
+            with self.assertRaisesRegex(ValueError, 'location/platform changed'):
+                cache.verify_location(context, self.root / 'another-prefix')
+            with self.assertRaisesRegex(ValueError, 'location/platform changed'):
+                cache.verify_location({**context, 'machine': 'x86'}, self.root)
+
+    def test_native_msvc_path_alias_and_utf8_flag_preserve_identity(self):
+        if os.name != 'nt' or not cache.shutil.which('cl'):
+            self.skipTest('Requires native Windows MSVC')
+        executable = Path(cache.shutil.which('cl')).resolve()
+        with patch.dict(os.environ, {'CL': (os.environ.get('CL', '') + ' /utf-8').strip()}):
+            recorded = cache.compiler('cl')
+        actual = cache.compiler(executable.as_posix())
+        self.assertTrue(cache.same_compiler(recorded, actual),
+                        f'recorded={recorded!r}, actual={actual!r}')
 
     def test_compiler_and_patch_changes_alter_identity(self):
         baseline = {'lock': 'same', 'compiler': 'A', 'patch': 'one'}
