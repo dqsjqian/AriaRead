@@ -1,5 +1,7 @@
 """Local-only safety regressions for the shared downstream Aria fetcher."""
 import importlib.util
+import json
+import shutil
 import os
 from pathlib import Path
 import subprocess
@@ -7,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-FETCH_SCRIPT = Path(__file__).with_name('fetch_aria.py')
+TEMPLATE = Path(__file__).with_name("fetch_aria.py")
 
 
 def git(*args):
@@ -36,13 +38,23 @@ class FetchTemplateTests(unittest.TestCase):
         self.downstream = self.root / 'downstream'
         script = self.downstream / 'tools' / 'ci' / 'fetch_aria.py'
         script.parent.mkdir(parents=True)
-        script.write_text(FETCH_SCRIPT.read_text())
+        script.write_text(TEMPLATE.read_text())
+        shutil.copyfile(TEMPLATE.with_name("dependencies.py"), script.with_name("dependencies.py"))
         spec = importlib.util.spec_from_file_location('aria_fetch_fixture', script)
         self.module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.module)
-        self.module.ARIA_SHA = self.second
+        self.select(self.second)
         self.dest = self.module.DEST
         self.dest.parent.mkdir(parents=True)
+
+    def select(self, revision, version="1.0.0"):
+        source = {"provider": "github", "repo": "dqsjqian/Aria", "artifact": "git", "tag_prefix": "v"}
+        self.lock = self.downstream / "dependencies.json"
+        import dependencies
+        self.lock.write_text(json.dumps({"schema": 2, "dependencies": {"aria": {**source, "resolved": {
+            "request_hash": dependencies.request_hash(source), "requested": "latest", "version": version,
+            "tag": "v" + version, "revision": revision, "url": "https://github.com/dqsjqian/Aria.git", "sha256": ""
+        }}}}))
 
     def checkout_first(self):
         git('clone', '--no-hardlinks', self.source, self.dest)
@@ -55,6 +67,18 @@ class FetchTemplateTests(unittest.TestCase):
     def assert_no_transaction_artifacts(self):
         self.assertFalse((self.dest.parent / '.aria-fetch.lock').exists())
         self.assertEqual(list(self.dest.parent.glob('.aria-fetch-*')), [])
+
+    def test_environment_selects_local_source(self):
+        with mock.patch.dict(os.environ, {'ARIA_SOURCE': str(self.source)}):
+            self.assertEqual(self.module.main([]), 0)
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.second)
+        self.assert_no_transaction_artifacts()
+
+    def test_explicit_source_overrides_environment(self):
+        with mock.patch.dict(os.environ, {'ARIA_SOURCE': str(self.root / 'missing')}):
+            self.assertEqual(self.run_fetch(), 0)
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.second)
+        self.assert_no_transaction_artifacts()
 
     def test_forged_marker_cannot_bypass_head_validation(self):
         self.checkout_first()
@@ -129,7 +153,7 @@ class FetchTemplateTests(unittest.TestCase):
 
     def test_matching_head_repairs_marker_without_fetching(self):
         self.checkout_first()
-        self.module.ARIA_SHA = self.first
+        self.select(self.first)
         (self.dest / '.pinned-aria-sha').write_text('forged')
         self.assertEqual(self.module.main(['--source', str(self.root / 'missing')]), 0)
         self.assertEqual((self.dest / '.pinned-aria-sha').read_text().strip(), self.first)
@@ -137,23 +161,20 @@ class FetchTemplateTests(unittest.TestCase):
 
     def test_marker_symlink_does_not_overwrite_its_target(self):
         self.checkout_first()
-        self.module.ARIA_SHA = self.first
+        self.select(self.first)
         marker = self.dest / '.pinned-aria-sha'
         marker.unlink()
         valuable = self.root / 'valuable.txt'
         valuable.write_text('do not overwrite')
-        marker.symlink_to(valuable)
+        try:
+            marker.symlink_to(valuable)
+        except OSError as error:
+            self.skipTest(f"Symlink creation unavailable: {error}")
         self.assertEqual(self.run_fetch(), 0)
         self.assertEqual(valuable.read_text(), 'do not overwrite')
         self.assertFalse(marker.is_symlink())
         self.assertEqual(marker.read_text().strip(), self.first)
         self.assertEqual(list(self.dest.glob('.aria-pin-*')), [])
-        self.assert_no_transaction_artifacts()
-
-    def test_source_environment_selects_local_repository(self):
-        with mock.patch.dict(os.environ, {"ARIA_SOURCE": str(self.source)}):
-            self.assertEqual(self.module.main([]), 0)
-        self.assertEqual(git("-C", self.dest, "rev-parse", "HEAD"), self.second)
         self.assert_no_transaction_artifacts()
 
     def test_failed_install_restores_original_checkout(self):
@@ -169,6 +190,51 @@ class FetchTemplateTests(unittest.TestCase):
         self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.first)
         self.assertEqual((self.dest / 'framework.txt').read_text(), 'first\n')
         self.assertEqual(list(self.dest.parent.glob('aria-backup-*')), [])
+        self.assert_no_transaction_artifacts()
+
+    def test_lock_write_failure_rolls_back_checkout_and_lock(self):
+        self.checkout_first()
+        original_lock = self.lock.read_bytes()
+        with mock.patch.object(self.module, "atomic_json", side_effect=OSError("lock write failure")):
+            with self.assertRaisesRegex(OSError, "lock write failure"):
+                self.run_fetch()
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.first)
+        self.assertEqual(self.lock.read_bytes(), original_lock)
+        self.assert_no_transaction_artifacts()
+
+    def test_explicit_version_reuses_matching_lock_offline(self):
+        self.select(self.second, "2.0.0")
+        self.assertEqual(self.module.main(['--source', str(self.source), '--version', '2.0.0', '--offline']), 0)
+        selected = json.loads(self.lock.read_text())["dependencies"]["aria"]["resolved"]
+        self.assertEqual(selected["requested"], "2.0.0")
+        # A later ordinary build must keep this selection, without a new query.
+        self.assertEqual(self.module.main(['--offline']), 0)
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.second)
+
+    def test_unresolved_version_offline_preserves_both_checkout_and_lock(self):
+        self.checkout_first()
+        before = self.lock.read_bytes()
+        with self.assertRaisesRegex(ValueError, 'matching resolved'):
+            self.module.main(['--version', '99.0.0', '--offline'])
+        self.assertEqual(self.lock.read_bytes(), before)
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.first)
+        self.assert_no_transaction_artifacts()
+
+    def test_update_fetch_failure_keeps_previous_lock(self):
+        self.checkout_first()
+        before = self.lock.read_bytes()
+        real_resolve = self.module.resolve
+        def newer_resolution(manifest, lock, **kwargs):
+            kwargs['update'] = False
+            selection = real_resolve(manifest, lock, **kwargs)
+            selection['dependencies']['aria']['revision'] = 'f' * 40
+            selection['dependencies']['aria']['version'] = '9.0.0'
+            return selection
+        with mock.patch.object(self.module, 'resolve', side_effect=newer_resolution):
+            with self.assertRaisesRegex(RuntimeError, 'failed'):
+                self.module.main(['--source', str(self.source), '--update'])
+        self.assertEqual(self.lock.read_bytes(), before)
+        self.assertEqual(git('-C', self.dest, 'rev-parse', 'HEAD'), self.first)
         self.assert_no_transaction_artifacts()
 
 

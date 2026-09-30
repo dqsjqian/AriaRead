@@ -14,6 +14,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-contracts:
+    name: Dependency contracts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Verify selection, rollback and cache contracts
+        run: python -m unittest discover -s tools/ci -p 'test_*.py'
+
   vs2026:
     name: Build and regressions (VS2026 MSVC)
     runs-on: windows-2025-vs2026
@@ -34,20 +48,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      # Aria（兄弟框架）不走 submodule：固定 SHA 取到 build/deps/aria。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Aria 不走 submodule：按锁中的完整提交取到 build/deps/aria。
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py
-      # 依赖的唯一来源：固定版本 + SHA256，由脚本显式构建到 build/deps/prefix。
-      # Mira 仓库目前是私有的，抓取需要能读它的 token（仓库 secret）。
+      # 依赖按提交的锁与 SHA256 显式构建到 build/deps/prefix。
+      # GitHub token 用于发布元数据 API 的认证访问与限流配额。
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python tools/ci/build_ariaread_deps.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Configure tests
         run: |
-          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON
+          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build engine, ViewModels and Web server
         run: |
@@ -106,14 +123,14 @@ jobs:
             mingw-w64-ucrt-x86_64-nodejs
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python tools/ci/build_ariaread_deps.py
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py
       - name: Configure tests
         run: |
           cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON
+            -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
       - name: Build engine, ViewModels and Web server
         run: cmake --build build/ci-win --parallel 3
       - name: Dump test-binary DLL dependencies on failure
@@ -179,14 +196,14 @@ jobs:
 
       - name: Build pinned dependencies
         env:
-          GITHUB_TOKEN: ${{ secrets.MIRA_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 tools/ci/build_ariaread_deps.py
       - name: Configure tests
         run: |
           cmake -S . -B build/ci -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DARIAREAD_BUILD_TESTS=ON \
-            -DARIAREAD_BUILD_WEB_TESTS=ON
+            -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
 
       - name: Build engine, ViewModels and Web server
         run: cmake --build build/ci --parallel 3

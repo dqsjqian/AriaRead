@@ -1,0 +1,180 @@
+{
+  "dependencies": {
+    "Mira": {
+      "artifact": "git",
+      "provider": "github",
+      "repo": "dqsjqian/Mira",
+      "resolved": {
+        "request_hash": "c3cedb9c8f1e082d0e43c45619a796a44b77bd4c8a09a40d8451f57146d73f97",
+        "requested": "latest",
+        "revision": "4fe72621c9f5b904aae2ac49bb61fd581ff046f9",
+        "sha256": "",
+        "tag": "v0.4.0",
+        "url": "https://github.com/dqsjqian/Mira.git",
+        "version": "0.4.0"
+      },
+      "tag_prefix": "v"
+    },
+    "aria": {
+      "artifact": "git",
+      "provider": "github",
+      "repo": "dqsjqian/Aria",
+      "resolved": {
+        "request_hash": "2c6620ad60a1854f8c761cdfd7caebc063116d49a2d34f36c920a1a617d014ce",
+        "requested": "latest",
+        "revision": "c39ad3f21c706b36e1480f325838381423495fcf",
+        "sha256": "",
+        "tag": "v3.0.1",
+        "url": "https://github.com/dqsjqian/Aria.git",
+        "version": "3.0.1"
+      },
+      "tag_prefix": "v"
+    },
+    "curl": {
+      "artifact": "release-asset",
+      "asset": "curl-{version}.tar.xz",
+      "provider": "github",
+      "repo": "curl/curl",
+      "resolved": {
+        "checksum_source": "github-release-asset",
+        "request_hash": "2916fec52b301491f87f7ef40d5f92a36e6bc84d674958263c22b0fd9a91c424",
+        "requested": "latest",
+        "revision": "01346829096c61b372692f6dc43ffa778c6caccd",
+        "sha256": "f7ef3ae8a22e521f289803fe93543eb64c329b58aa73a9e224dfd915a2a5f4f7",
+        "tag": "curl-8_22_0",
+        "url": "https://github.com/curl/curl/releases/download/curl-8_22_0/curl-8.22.0.tar.xz",
+        "version": "8.22.0"
+      },
+      "tag_prefix": "curl-",
+      "tag_separator": "_"
+    },
+    "doctest": {
+      "artifact": "archive",
+      "provider": "github",
+      "repo": "doctest/doctest",
+      "resolved": {
+        "checksum_source": "downloaded-over-https",
+        "request_hash": "a2098fc768774c14784cff1345b833d98026f45b5363bceddde34e7c6a8246f9",
+        "requested": "latest",
+        "revision": "2d0a9359a60c51affe2a9bebb1be1dca47868151",
+        "sha256": "e64542c4ea68e9f381ccf6eae924cfdd652567c87c142d76fe92644fb4608149",
+        "tag": "v2.5.3",
+        "url": "https://codeload.github.com/doctest/doctest/tar.gz/2d0a9359a60c51affe2a9bebb1be1dca47868151",
+        "version": "2.5.3"
+      },
+      "tag_prefix": "v"
+    },
+    "gumbo": {
+      "artifact": "archive",
+      "provider": "github",
+      "repo": "google/gumbo-parser",
+      "resolved": {
+        "checksum_source": "downloaded-over-https",
+        "request_hash": "9812cbe0ea84a8855e1bec3076677cfa8a79ad7c1098e8e7e2ae57a3f3c0b75c",
+        "requested": "latest",
+        "revision": "3973c58d759574f2899528d2b3379e17d66dbcad",
+        "sha256": "d59c38981d2000f25a3a865bb8e1b02b52aee263d8bc04660f436026d2b9aef9",
+        "tag": "v0.10.1",
+        "url": "https://codeload.github.com/google/gumbo-parser/tar.gz/3973c58d759574f2899528d2b3379e17d66dbcad",
+        "version": "0.10.1"
+      },
+      "tag_prefix": "v"
+    },
+    "json": {
+      "artifact": "release-asset",
+      "asset": "json.tar.xz",
+      "provider": "github",
+      "repo": "nlohmann/json",
+      "resolved": {
+        "checksum_source": "downloaded-over-https",
+        "request_hash": "baa350ef77c98d8ffe6b2094634ff0fb558dc6c28441274545b8b70ff7d6580d",
+        "requested": "latest",
+        "revision": "55f93686c01528224f448c19128836e7df245f72",
+        "sha256": "42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa",
+        "tag": "v3.12.0",
+        "url": "https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz",
+        "version": "3.12.0"
+      },
+      "tag_prefix": "v"
+    },
+    "openssl": {
+      "artifact": "release-asset",
+      "asset": "openssl-{version}.tar.gz",
+      "provider": "github",
+      "repo": "openssl/openssl",
+      "resolved": {
+        "checksum_source": "github-release-asset",
+        "request_hash": "35cb93240a2dfd4b632de747bd697f985ca353abe5f5826a136bb10c9651e6c8",
+        "requested": "latest",
+        "revision": "af1775b60dfa141a4ad762585052cabeb9f37e9e",
+        "sha256": "325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9",
+        "tag": "openssl-4.0.3",
+        "url": "https://github.com/openssl/openssl/releases/download/openssl-4.0.3/openssl-4.0.3.tar.gz",
+        "version": "4.0.3"
+      },
+      "tag_prefix": "openssl-"
+    },
+    "quickjs": {
+      "artifact": "archive",
+      "provider": "quickjs",
+      "resolved": {
+        "checksum_source": "SHA256 computed from official bellard.org release archive",
+        "request_hash": "c18d8e5d12ff0572974319228a1baf7fb696bcba8678e569e91e7d7ca651997b",
+        "requested": "latest",
+        "revision": "",
+        "sha256": "b376e839b322978313d929fd20663b11ba58b75df5a46c126dd19ea2fa70ad2a",
+        "tag": "2026-06-04",
+        "url": "https://bellard.org/quickjs/quickjs-2026-06-04.tar.xz",
+        "version": "2026-06-04"
+      }
+    },
+    "sqlite3": {
+      "artifact": "archive",
+      "provider": "sqlite",
+      "resolved": {
+        "checksum_source": "sqlite.org download product CSV; SHA3-256 verified",
+        "request_hash": "6475282e97606e5b28123ec6fd3a0fb7b57a20dd41826a94f748678a8bbb6d67",
+        "requested": "latest",
+        "revision": "",
+        "sha256": "1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d",
+        "tag": "3.53.4",
+        "url": "https://www.sqlite.org/2026/sqlite-amalgamation-3530400.zip",
+        "version": "3.53.4"
+      }
+    },
+    "sqlite_modern_cpp": {
+      "artifact": "archive",
+      "provider": "github",
+      "repo": "aminroosta/sqlite_modern_cpp",
+      "resolved": {
+        "checksum_source": "downloaded-over-https",
+        "request_hash": "34acba9916f4cf9748a3c22f649133ca1ac427d62e97aa22604f369ce1358bc0",
+        "requested": "latest",
+        "revision": "56af65d2c5085dd34a2c1a4ad20cf8b93ad1024f",
+        "sha256": "022c3ac024725149308a76f51a17074aa4e25311700d3e591b271479c8f60548",
+        "tag": "v3.2",
+        "url": "https://codeload.github.com/aminroosta/sqlite_modern_cpp/tar.gz/56af65d2c5085dd34a2c1a4ad20cf8b93ad1024f",
+        "version": "3.2"
+      },
+      "tag_prefix": "v"
+    },
+    "zlib": {
+      "artifact": "release-asset",
+      "asset": "zlib-{version}.tar.gz",
+      "provider": "github",
+      "repo": "madler/zlib",
+      "resolved": {
+        "checksum_source": "github-release-asset",
+        "request_hash": "55b199cf63a3e2189591d866d6bad81acea5a317958d979e76c89a406da3e0c9",
+        "requested": "latest",
+        "revision": "da607da739fa6047df13e66a2af6b8bec7c2a498",
+        "sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+        "tag": "v1.3.2",
+        "url": "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz",
+        "version": "1.3.2"
+      },
+      "tag_prefix": "v"
+    }
+  },
+  "schema": 2
+}

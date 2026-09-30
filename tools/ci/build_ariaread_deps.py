@@ -1,36 +1,19 @@
 #!/usr/bin/env python3
-"""显式构建 AriaRead 的固定版本第三方依赖；不由项目 CMake 自动调用。
+"""Resolve, lock and explicitly build AriaRead's third-party dependencies.
 
-设计原则与 Mira 的 tools/ci/build_protocol_deps.py 一致：
-
-  * **固定版本 + SHA256**：每个依赖锁定到一份官方发行归档，下载前后都校验
-    哈希；哈希来自官方 release asset 摘要或本机实测（见 MANIFEST 注释）。
-  * **许可证留档**：每份归档的许可证原文复制到 <prefix>/share/licenses/<名>/，
-    并在 <prefix>/share/ariaread-deps/manifest.json 里记录来源与哈希，
-    便于供应链审计。
-  * **只写仓库 build 目录**：默认输出 <repo>/build/deps，绝不安装到系统目录。
-  * **不由 CMake 触发**：配置前显式跑一次；CMake 侧只 find_package，不联网。
-
-支持 Linux/macOS/Windows、Python 3.9+（仅标准库）、CMake 与 C/C++ 工具链；
-OpenSSL 另需 perl 与 make（Windows 上为 nmake）。Windows 分支按 MSVC 编写，
-由 AriaRead 的 Windows CI 验证，本机只验证过 macOS。
-
-这是依赖的**唯一来源**：CMake 侧不再有 vendored third_party 回退，
-没有前缀就配置失败并提示先跑本脚本。
-
-用法：
-    python3 tools/ci/build_ariaread_deps.py                 # 全部依赖
-    python3 tools/ci/build_ariaread_deps.py --only zlib,json
-    python3 tools/ci/build_ariaread_deps.py --offline       # 只用已缓存归档
-之后配置项目：
-    cmake -S . -B build -DCMAKE_PREFIX_PATH=$PWD/build/deps/prefix
+Normal runs reuse resolved entries in dependencies.json. Missing entries select the latest stable
+release; --version name=version selects an explicit release, --update refreshes
+latest entries, and --offline requires exact locked sources in the cache.
+Verified installations are reused only with identical sources, recipes, toolchain
+and installed contents. Replacements preserve the old prefix and roll back on
+failure. CMake only verifies the prefix and never downloads dependencies.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
+import inspect
 import os
 import shlex
 import shutil
@@ -41,18 +24,14 @@ import tempfile
 import urllib.error
 import urllib.request
 import zipfile
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
+
+import dependency_cache as cache_state
+import dependencies as dependency_resolver
 
 REPO = Path(__file__).resolve().parents[2]
 PATCHES = Path(__file__).resolve().parent / "patches"
-MIRA_REPO = "dqsjqian/Mira"
-# 固定到 v0.4.0 这个 tag 指向的 commit。不用 release asset 的字节哈希：
-# 实测 GitHub 对同一 asset 两次下载给出的字节不同（263172 → 248968），哈希
-# 钉不住。改用 git 按 commit SHA 校验——标签可以被挪动，commit 不能。
-MIRA_TAG = "v0.4.0"
-MIRA_REF = "4fe72621c9f5b904aae2ac49bb61fd581ff046f9"
 
 
 @dataclass(frozen=True)
@@ -85,7 +64,8 @@ class Dependency:
     #: 构建前复制到源码树的额外文件（tools/ci/patches 下 → 源码根同名文件）
     extra_files: tuple[str, ...] = ()
     #: 哈希来源说明，写进 manifest
-    hash_note: str = "官方 release asset 摘要（GitHub API digest）"
+    hash_note: str = "SHA256 verified against dependencies.json resolved metadata"
+    revision: str = ""
 
     @property
     def archive_name(self) -> str:
@@ -188,7 +168,7 @@ set_target_properties(quickjs PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON
                                         POSITION_INDEPENDENT_CODE ON)
 # CONFIG_VERSION 上游由 Makefile 传入（quickjs.c 里直接用），CMake 侧必须补上。
 # _GNU_SOURCE：quickjs-libc.c 用到 environ 与 sighandler_t，strict c11 下不可见。
-target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="2026-06-04")
+target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="@QUICKJS_VERSION@")
 if(NOT MSVC)
     target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
 endif()
@@ -215,32 +195,31 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/QuickJSConfig.cmake
 """
 
 
-DEPENDENCIES: tuple[Dependency, ...] = (
+RECIPES: tuple[Dependency, ...] = (
     Dependency(
-        name="zlib", version="1.3.1",
-        url="https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
-        sha256="9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
-        license="Zlib", license_files=("LICENSE",), root="zlib-1.3.1", kind="cmake",
+        name="zlib", version="",
+        url="",
+        sha256="",
+        license="Zlib", license_files=("LICENSE",), root="", kind="cmake",
         # 仅静态：zlib 的 CMake 默认同时产出共享库，Windows 消费端会通过
         # 导入库依赖 zlib1.dll，测试发现与服务器启动都得额外带 DLL。
         options=("-DZLIB_BUILD_SHARED=OFF", "-DZLIB_BUILD_EXAMPLES=OFF",
                  "-DSKIP_INSTALL_FILES=OFF"),
         artifacts=("lib/libz.a", "include/zlib.h"),  # Windows 上是 zlibstatic.lib，见 artifact_present
-        hash_note="本机实测（上游 release 未发布摘要）",
     ),
     Dependency(
-        name="openssl", version="4.0.2",
-        url="https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz",
-        sha256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8",
-        license="Apache-2.0", license_files=("LICENSE.txt",), root="openssl-4.0.2",
+        name="openssl", version="",
+        url="",
+        sha256="",
+        license="Apache-2.0", license_files=("LICENSE.txt",), root="",
         kind="openssl",
         artifacts=("lib/libssl.a", "lib/libcrypto.a", "include/openssl/ssl.h"),
     ),
     Dependency(
-        name="curl", version="8.22.0",
-        url="https://github.com/curl/curl/releases/download/curl-8_22_0/curl-8.22.0.tar.xz",
-        sha256="f7ef3ae8a22e521f289803fe93543eb64c329b58aa73a9e224dfd915a2a5f4f7",
-        license="curl", license_files=("COPYING",), root="curl-8.22.0", kind="cmake",
+        name="curl", version="",
+        url="",
+        sha256="",
+        license="curl", license_files=("COPYING",), root="", kind="cmake",
         uses_libdir=True,
         options=(
             "-DBUILD_CURL_EXE=OFF", "-DBUILD_TESTING=OFF", "-DCURL_DISABLE_INSTALL=OFF",
@@ -253,72 +232,68 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         artifacts=("lib/libcurl.a", "include/curl/curl.h"),
     ),
     Dependency(
-        name="json", version="3.12.0",
-        url="https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz",
-        sha256="42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa",
-        license="MIT", license_files=("LICENSE.MIT",), root="json", kind="cmake",
+        name="json", version="",
+        url="",
+        sha256="",
+        license="MIT", license_files=("LICENSE.MIT",), root="", kind="cmake",
         uses_libdir=True,
         options=("-DJSON_BuildTests=OFF",),
         artifacts=("include/nlohmann/json.hpp",),
-        hash_note="本机实测（上游 release 未发布摘要）",
     ),
     Dependency(
-        name="sqlite3", version="3.53.4",
-        url="https://www.sqlite.org/2026/sqlite-amalgamation-3530400.zip",
-        sha256="1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d",
+        name="sqlite3", version="",
+        url="",
+        sha256="",
         license="blessing（Public Domain）",
-        license_files=(), root="sqlite-amalgamation-3530400", kind="generated",
+        license_files=(), root="", kind="generated",
         cmake_lists=SQLITE_CMAKE,
         artifacts=("lib/libsqlite3.a", "include/sqlite3.h"),
-        hash_note="本机实测（sqlite.org 只发布 SHA3-256）",
     ),
     Dependency(
-        name="gumbo", version="0.10.1",
-        url="https://github.com/google/gumbo-parser/archive/refs/tags/v0.10.1.tar.gz",
-        sha256="28463053d44a5dfbc4b77bcf49c8cee119338ffa636cc17fc3378421d714efad",
-        license="Apache-2.0", license_files=("COPYING",), root="gumbo-parser-0.10.1",
+        name="gumbo", version="",
+        url="",
+        sha256="",
+        license="Apache-2.0", license_files=("COPYING",), root="",
         kind="generated", cmake_lists=GUMBO_CMAKE, patch="gumbo-0.10.1-msvc.patch",
         artifacts=("lib/libgumbo.a", "include/gumbo.h"),
-        hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
     Dependency(
-        name="quickjs", version="2026-06-04",
-        url="https://bellard.org/quickjs/quickjs-2026-06-04.tar.xz",
-        sha256="b376e839b322978313d929fd20663b11ba58b75df5a46c126dd19ea2fa70ad2a",
-        license="MIT", license_files=("LICENSE",), root="quickjs-2026-06-04",
+        name="quickjs", version="",
+        url="",
+        sha256="",
+        license="MIT", license_files=("LICENSE",), root="",
         kind="generated", cmake_lists=QUICKJS_CMAKE,
         patch="quickjs-msvc-2026-06-04.patch",
         extra_files=("quickjs_msvc_shim.h",),
         artifacts=("lib/libquickjs.a", "include/quickjs.h"),
-        hash_note="本机实测（bellard.org 只提供 tarball）",
     ),
     Dependency(
-        name="sqlite_modern_cpp", version="3.2",
-        url="https://github.com/aminroosta/sqlite_modern_cpp/archive/refs/tags/v3.2.tar.gz",
-        sha256="6a741482c0ef474adfc84260b5507d480d5b8e528e67e059284c2f1f9f986d74",
-        license="MIT", license_files=("License.txt",), root="sqlite_modern_cpp-3.2",
+        name="sqlite_modern_cpp", version="",
+        url="",
+        sha256="",
+        license="MIT", license_files=("License.txt",), root="",
         kind="generated", cmake_lists=SQLITE_MODERN_CPP_CMAKE,
         patch="sqlite_modern_cpp-v3.2-ariaread.patch",
         artifacts=("include/sqlite_modern_cpp.h",),
-        hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
     Dependency(
-        name="doctest", version="2.4.12",
-        url="https://github.com/doctest/doctest/archive/refs/tags/v2.4.12.tar.gz",
-        sha256="73381c7aa4dee704bd935609668cf41880ea7f19fa0504a200e13b74999c2d70",
-        license="MIT", license_files=("LICENSE.txt",), root="doctest-2.4.12",
+        name="doctest", version="",
+        url="",
+        sha256="",
+        license="MIT", license_files=("LICENSE.txt",), root="",
         kind="cmake", uses_libdir=True,
         options=("-DDOCTEST_WITH_TESTS=OFF", "-DDOCTEST_WITH_MAIN_IN_STATIC_LIB=OFF"),
         artifacts=("include/doctest/doctest.h",),
-        hash_note="本机实测（GitHub 源码归档，无官方摘要）",
     ),
     Dependency(
-        name="Mira", version=MIRA_TAG,
-        url=f"https://github.com/{MIRA_REPO}.git",
-        sha256="",  # 由 git 按 MIRA_REF 校验，不用归档字节哈希
+        name="Mira", version="",
+        url="",
+        sha256="",
         license="MIT", license_files=("LICENSE",), root="", kind="git",
         uses_libdir=True,
-        hash_note=f"git 检出校验：tag {MIRA_TAG} 必须指向 commit {MIRA_REF}",
+        options=("-DMIRA_BUILD_TESTS=OFF", "-DMIRA_BUILD_EXAMPLES=OFF", "-DMIRA_BUILD_BENCH=OFF",
+                 "-DMIRA_ENABLE_TLS=OFF", "-DMIRA_ENABLE_HTTP2=OFF", "-DMIRA_ENABLE_HTTP3=OFF"),
+        artifacts=("lib/cmake/Mira/MiraConfig.cmake", "include/mira/http/connection.hpp"),
     ),
 )
 
@@ -333,7 +308,17 @@ def sha256(path: Path) -> str:
 
 def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
     """下载（或复用）归档并校验 SHA256；Mira 走 GitHub API 以取到私有仓库。"""
-    archive = cache / dependency.archive_name
+    archive = cache / (dependency.sha256 + "-" + dependency.archive_name)
+    if archive.is_symlink():
+        raise ValueError(f"Refusing symbolic-link archive cache: {archive}")
+    content = cache / dependency.sha256
+    if not archive.exists() and content.is_file() and not content.is_symlink():
+        if sha256(content) != dependency.sha256:
+            raise ValueError(f"Content cache SHA256 mismatch; preserved: {content}")
+        shutil.copyfile(content, archive)
+    legacy = cache / dependency.archive_name
+    if not archive.exists() and legacy.is_file() and not legacy.is_symlink() and sha256(legacy) == dependency.sha256:
+        shutil.copyfile(legacy, archive)
     expected = dependency.sha256
     if archive.exists():
         if not archive.is_file() or archive.is_symlink():
@@ -355,6 +340,7 @@ def download(cache: Path, dependency: Dependency, offline: bool) -> Path:
         try:
             with urllib.request.urlopen(request, timeout=120) as response, \
                     candidate.open("wb") as output:
+                dependency_resolver.https_url(response.url)
                 shutil.copyfileobj(response, output)
         except urllib.error.HTTPError as error:  # noqa: PERF203
             raise ValueError(f"下载失败（HTTP {error.code}）：{dependency.url}") from error
@@ -519,33 +505,33 @@ def copy_licenses(prefix: Path, source: Path, dependency: Dependency) -> list[st
 
 
 def windows_toolchain() -> str:
-    """Windows 上区分 MSVC 与 MinGW/MSYS2：两者的 OpenSSL 构建方式不同。"""
-    if shutil.which("cl") and shutil.which("nmake"):
-        return "msvc"
-    return "mingw"
+    """Classify the selected compiler, independent of unrelated PATH entries."""
+    selected = os.environ.get('CC', '')
+    if selected:
+        parts = [selected] if Path(selected).is_file() else shlex.split(selected, posix=os.name != 'nt')
+        name = Path(parts[0].strip(chr(34))).stem.lower()
+        return 'msvc' if name in ('cl', 'clang-cl') else 'mingw'
+    return 'msvc' if shutil.which('cl') and shutil.which('nmake') else 'mingw'
 
 
 def build_cmake(source: Path, build: Path, prefix: Path, jobs: int,
                 dependency: Dependency, common: list[str]) -> None:
-    # 允许调用方用 CMAKE_GENERATOR 环境变量换生成器（如本机 Ninja + cl）；
-    # CI 不设该变量，默认行为不变。
-    env_gen = os.environ.get("CMAKE_GENERATOR", "").strip().lower()
-    msvc_vs = (sys.platform == "win32" and windows_toolchain() == "msvc"
-               and env_gen != "ninja")
-    configure = ["cmake"]
-    if msvc_vs:
-        # Visual Studio 生成器默认出 Win32；本项目全平台只要 x64。
-        configure += ["-A", "x64"]
-    # CMAKE_INSTALL_LIBDIR 只喂给真正包含 GNUInstallDirs 的工程：其余依赖
-    # 不消费它，传了只会得到 "Manually-specified variables were not used" 噪音。
-    libdir = ["-DCMAKE_INSTALL_LIBDIR=lib"] if dependency.uses_libdir else []
-    run([*configure, "-S", str(source), "-B", str(build), *common, *libdir,
-         *dependency.options])
-    # Visual Studio 是多配置生成器：不指定 --config 会编出 Debug，而 install
-    # 默认按 Release 去找，两者对不上就直接失败。
-    config = ["--config", "Release"] if msvc_vs else []
-    run(["cmake", "--build", str(build), "--parallel", str(jobs), *config])
-    run(["cmake", "--install", str(build), *config])
+    generator = os.environ.get('CMAKE_GENERATOR', '').strip()
+    selected = windows_toolchain() if sys.platform == 'win32' else ''
+    visual_studio = generator.lower().startswith('visual studio') or (not generator and selected == 'msvc')
+    configure = ['cmake']
+    if visual_studio:
+        if selected != 'msvc':
+            raise ValueError('Visual Studio generator requires an MSVC-compatible compiler')
+        configure += ['-A', os.environ.get('CMAKE_GENERATOR_PLATFORM') or 'x64']
+    elif not generator and selected == 'mingw':
+        configure += ['-G', 'Ninja' if shutil.which('ninja') else 'MinGW Makefiles']
+    libdir = ['-DCMAKE_INSTALL_LIBDIR=lib'] if dependency.uses_libdir else []
+    run([*configure, '-S', str(source), '-B', str(build), *common, *libdir, *dependency.options])
+    # --config is accepted by single-config generators and required by VS,
+    # Xcode and Ninja Multi-Config, including MSVC builds without a VS generator.
+    run(['cmake', '--build', str(build), '--parallel', str(jobs), '--config', 'Release'])
+    run(['cmake', '--install', str(build), '--config', 'Release'])
 
 
 def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
@@ -581,60 +567,43 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
 
 
 def artifact_present(prefix: Path, artifact: str) -> bool:
-    """产物存在性检查：头文件精确匹配，库文件按平台后缀模糊匹配。
-
-    Linux 的 OpenSSL 默认装进 lib64，MSVC 的静态库叫 zlibstatic.lib、动态库
-    带 d 后缀——逐个平台列清单会把脚本变成一张维护不完的表，所以库只比对
-    文件名主干。
-    """
+    """Require a real header/config or an exact static-library platform spelling."""
     candidate = prefix / artifact
-    if candidate.exists():
+    if candidate.is_file():
         return True
-    if artifact.endswith(".h"):
+    if not artifact.endswith('.a') or not candidate.parent.is_dir():
         return False
-    directory = candidate.parent
-    if not directory.is_dir():
-        return False
-    stem = candidate.name
-    for marker in ("lib",):
-        if stem.startswith(marker):
-            stem = stem[len(marker):]
-            break
-    stem = stem.rsplit(".", 1)[0]
-    suffixes = (".a", ".lib", ".so", ".dylib")
-    return any(entry.is_file() and stem in entry.name.lower()
-               and entry.name.lower().endswith(suffixes)
-               for entry in directory.iterdir())
+    stem = candidate.stem.removeprefix('lib')
+    stems = {'z': ('z', 'zlibstatic')}.get(stem, (stem, 'lib' + stem))
+    names = {name + suffix for name in stems for suffix in ('.a', '.lib')}
+    return any(entry.is_file() and entry.name.lower() in names for entry in candidate.parent.iterdir())
 
 
 def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
-    """按固定 commit 取 Mira。
-
-    不下载归档而是 git clone，是因为归档的字节在 GitHub 侧不稳定；git 用
-    commit SHA 做完整性校验，比"下载后比对哈希"更强：标签可以被挪动，
-    commit 不能。
-    """
-    target = work / "src" / dependency.name
-
-    def head() -> str:
-        if not (target / ".git").exists():
-            return ""
-        completed = subprocess.run(["git", "-C", str(target), "rev-parse", "HEAD"],
-                                   capture_output=True, text=True)
-        return completed.stdout.strip() if completed.returncode == 0 else ""
-
-    if head() == MIRA_REF:
-        print(f"复用已校验的 Mira 检出：{target}", flush=True)
+    """Cache a clean checkout by immutable revision; never overwrite edited sources."""
+    target = work / "git" / dependency.name / dependency.revision
+    def git(*arguments):
+        return subprocess.check_output(["git", "-C", str(target), *arguments], text=True).strip()
+    if target.is_symlink():
+        raise ValueError(f"Refusing symbolic-link Git cache: {target}")
+    if target.exists():
+        if target.is_symlink() or not (target / ".git").is_dir():
+            raise ValueError(f"Refusing unknown Git source cache: {target}")
+        if git("rev-parse", "HEAD") != dependency.revision or git("status", "--porcelain", "--untracked-files=all", "--ignored"):
+            raise ValueError(f"Git source cache has local changes; preserved: {target}")
         return target
     if offline:
-        raise ValueError(f"离线模式缺少已校验的 Mira 检出：{target}")
-    if target.exists():
-        raise ValueError(f"{target} 与固定 commit 不一致，请手动删除后重跑")
-    run(["git", "clone", "--depth", "1", "--branch", dependency.version,
-         dependency.url, str(target)])
-    if head() != MIRA_REF:
-        raise ValueError(f"Mira tag {dependency.version} 指向 {head()}，"
-                         f"与固定 commit {MIRA_REF} 不一致")
+        raise ValueError(f"Missing exact offline Git checkout: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix="checkout-", dir=target.parent))
+    run(["git", "init", str(temporary)])
+    run(["git", "-C", str(temporary), "remote", "add", "origin", dependency.url])
+    run(["git", "-C", str(temporary), "fetch", "--depth", "1", "origin", dependency.revision])
+    run(["git", "-C", str(temporary), "checkout", "--detach", "FETCH_HEAD"])
+    actual = subprocess.check_output(["git", "-C", str(temporary), "rev-parse", "HEAD"], text=True).strip()
+    if actual != dependency.revision:
+        raise ValueError(f"Git checkout revision mismatch; preserved: {temporary}")
+    temporary.rename(target)
     return target
 
 
@@ -663,211 +632,236 @@ def output_path(value: Path) -> Path:
     return path
 
 
-def main() -> None:
-    # Windows 控制台默认是 cp1252 之类的本地编码，脚本里的中文日志会直接
-    # UnicodeEncodeError。强制 UTF-8（失败时退化为替换字符，不因此中断构建）。
+# A patch is approved for a specific upstream version, never blindly carried forward.
+PATCH_VERSIONS = {'gumbo': {'0.10.1'}, 'quickjs': {'2026-06-04'},
+                  'sqlite_modern_cpp': {'3.2'}}
+
+
+def locked_recipes(lock):
+    entries = lock.get('dependencies', {})
+    result = []
+    for recipe in RECIPES:
+        entry = entries.get(recipe.name)
+        if not entry:
+            raise ValueError(f'Missing locked dependency: {recipe.name}')
+        dependency_resolver.validate_record(entry)
+        version = entry['version']
+        if recipe.patch and version not in PATCH_VERSIONS[recipe.name]:
+            raise ValueError(f'{recipe.name} {version} needs an explicitly reviewed build recipe/patch; '
+                             f'supported: {sorted(PATCH_VERSIONS[recipe.name])}')
+        revision = entry.get('revision', '')
+        digest = entry.get('sha256', '')
+        if recipe.kind == 'git':
+            if len(revision) != 40 or any(c not in '0123456789abcdef' for c in revision):
+                raise ValueError(f'{recipe.name} requires a full locked Git revision')
+        elif len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
+            raise ValueError(f'{recipe.name} requires a locked SHA256')
+        result.append(replace(recipe, version=version, url=entry['url'], sha256=digest,
+                              revision=revision,
+                              cmake_lists=recipe.cmake_lists.replace('@QUICKJS_VERSION@', version),
+                              hash_note=entry.get('checksum_source', recipe.hash_note)))
+    return result
+
+
+def recipe_digest(dependencies):
+    """Fingerprint the actual source/build pipeline, independent of CLI storage syntax."""
+    patches = {name: sha256(PATCHES / name) for dep in dependencies
+               for name in (dep.patch, *dep.extra_files) if name}
+    functions = (run, download, fetch_git, extract, apply_patch, prepare_source,
+                 copy_licenses, windows_toolchain, build_cmake, build_openssl,
+                 artifact_present, build_environment, cmake_arguments, install_component,
+                 dependency_selection, cache_state.compiler, cache_state.build_context)
+    return cache_state.fingerprint({'recipes': [asdict(dep) for dep in dependencies],
+                                    'patches': patches,
+                                    'pipeline': {fn.__name__: inspect.getsource(fn)
+                                                 for fn in functions}})
+
+
+def dependency_selection(names, dependencies):
+    all_names = {dep.name for dep in dependencies}
+    selected = {name.strip() for name in names.split(',') if name.strip()} or all_names
+    if selected - all_names:
+        raise ValueError(f'Unknown dependencies: {sorted(selected - all_names)}')
+    # Static consumers must be built against this installation's matching libraries.
+    if 'curl' in selected:
+        selected.update({'openssl', 'zlib'})
+    return selected
+
+
+def verify_prefix(prefix, resolution, dependencies, selected, c=None, cxx=None, toolchain=None):
+    state = cache_state.read_state(prefix)
+    if not state:
+        raise ValueError('Unverified/legacy prefix: run tools/ci/build_ariaread_deps.py first')
+    if state.get('resolution') != cache_state.fingerprint(resolution) or state.get('recipe') != recipe_digest(dependencies):
+        raise ValueError('Dependency resolution or recipe changed: run tools/ci/build_ariaread_deps.py')
+    if not selected <= set(state.get('completed', [])):
+        raise ValueError('Dependency prefix is incomplete: run tools/ci/build_ariaread_deps.py')
+    context = state['context']
+    cache_state.verify_environment(context, toolchain)
+    if context['prefix'] != str(prefix) or context['platform'] != cache_state.platform.system() or context['machine'] != cache_state.platform.machine():
+        raise ValueError('Dependency prefix location/platform changed; rebuild required')
+    for name, command in [('c', c), ('cxx', cxx)]:
+        if command:
+            if cache_state.same_compiler(context[name], cache_state.compiler(command)):
+                continue
+            raise ValueError(f'Dependency {name} compiler differs from project compiler; rebuild required')
+    return state
+
+
+def build_environment(prefix, c=None, cxx=None, toolchain=None):
+    if toolchain is not None:
+        os.environ['CMAKE_TOOLCHAIN_FILE'] = toolchain
+    if shutil.which('cmake') is None:
+        raise ValueError('CMake and a C/C++ toolchain are required')
+    if shutil.which('cl') and '/utf-8' not in os.environ.get('CL', ''):
+        os.environ['CL'] = (os.environ.get('CL', '') + ' /utf-8').strip()
+    if sys.platform == 'win32' and os.environ.get('CMAKE_GENERATOR_PLATFORM', '').lower() not in ('', 'x64'):
+        raise ValueError('Windows dependency recipes currently target x64')
+    context = cache_state.build_context(prefix, c, cxx)
+    # OpenSSL Configure and CMake must consume the same selected compiler.
+    for variable, key in [('CC', 'c'), ('CXX', 'cxx')]:
+        command = [context[key]['path'], *context[key]['arguments']]
+        os.environ[variable] = subprocess.list2cmdline(command) if os.name == 'nt' else shlex.join(command)
+    return context
+
+
+def cmake_arguments(prefix, context):
+    common = [f'-DCMAKE_INSTALL_PREFIX={prefix}', '-DCMAKE_BUILD_TYPE=Release',
+              '-DCMAKE_POSITION_INDEPENDENT_CODE=ON', '-DBUILD_SHARED_LIBS=OFF',
+              f'-DCMAKE_PREFIX_PATH={prefix}',
+              f"-DCMAKE_C_COMPILER={context['c']['path']}",
+              f"-DCMAKE_CXX_COMPILER={context['cxx']['path']}"]
+    if context['environment']['CMAKE_TOOLCHAIN_FILE']:
+        common.append('-DCMAKE_TOOLCHAIN_FILE=' + context['environment']['CMAKE_TOOLCHAIN_FILE'])
+    for name, key in [('C', 'c'), ('CXX', 'cxx')]:
+        if context[key]['arguments']:
+            arguments = context[key]['arguments']
+            quoted = subprocess.list2cmdline(arguments) if os.name == 'nt' else shlex.join(arguments)
+            common.append(f'-DCMAKE_{name}_COMPILER_ARG1=' + quoted)
+    return common
+
+
+def install_component(dep, available, run_root, prefix, jobs, common):
+    holder = run_root / dep.name
+    holder.mkdir()
+    if dep.kind == 'git':
+        source = holder / 'source'
+        shutil.copytree(available, source, ignore=shutil.ignore_patterns('.git'))
+    else:
+        source = extract(available, holder, '')
+    prepare_source(source, dep)
+    if dep.kind == 'openssl':
+        build_openssl(source, prefix, jobs)
+    else:
+        build_cmake(source, holder / 'build', prefix, jobs, dep, common)
+    licenses = copy_licenses(prefix, source, dep)
+    if dep.name == 'zlib' and sys.platform == 'win32':
+        for junk in ('lib/zlib.lib', 'lib/zlib.dll', 'lib/zlib1.dll',
+                     'lib/libzlib.dll.a', 'bin/zlib.dll', 'bin/zlib1.dll', 'bin/libzlib.dll'):
+            (prefix / junk).unlink(missing_ok=True)
+    missing = [artifact for artifact in dep.artifacts if not artifact_present(prefix, artifact)]
+    if missing:
+        raise ValueError(f'{dep.name} missing expected artifacts: {missing}')
+    return {'name': dep.name, 'version': dep.version, 'url': dep.url,
+            'sha256': dep.sha256, 'revision': dep.revision,
+            'license': dep.license, 'license_files': licenses}
+
+
+def main():
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding='utf-8', errors='replace')
         except (AttributeError, OSError, ValueError):
             pass
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--path", type=Path, default=REPO / "build/deps",
-                        help="缓存与临时构建根目录，默认仓库 build/deps")
-    parser.add_argument("--prefix", type=Path,
-                        help="安装目录，默认 <path>/prefix；不得指向系统目录")
-    parser.add_argument("--jobs", type=positive_jobs,
-                        default=min(os.cpu_count() or 1, 8), help="并行任务数，1 到 256")
-    parser.add_argument("--only", default="",
-                        help="只构建指定依赖，逗号分隔；默认全部")
-    parser.add_argument("--offline", action="store_true",
-                        help="禁止下载，只使用 <path>/cache 中已校验的归档")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--path', type=Path, default=REPO / 'build/deps')
+    parser.add_argument('--prefix', type=Path)
+    parser.add_argument('--jobs', type=positive_jobs, default=min(os.cpu_count() or 1, 8))
+    parser.add_argument('--only', default='')
+    parser.add_argument('--offline', action='store_true')
+    parser.add_argument('--update', action='store_true', help='Explicitly refresh latest stable dependencies')
+    parser.add_argument('--version', action='append', default=[], metavar='NAME=VERSION')
+    parser.add_argument('--file', type=Path, default=REPO / 'dependencies.json',
+                        help='Single dependency declaration and resolved-state file')
+    parser.add_argument('--verify-prefix', action='store_true', help='Offline installed-prefix verification only')
+    parser.add_argument('--c-compiler')
+    parser.add_argument('--cxx-compiler')
+    parser.add_argument('--toolchain-file', default=None)
+    parser.add_argument('--cmake-platform', default='')
     args = parser.parse_args()
-
-    if not (sys.platform.startswith("linux") or sys.platform == "darwin"
-            or sys.platform == "win32"):
-        parser.error(f"未支持的平台：{sys.platform}")
-    if sys.platform == "win32":
-        print("注意：Windows 分支按 MSVC + nmake 编写，尚未在本机验证；"
-              "出问题请以 Windows CI 的输出为准。", flush=True)
-    if shutil.which("cmake") is None:
-        parser.error("请先安装 CMake 和 C/C++ 工具链")
-
-    selected = {item.strip() for item in args.only.split(",") if item.strip()}
-    dependencies = [item for item in DEPENDENCIES
-                    if not selected or item.name in selected]
-    unknown = selected - {item.name for item in DEPENDENCIES}
-    if unknown:
-        parser.error(f"未知依赖：{', '.join(sorted(unknown))}")
-
     work = output_path(args.path)
-    prefix = output_path(args.prefix or work / "prefix")
-    cache = work / "cache"
-    if prefix == cache or cache in prefix.parents or prefix in cache.parents:
-        parser.error("--prefix 不得与归档缓存目录重叠")
-    cache.mkdir(parents=True, exist_ok=True)
+    raw_prefix = args.prefix or work / 'prefix'
+    if raw_prefix.is_symlink():
+        raise ValueError(f'Refusing symlink installation prefix: {raw_prefix}')
+    prefix = output_path(raw_prefix)
+    for directory in ('cache', 'git', 'runs'):
+        other = work / directory
+        if prefix == other or prefix in other.parents or other in prefix.parents:
+            raise ValueError('--prefix overlaps the source/build cache')
+    if not args.verify_prefix:
+        names = {dep.name for dep in RECIPES}
+        for version in args.version:
+            if version.partition('=')[0] not in names:
+                raise ValueError(f'Unknown third-party dependency override: {version}')
+        command = [sys.executable, str(Path(__file__).with_name('dependencies.py')),
+                   'update' if args.update else 'resolve', '--file', str(args.file),
+                   '--cache-dir', str(work / 'cache')]
+        for name in sorted(names):
+            command += ['--only', name]
+        if args.offline:
+            command.append('--offline')
+        for version in args.version:
+            command += ['--version', version]
+        run(command)
+    # Aria has its own bootstrap checkout. Only validate the installed third-party set.
+    resolution = dependency_resolver.read_resolved(args.file, only=[dep.name for dep in RECIPES])
+    dependencies = locked_recipes(resolution)
+    selected = dependency_selection(args.only, dependencies)
+    if args.verify_prefix:
+        verify_prefix(prefix, resolution, dependencies, selected, args.c_compiler, args.cxx_compiler, args.toolchain_file)
+        if sys.platform == 'win32' and args.cmake_platform.lower() not in ('', 'x64'):
+            raise ValueError('The Windows dependency prefix targets x64; configure the project for x64')
+        print(f'Verified locked dependency prefix: {prefix}')
+        return
+    context = build_environment(prefix, args.c_compiler, args.cxx_compiler, args.toolchain_file)
 
-    common = [f"-DCMAKE_INSTALL_PREFIX={prefix}",
-              "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-              "-DBUILD_SHARED_LIBS=OFF",
-              f"-DCMAKE_PREFIX_PATH={prefix}"]
-    if shutil.which("cl"):
-        # CJK-locale Windows (cp936): cl defaults to the ANSI code page and
-        # UTF-8 sources trip C4819, a hard error under Mira's /WX. Inject
-        # /utf-8 through the CL env var -- replacing CMAKE_CXX_FLAGS instead
-        # would wipe CMake's /EHsc /GR defaults and turn C4530 into a hard
-        # error for any exception-using target.
-        os.environ["CL"] = (os.environ.get("CL", "") + " /utf-8").strip()
-        print("CL=/utf-8 injected (CJK-locale source-encoding safety)",
-              flush=True)
-
-    manifest = []
-    # 源码与中间产物放在 <work>/src、<work>/build 下复用，而不是每次解压到临时
-    # 目录再整棵删除：批量删除上万文件既慢又容易被安全策略拦下。版本变化由
-    # 戳文件检测，检测到不一致就要求人工确认后再删。
-    sources = work / "src"
-    builds = work / "build"
-    sources.mkdir(parents=True, exist_ok=True)
-    builds.mkdir(parents=True, exist_ok=True)
-    for dependency in dependencies:
-        print(f"\n=== {dependency.name} {dependency.version} ===", flush=True)
-        # 断点续跑：前缀已有全部预期产物就不再重建（openssl 全量重建约 40 分钟），
-        # 只补 manifest 记录；manifest.json 在 CMake 侧仅做存在性检查。
-        # 注意 artifacts 为空的依赖（如 Mira）不能跳过，必须每次构建。
-        if dependency.artifacts and all(artifact_present(prefix, artifact)
-                                        for artifact in dependency.artifacts):
-            license_dir = prefix / "share" / "licenses" / dependency.name
-            licenses = (sorted(p.name for p in license_dir.rglob("*")
-                               if p.is_file()) if license_dir.is_dir() else [])
-            version = dependency.version
-            if dependency.kind == "git":
-                version = f"{dependency.version} ({MIRA_REF})"
-                digest = MIRA_REF
-            else:
-                digest = dependency.sha256 or "installed"
-            manifest.append({
-                "name": dependency.name,
-                "version": version,
-                "url": dependency.url,
-                "sha256": digest,
-                "sha256_source": dependency.hash_note,
-                "license": dependency.license,
-                "license_files": licenses,
-                "artifacts": list(dependency.artifacts),
-                "expected_sha256": digest,
-            })
-            print(f"跳过 {dependency.name}（前缀已有产物）", flush=True)
-            continue
-        if dependency.kind == "git":
-            source = fetch_git(work, dependency, args.offline)
-            build_cmake(source, builds / dependency.name, prefix, args.jobs,
-                        dependency, common)
-            licenses = copy_licenses(prefix, source, dependency)
-            missing = [artifact for artifact in dependency.artifacts
-                       if not artifact_present(prefix, artifact)]
-            if missing:
-                raise ValueError(f"{dependency.name} 缺少预期产物：{missing}")
-            manifest.append({
-                "name": dependency.name,
-                "version": f"{dependency.version} ({MIRA_REF})",
-                "url": dependency.url,
-                "sha256": MIRA_REF,
-                "sha256_source": dependency.hash_note,
-                "license": dependency.license,
-                "license_files": licenses,
-                "artifacts": list(dependency.artifacts),
-                "expected_sha256": MIRA_REF,
-            })
-            continue
-        archive = download(cache, dependency, args.offline)
-        digest = sha256(archive)
-        stamp = sources / f"{dependency.name}.stamp"
-        source = None
-        if stamp.is_file():
-            fields = stamp.read_text(encoding="utf-8").split()
-            if len(fields) == 3 and fields[0] == dependency.version and fields[1] == digest:
-                candidate = sources / fields[2]
-                if not candidate.is_dir():
-                    raise ValueError(f"戳文件指向的源码目录缺失：{candidate}")
-                source = candidate
-                print(f"复用已解压源码：{source}", flush=True)
-            else:
-                raise ValueError(
-                    f"{dependency.name} 已解压的版本与固定版本不一致：请先手动删除 "
-                    f"{sources / (dependency.root or dependency.name)} 与 {stamp} 后重跑")
-        if source is None:
-            if dependency.root:
-                source = extract(archive, sources, dependency.root)
-            else:  # 顶层目录名未知（GitHub 按 commit 生成的归档）
-                holder = sources / dependency.name
-                holder.mkdir(parents=True, exist_ok=True)
-                source = extract(archive, holder, "")
-            stamp.write_text(
-                f"{dependency.version} {digest} {source.relative_to(sources).as_posix()}",
-                encoding="utf-8")
-        # 生成的 CMakeLists / 本地补丁每次都重新写入与套用：内容由本脚本决定，
-        # 源码树里的旧版本不该被默默沿用（patch 已套过时 --forward 会跳过）。
-        prepare_source(source, dependency)
-        if dependency.kind in ("cmake", "generated", "Mira"):
-            build_cmake(source, builds / dependency.name, prefix, args.jobs,
-                        dependency, common)
-        elif dependency.kind == "openssl":
-            build_openssl(source, prefix, args.jobs)
-        else:
-            raise ValueError(f"未知构建方式：{dependency.kind}")
-        licenses = copy_licenses(prefix, source, dependency)
-        if dependency.name == "zlib" and sys.platform == "win32":
-            # zlib 的 CMake 在 Windows 上即使关掉 ZLIB_BUILD_SHARED 也会装出
-            # 共享库与导入库；FindZLIB 会优先链到导入库，让所有消费端在运行
-            # 时依赖 zlib.dll。删掉共享产物，只留静态库，让 FindZLIB 落到
-            # zlibstatic/libz。
-            for junk in ("lib/zlib.lib", "lib/zlib.dll", "lib/zlib1.dll",
-                         "lib/libzlib.dll.a", "bin/zlib.dll",
-                         "bin/zlib1.dll", "bin/libzlib.dll"):
-                stale = prefix / junk
-                if stale.exists():
-                    stale.unlink()
-                    print(f"  移除共享产物：{stale}")
-        missing = [artifact for artifact in dependency.artifacts
-                   if not artifact_present(prefix, artifact)]
-        if missing:
-            raise ValueError(f"{dependency.name} 缺少预期产物：{missing}")
-        manifest.append({
-            "name": dependency.name,
-            "version": dependency.version,
-            "url": dependency.url,
-            "sha256": digest,
-            "sha256_source": dependency.hash_note,
-            "license": dependency.license,
-            "license_files": licenses,
-            "artifacts": list(dependency.artifacts),
-            "expected_sha256": dependency.sha256 or None,
-        })
-
-    manifest_dir = prefix / "share/ariaread-deps"
-    manifest_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "generator": "tools/ci/build_ariaread_deps.py",
-        "dependencies": manifest,
-    }
-    (manifest_dir / "manifest.json").write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-    print(f"\n完成。头文件、静态库与许可证位于：{prefix}", flush=True)
-    print("配置项目时显式传入：", flush=True)
-    print(f"  -DCMAKE_PREFIX_PATH={shlex.quote(str(prefix))}", flush=True)
-    unpinned = [item["name"] for item in manifest if not item["expected_sha256"]]
-    if unpinned:
-        print(f"提示：{', '.join(unpinned)} 未固定哈希，"
-              f"可把 manifest.json 中的实测值写入脚本后再重跑一次。", flush=True)
+    metadata = {'resolution': cache_state.fingerprint(resolution), 'recipe': recipe_digest(dependencies),
+                'context': context, 'generator': 'tools/ci/build_ariaread_deps.py'}
+    identity = cache_state.fingerprint(metadata)
+    (work / 'cache').mkdir(parents=True, exist_ok=True)
+    with cache_state.prefix_lock(prefix):
+        previous = cache_state.read_state(prefix) if prefix.exists() else None
+        completed = set(previous.get('completed', [])) if previous and previous.get('identity') == identity else set()
+        if selected <= completed:
+            print(f'Reusing verified dependency prefix: {prefix}')
+            return
+        # All downloads happen before the old installation is moved.
+        available = {}
+        for dep in dependencies:
+            if dep.name in selected - completed:
+                available[dep.name] = fetch_git(work, dep, args.offline) if dep.kind == 'git' else download(work / 'cache', dep, args.offline)
+        runs = work / 'runs'
+        runs.mkdir(parents=True, exist_ok=True)
+        run_root = Path(tempfile.mkdtemp(prefix=identity[:12] + '-', dir=runs))
+        common = cmake_arguments(prefix, context)
+        with cache_state.installation(prefix, identity, selected, metadata) as (done, state):
+            if done is None:
+                return
+            records = list(previous.get('dependencies', [])) if completed else []
+            for dep in dependencies:
+                if dep.name not in selected - done:
+                    continue
+                records.append(install_component(dep, available[dep.name], run_root, prefix,
+                                                 args.jobs, common))
+                done.add(dep.name)
+            state.update(completed=sorted(done), dependencies=records)
+        print(f'Installed locked dependency prefix: {prefix}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         main()
-    except (OSError, ValueError, tarfile.TarError, zipfile.BadZipFile,
+    except (OSError, ValueError, KeyError, tarfile.TarError, zipfile.BadZipFile,
             subprocess.CalledProcessError) as error:
-        print(f"错误：{error}", file=sys.stderr)
+        print(f'Error: {error}', file=sys.stderr)
         sys.exit(1)

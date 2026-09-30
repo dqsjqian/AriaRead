@@ -1,5 +1,7 @@
 # AriaRead
 
+[Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
+
 Current version **0.2.1** · Aria **3.0.1**
 
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
@@ -28,7 +30,7 @@ One C++ core drives two web shapes side by side:
 
 ## Build
 
-Requires CMake 3.20+, a C++23 compiler, and Python 3.9+. Run from the repository root:
+Requires CMake 3.20+, a C++23 compiler, and Python 3.10+. Run from the repository root:
 
 ```bash
 python3 tools/ci/build_ariaread_deps.py
@@ -37,6 +39,29 @@ cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build --output-on-failure
 ```
+
+Third-party dependencies use one `dependencies.json` file: source fields and optional
+`version` requirements sit beside generated `resolved` versions, immutable commits and archive SHA256 values. Missing lock
+entries select the latest stable release. Normal builds reuse the lock, and explicit
+versions take priority:
+
+```bash
+python3 tools/ci/build_ariaread_deps.py --update
+python3 tools/ci/build_ariaread_deps.py --version zlib=1.3.2
+python3 tools/ci/build_ariaread_deps.py --offline
+python3 tools/ci/build_ariaread_deps.py --only zlib,json
+```
+
+The installation cache verifies the lock, recipes/patches, compiler, Release configuration
+and installed file contents. A changed identity rebuilds a clean prefix, preserving
+`prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*` for
+inspection. Locally modified installed files or Git caches are never overwritten.
+Offline builds require exact locked archives/commits already cached. Partial builds
+include prerequisite dependencies; complete the installation before configuring the
+application. CMake verifies it offline. For custom installations, pass `--prefix <path>`
+to the builder and `-DARIAREAD_DEPS_PREFIX=<path>` to CMake.
+QuickJS, Gumbo and sqlite_modern_cpp patches are limited to reviewed upstream versions;
+a new unsupported version fails with an explicit recipe-update requirement.
 
 The Aria fetcher verifies the actual Git HEAD and worktree on every run, refuses
 to overwrite local edits, and retains the previous checkout in
@@ -81,7 +106,7 @@ AriaRead/
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Mira HTTP/1.1 + REST API)
 ├── tools/ci/
-│   ├── build_ariaread_deps.py  # sole dependency source: pinned versions + SHA256
+│   ├── build_ariaread_deps.py  # sole dependency source: version lock + SHA256
 │   └── fetch_aria.py           # fetches Aria at a pinned commit -> build/deps/aria
 ├── bindings/web/ariaread/web/  # frontend static assets
 └── tests/                  # unit tests
@@ -101,7 +126,7 @@ The main configure must pass `-DCMAKE_BUILD_TYPE=Release` explicitly: the deps
 (Mira/OpenSSL/libcurl) are built with /MD, so an empty build type produces /MDd
 objects and linking `ariaread_web_server` fails with LNK2038 runtime-library mismatch.
 
-CTest registers engine tests, available ViewModel tests, and local dependency-fetch safety regressions. It also registers the relevant debug regressions when Node.js 18+, Python 3.8+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
+CTest registers engine tests, available ViewModel tests, and local dependency-fetch safety regressions. It also registers the relevant debug regressions when Node.js 18+, Python 3.10+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
 
 ```bash
 # Run only the debug regressions

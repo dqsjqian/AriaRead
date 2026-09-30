@@ -69,14 +69,9 @@ if (-not $SkipCMake) {
     # Verify the pin on every build; ARIA_SOURCE may select a local Git source.
     & python (Join-Path $PROJECT_ROOT "tools\ci\fetch_aria.py")
     if ($LASTEXITCODE -ne 0) { throw "Aria dependency verification failed" }
-    # Pinned dependency prefix: built once by tools\ci\build_ariaread_deps.py.
-    # Configure itself never touches the network.
-    $depsManifest = Join-Path $PROJECT_ROOT "build\deps\prefix\share\ariaread-deps\manifest.json"
-    if (-not (Test-Path $depsManifest)) {
-        Write-Host "[deps] pinned dependency prefix missing - building it (first run only)..."
-        & python (Join-Path $PROJECT_ROOT "tools\ci\build_ariaread_deps.py")
-        if ($LASTEXITCODE -ne 0) { throw "Dependency prefix build failed" }
-    }
+    # Verify the lock, compiler, patches and installed contents on every build.
+    & python (Join-Path $PROJECT_ROOT "tools\ci\build_ariaread_deps.py")
+    if ($LASTEXITCODE -ne 0) { throw "Dependency prefix build failed" }
     # Always (re)configure: the pinned deps prefix ships Release-only static
     # libs, so a stale cache in any other build type links /MDd objects
     # against /MD libraries and dies in LNK2038 mismatches. Re-running cmake

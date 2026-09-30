@@ -80,14 +80,8 @@ rem Validate the pinned Aria checkout on every build; ARIA_SOURCE may select a l
 where python >nul 2>&1 || (echo [error] python not on PATH & exit /b 1)
 python tools\ci\fetch_aria.py || exit /b 1
 
-rem Pinned dependency prefix: built once by tools\ci\build_ariaread_deps.py
-rem (downloads + SHA256-verified builds; ~40 min on first run because of
-rem OpenSSL). Configure itself never touches the network.
-if not exist "%PROJECT_ROOT%\build\deps\prefix\share\ariaread-deps\manifest.json" (
-    echo [deps] pinned dependency prefix missing - building it now ^(first run only^) ...
-    where python >nul 2>&1 || (echo [error] python not on PATH; run: python tools\ci\build_ariaread_deps.py & exit /b 1)
-    python tools\ci\build_ariaread_deps.py || exit /b 1
-)
+rem Verify the lock, compiler, patches and installed contents on every build.
+python tools\ci\build_ariaread_deps.py || exit /b 1
 
 rem Always (re)configure: the pinned deps prefix ships Release-only static
 rem libs, so the cached build type must be Release. A stale cache (Debug, or

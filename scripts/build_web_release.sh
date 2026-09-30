@@ -30,18 +30,17 @@ if [ "$SKIP_CMAKE" = false ]; then
     # Validate the pinned checkout even when a previous build already exists.
     # ARIA_SOURCE can select a local repository containing the same commit.
     python3 "$PROJECT_ROOT/tools/ci/fetch_aria.py"
-    # 依赖前缀引导：CMake 配置强制要求钉定依赖前缀（manifest 校验）。
-    # 缺失时自动执行依赖脚本——幂等可续跑，已有产物按存在性跳过，
-    # 只有真正缺失的组件才会下载构建。显式设置 ARIAREAD_DEPS_PREFIX
-    # 时跳过引导，尊重调用方指定的前缀。
-    if [ -z "${ARIAREAD_DEPS_PREFIX:-}" ] \
-            && [ ! -f "$PROJECT_ROOT/build/deps/prefix/share/ariaread-deps/manifest.json" ]; then
-        echo "[deps] pinned dependency prefix not found; bootstrapping via tools/ci/build_ariaread_deps.py (idempotent)..." >&2
-        python3 "$PROJECT_ROOT/tools/ci/build_ariaread_deps.py"
+    # Every build verifies source, toolchain and installed-file identities.
+    DEPS_ARGS=()
+    if [ -n "${ARIAREAD_DEPS_PREFIX:-}" ]; then
+        DEPS_ARGS+=(--prefix "$ARIAREAD_DEPS_PREFIX")
     fi
-    if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
-        cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CONFIG"
+    python3 "$PROJECT_ROOT/tools/ci/build_ariaread_deps.py" "${DEPS_ARGS[@]}"
+    CMAKE_ARGS=(-S "$PROJECT_ROOT" -B "$BUILD_DIR" "-DCMAKE_BUILD_TYPE=$CONFIG")
+    if [ -n "${ARIAREAD_DEPS_PREFIX:-}" ]; then
+        CMAKE_ARGS+=("-DARIAREAD_DEPS_PREFIX=$ARIAREAD_DEPS_PREFIX")
     fi
+    cmake "${CMAKE_ARGS[@]}"
     BUILD_ARGS=(--build "$BUILD_DIR" --config "$CONFIG" --target ariaread_web_server)
     if [ "$CLEAN_BUILD" = true ]; then BUILD_ARGS+=(--clean-first); fi
     NPROC="${ARIAREAD_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"

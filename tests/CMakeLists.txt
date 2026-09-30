@@ -120,15 +120,19 @@ if(TARGET ariaread_vm)
 endif()
 
 # Fetcher safety tests run locally without GitHub or external dependencies.
-find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
+find_package(Python3 3.10 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME ariaread-fetch-aria
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/test_fetch_aria.py")
+    add_test(NAME ariaread-dependency-cache
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/test_dependency_cache.py")
     set_tests_properties(ariaread-fetch-aria PROPERTIES TIMEOUT 60 LABELS "dependencies")
+    set_tests_properties(ariaread-dependency-cache PROPERTIES TIMEOUT 120 LABELS "dependencies")
 endif()
 
 # Optional Web regressions use only Node.js / Python standard libraries.
 option(ARIAREAD_BUILD_WEB_TESTS "Register local Web UI and HTTP regression tests" ON)
+option(ARIAREAD_REQUIRE_WEB_TESTS "Fail configuration if any Web regression cannot be registered" OFF)
 if(ARIAREAD_BUILD_WEB_TESTS)
     find_program(ARIAREAD_NODE_EXECUTABLE NAMES node nodejs)
     if(ARIAREAD_NODE_EXECUTABLE)
@@ -153,7 +157,7 @@ if(ARIAREAD_BUILD_WEB_TESTS)
     if(NOT TARGET ariaread_web_server)
         message(STATUS "Skipping ariaread-debug-http: ariaread_web_server target is unavailable")
     elseif(NOT Python3_Interpreter_FOUND)
-        message(STATUS "Skipping ariaread-debug-http: Python 3.8 or newer was not found")
+        message(STATUS "Skipping ariaread-debug-http: Python 3.10 or newer was not found")
     else()
         add_test(NAME ariaread-debug-http
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_http.py"
@@ -162,4 +166,13 @@ if(ARIAREAD_BUILD_WEB_TESTS)
     endif()
 else()
     message(STATUS "Skipping Web regressions: ARIAREAD_BUILD_WEB_TESTS=OFF")
+endif()
+
+# CI can require complete coverage while local builds keep optional dependencies optional.
+if(ARIAREAD_REQUIRE_WEB_TESTS)
+    foreach(_ariaread_web_test IN ITEMS ariaread-debug-ui ariaread-rss-ui ariaread-debug-http)
+        if(NOT TEST "${_ariaread_web_test}")
+            message(FATAL_ERROR "ARIAREAD_REQUIRE_WEB_TESTS requires ${_ariaread_web_test}; install its test dependencies and enable ARIAREAD_BUILD_WEB_TESTS")
+        endif()
+    endforeach()
 endif()

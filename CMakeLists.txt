@@ -33,7 +33,7 @@ option(ARIAREAD_BUILD_SHARED    "Build shared library"              OFF)
 option(ARIAREAD_BUILD_TESTS     "Build unit tests"                  ON)
 # ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Mira) fully replaces Python/Flask
 # ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
-# 一个来源（tools/ci/build_ariaread_deps.py 的固定版本前缀），不再有"系统库 vs
+# 一个来源（tools/ci/build_ariaread_deps.py 的锁定版本前缀），不再有"系统库 vs
 # vendored"的开关。
 
 # ──────────────────────────────────────────────
@@ -56,13 +56,13 @@ configure_file(
 # 第三方依赖：唯一来源是 tools/ci/build_ariaread_deps.py 构建的前缀
 #
 # 与 Mira 一致的依赖哲学：
-#   * 依赖由显式脚本取（固定版本 + SHA256 + 许可证留档），只写仓库 build/；
+#   * 依赖由显式脚本取（依赖文件 + SHA256 + 许可证留档），只写仓库 build/；
 #   * CMake 侧只 find_package，配置时不联网、不 FetchContent、不 add_subdirectory
 #     第三方源码；
 #   * 没有前缀就直接失败并提示先跑脚本——不再维护 vendored third_party 回退。
 #
 # Aria（兄弟项目，四库源码联动）同样去 submodule 化：由 tools/ci/fetch_aria.py
-# 以固定 commit SHA 取到 build/deps/aria，CMake 只 add_subdirectory 已取回的
+# 以依赖文件指定的完整提交取到 build/deps/aria，CMake 只 add_subdirectory 已取回的
 # 源码树，配置期同样不联网。
 # ──────────────────────────────────────────────
 set(ARIAREAD_DEPS_PREFIX "" CACHE PATH
@@ -80,6 +80,21 @@ if(NOT EXISTS "${ARIAREAD_DEPS_PREFIX}/share/ariaread-deps/manifest.json")
     message(FATAL_ERROR
         "ARIAREAD_DEPS_PREFIX 缺少 manifest.json，不像依赖前缀：${ARIAREAD_DEPS_PREFIX}")
 endif()
+# Offline validation prevents an old installation from claiming a new lock/version.
+find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/build_ariaread_deps.py"
+        --verify-prefix --prefix "${ARIAREAD_DEPS_PREFIX}"
+        --file "${CMAKE_SOURCE_DIR}/dependencies.json"
+        --c-compiler "${CMAKE_C_COMPILER}" --cxx-compiler "${CMAKE_CXX_COMPILER}"
+        --toolchain-file "${CMAKE_TOOLCHAIN_FILE}" --cmake-platform "${CMAKE_GENERATOR_PLATFORM}"
+    RESULT_VARIABLE _ariaread_deps_result OUTPUT_VARIABLE _ariaread_deps_output
+    ERROR_VARIABLE _ariaread_deps_error)
+if(NOT "${_ariaread_deps_result}" STREQUAL "0")
+    message(FATAL_ERROR "Dependency prefix validation failed:\n${_ariaread_deps_output}${_ariaread_deps_error}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/dependencies.json")
 list(APPEND CMAKE_PREFIX_PATH "${ARIAREAD_DEPS_PREFIX}")
 message(STATUS "Using pinned dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
 
@@ -120,7 +135,7 @@ set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 
 
 # ──────────────────────────────────────────────
-# Aria（C++23 响应式 MVVM 框架，固定 commit SHA 源码接入）
+# Aria（C++23 响应式 MVVM 框架，依赖文件指定的完整提交源码接入）
 # 用于在 C++ 层承载响应式状态/协程异步/ViewModel，供各端 UI 复用同一业务逻辑。
 # 由 tools/ci/fetch_aria.py 取到 build/deps/aria（无 git submodule、无 vendored
 # 源码），配置前先跑一次脚本。
@@ -132,7 +147,7 @@ if(NOT EXISTS "${ARIA_DIR}/CMakeLists.txt")
         "Aria not found at ${ARIA_DIR}.\n"
         "Run once before configuring:\n"
         "  python tools/ci/fetch_aria.py\n"
-        "(no git submodules -- Aria is fetched at a pinned commit SHA)")
+        "(no git submodules -- Aria uses the full commit recorded in dependencies.json resolved metadata)")
 endif()
 message(STATUS "Using Aria source at ${ARIA_DIR}")
 # 关闭 Aria 自带的测试/示例/基准，避免：
