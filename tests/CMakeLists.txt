@@ -83,7 +83,7 @@ if(TARGET ariaread_vm)
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             # Aria binding 的测试辅助（FakeAdapter/FakeView），用于端到端示例
-            ${ARIA_DIR}/modules/binding/tests
+            "${ARIA_DIR}/modules/binding/tests"
             SYSTEM ${ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
     )
 
@@ -119,6 +119,14 @@ if(TARGET ariaread_vm)
     endif()
 endif()
 
+# Fetcher safety tests run locally without GitHub or external dependencies.
+find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME ariaread-fetch-aria
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/test_fetch_aria.py")
+    set_tests_properties(ariaread-fetch-aria PROPERTIES TIMEOUT 60 LABELS "dependencies")
+endif()
+
 # Optional Web regressions use only Node.js / Python standard libraries.
 option(ARIAREAD_BUILD_WEB_TESTS "Register local Web UI and HTTP regression tests" ON)
 if(ARIAREAD_BUILD_WEB_TESTS)
@@ -142,7 +150,6 @@ if(ARIAREAD_BUILD_WEB_TESTS)
         message(STATUS "Skipping ariaread-debug-ui: Node.js 18 or newer was not found")
     endif()
 
-    find_package(Python3 3.8 COMPONENTS Interpreter QUIET)
     if(NOT TARGET ariaread_web_server)
         message(STATUS "Skipping ariaread-debug-http: ariaread_web_server target is unavailable")
     elseif(NOT Python3_Interpreter_FOUND)

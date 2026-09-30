@@ -6,7 +6,7 @@
 #       Property / Computed / ObservableList / Task / AsyncCommand / ViewModel
 #       把引擎的回调式异步包装成各端 UI 可直接绑定的响应式状态
 #
-# 这样 C++17 风格的引擎与 C++20 协程/响应式 VM 层职责清晰分离，
+# 这样引擎与 C++23 协程/响应式 VM 层职责清晰分离，
 # 各平台（Qt6 / AppKit / UIKit / Web）只需实现 IViewAdapter 即可复用同一 VM。
 
 if(NOT TARGET aria::binding)

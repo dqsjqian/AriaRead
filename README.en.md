@@ -26,12 +26,22 @@ One C++ core drives two web shapes side by side:
 
 ## Build
 
+Requires CMake 3.20+, a C++23 compiler, and Python 3.9+. Run from the repository root:
+
 ```bash
-mkdir -p build && cd build
-cmake .. -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-ctest --output-on-failure
+python3 tools/ci/build_ariaread_deps.py
+python3 tools/ci/fetch_aria.py
+cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
+
+The Aria fetcher verifies the actual Git HEAD and worktree on every run, refuses
+to overwrite local edits, and retains the previous checkout in
+`build/deps/aria-backup-*` after an update. To consume the pinned commit before
+it is published, use `python3 tools/ci/fetch_aria.py --source /path/to/Aria`
+(or set `ARIA_SOURCE`). For source development, configure CMake with
+`-DARIA_DIR=/path/to/Aria`.
 
 ## Running and distributing
 
@@ -87,7 +97,7 @@ The main configure must pass `-DCMAKE_BUILD_TYPE=Release` explicitly: the deps
 (Mira/OpenSSL/libcurl) are built with /MD, so an empty build type produces /MDd
 objects and linking `ariaread_web_server` fails with LNK2038 runtime-library mismatch.
 
-CTest registers engine tests and available ViewModel tests. It also registers the relevant debug regressions when Node.js 18+, Python 3.8+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
+CTest registers engine tests, available ViewModel tests, and local dependency-fetch safety regressions. It also registers the relevant debug regressions when Node.js 18+, Python 3.8+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
 
 ```bash
 # Run only the debug regressions

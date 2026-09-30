@@ -67,8 +67,7 @@ target_include_directories(ariaread_web_server
             COMMAND_EXPAND_LISTS)
     endif()
 
-# Mira 以 C++23 发布（公开头用 std::expected），本目标的源码按 C++23 编译；
-# 其余目标仍是 C++20，二者通过 libc++/libstdc++ 的稳定 ABI 链接。
+# Mira 和 Aria 的公开头要求 C++23；整个工程统一使用该标准。
 target_compile_features(ariaread_web_server PRIVATE cxx_std_23)
 
 # 每次构建服务时同步资源，包括仅修改 JS/CSS、没有触发重新链接的情况。

@@ -27,6 +27,9 @@ if [ "$SKIP_CMAKE" = true ] && [ "$CLEAN_BUILD" = true ]; then
 fi
 
 if [ "$SKIP_CMAKE" = false ]; then
+    # Validate the pinned checkout even when a previous build already exists.
+    # ARIA_SOURCE can select a local repository containing the same commit.
+    python3 "$PROJECT_ROOT/tools/ci/fetch_aria.py"
     # 依赖前缀引导：CMake 配置强制要求钉定依赖前缀（manifest 校验）。
     # 缺失时自动执行依赖脚本——幂等可续跑，已有产物按存在性跳过，
     # 只有真正缺失的组件才会下载构建。显式设置 ARIAREAD_DEPS_PREFIX

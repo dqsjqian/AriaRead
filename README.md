@@ -26,12 +26,14 @@
 
 ## 构建
 
+需要 CMake 3.20+、支持 C++23 的编译器和 Python 3.9+。从仓库根目录执行：
+
 ```bash
 python3 tools/ci/build_ariaread_deps.py     # 取固定版本依赖（只写 build/deps）
-mkdir -p build && cd build
-cmake .. -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-ctest --output-on-failure
+python3 tools/ci/fetch_aria.py             # 取回并验证锁定的 Aria 提交
+cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
 ```
 
 ## 运行与分发
@@ -81,6 +83,10 @@ QuickJS / Gumbo / doctest / sqlite_modern_cpp）由显式脚本取：固定版�
 校验 + 许可证留档，只写进仓库的 `build/deps/`。CMake 只做 `find_package`，
 配置时不联网、没有 vendored 回退分支。Aria（兄弟框架）同理：由
 `tools/ci/fetch_aria.py` 以固定 commit SHA 取到 `build/deps/aria`，无 submodule。
+脚本每次检查实际 Git HEAD 和工作树，拒绝覆盖本地修改；更新成功后将旧目录保留为
+`build/deps/aria-backup-*`。尚未发布的同一提交可用
+`python3 tools/ci/fetch_aria.py --source /path/to/Aria`（或 `ARIA_SOURCE` 环境变量）取回。
+本地联调也可在 CMake 配置时显式指定 `-DARIA_DIR=/path/to/Aria`。
 
 ```bash
 python3 tools/ci/build_ariaread_deps.py            # 首次构建（约 10 分钟，主要是 OpenSSL）
@@ -107,7 +113,7 @@ ctest --test-dir build --output-on-failure
 按 Release /MD 构建，空 build type 会编出 /MDd 目标，链接 `ariaread_web_server` 时
 LNK2038 运行库失配。
 
-CTest 会注册引擎和可用的 ViewModel 测试，并在找到 Node.js 18+、Python 3.8+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DARIAREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
+CTest 会注册引擎、可用的 ViewModel 测试和本地依赖获取安全回归，并在找到 Node.js 18+、Python 3.8+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DARIAREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
 
 ```bash
 # 仅运行调试回归
@@ -123,7 +129,7 @@ HTTP 测试只使用本地模拟书源和内存数据库，覆盖控制台输入
 ## 开源准备
 
 - [x] 源码全部从源码编译（无预编译二进制）
-- [x] 第三方依赖改为脚本固定版本 + SHA256（`.gitmodules` 只剩 Aria 兄弟项目）
+- [x] 无 git submodule；第三方依赖和 Aria 均由脚本锁定并获取
 - [x] MIT LICENSE
 - [x] README.md（中文）+ README.en.md（英文）
 

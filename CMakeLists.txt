@@ -1,11 +1,9 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 project(AriaRead VERSION 0.2.0 LANGUAGES CXX C)
 
 # ──────────────────────────────────────────────
-# C++20 标准，全平台统一
-# 升级自 C++17：为接入 Aria（C++20 协程 MVVM 框架）做准备。
-# 兼容性：源码无 C++20 移除的废弃 API（result_of/is_pod/u8""/random_shuffle 等），
-# 无隐式捕获 this 的 [=] lambda；第三方库各自锁定自身标准，不受此设置影响。
+# C++23 标准，全平台统一，与 Aria 和 Mira 的公开接口要求一致。
+# 第三方库各自锁定自身标准，不受此设置影响。
 # ──────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -127,16 +125,16 @@ set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 # 由 tools/ci/fetch_aria.py 取到 build/deps/aria（无 git submodule、无 vendored
 # 源码），配置前先跑一次脚本。
 # ──────────────────────────────────────────────
-set(ARIA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria CACHE PATH
+set(ARIA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria" CACHE PATH
     "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
-if(NOT EXISTS ${ARIA_DIR}/CMakeLists.txt)
+if(NOT EXISTS "${ARIA_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "Aria not found at ${ARIA_DIR}.\n"
         "Run once before configuring:\n"
         "  python tools/ci/fetch_aria.py\n"
         "(no git submodules -- Aria is fetched at a pinned commit SHA)")
 endif()
-message(STATUS "Using pinned Aria at ${ARIA_DIR}")
+message(STATUS "Using Aria source at ${ARIA_DIR}")
 # 关闭 Aria 自带的测试/示例/基准，避免：
 #   1. doctest target 与 AriaRead 测试重名冲突
 #   2. 编译大量无关的 examples/benchmark 拖慢构建
@@ -150,7 +148,7 @@ set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
 # Aria 在这里只提供响应式/协程/ViewModel（core + async + binding）。
 set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
 set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
-add_subdirectory(${ARIA_DIR} aria)
+add_subdirectory("${ARIA_DIR}" aria)
 
 # ──────────────────────────────────────────────
 # 核心库

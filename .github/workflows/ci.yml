@@ -170,8 +170,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build gcc-14 g++-14 perl make zlib1g-dev
-          echo "CC=gcc-13" >> "$GITHUB_ENV"
-          echo "CXX=g++-13" >> "$GITHUB_ENV"
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
 
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'

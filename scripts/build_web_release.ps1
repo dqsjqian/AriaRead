@@ -61,6 +61,9 @@ if (-not $clOnPath) {
 }
 
 if (-not $SkipCMake) {
+    # Verify the pin on every build; ARIA_SOURCE may select a local Git source.
+    & python (Join-Path $PROJECT_ROOT "tools\ci\fetch_aria.py")
+    if ($LASTEXITCODE -ne 0) { throw "Aria dependency verification failed" }
     # Pinned dependency prefix: built once by tools\ci\build_ariaread_deps.py.
     # Configure itself never touches the network.
     $depsManifest = Join-Path $PROJECT_ROOT "build\deps\prefix\share\ariaread-deps\manifest.json"

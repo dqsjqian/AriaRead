@@ -28,7 +28,7 @@ cmake-build-*/
 *.dll
 *.exe
 
-# 依赖（QuickJS 核心源文件已纳入版本管理）
+# 依赖源码与安装前缀统一缓存在 build/deps/
 
 # CMake 缓存
 CMakeCache.txt
@@ -61,3 +61,12 @@ tests/rss*.json
 *.bak
 
 build*/
+
+# Local Python environments, caches and private settings
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.skills_data/
+.workbuddy/
