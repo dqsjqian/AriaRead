@@ -548,6 +548,15 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
         target = ["mingw64"]
     else:
         target = []
+    compiler_options = []
+    if toolchain == 'msvc':
+        # OpenSSL's Windows makefile template quotes CC itself. Passing the
+        # shell-quoted CC used by CMake would produce ""C:\Program Files\..."".
+        selected = cache_state.compiler(os.environ.get('CC') or 'cl')
+        compiler_options.append('CC=' + selected['path'])
+        if selected['arguments']:
+            flags = subprocess.list2cmdline(selected['arguments'])
+            compiler_options.append('CFLAGS=' + (flags + ' ' + os.environ.get('CFLAGS', '')).strip())
     # no-asm：避免 Windows 上再依赖 NASM；静态库只给 libcurl 用，慢一点无所谓。
     run(["perl", str(source / "Configure"), *target, f"--prefix={prefix}",
          f"--openssldir={prefix}/ssl", "--libdir=lib", "no-shared", "no-tests",
@@ -557,7 +566,7 @@ def build_openssl(source: Path, prefix: Path, jobs: int) -> None:
          # ld (left-to-right) cannot use. Nothing in AriaRead reads the
          # system store — curl ships its own CA bundle.
          "no-winstore",
-         "no-docs", "no-apps", "no-asm"], cwd=source)
+         "no-docs", "no-apps", "no-asm", *compiler_options], cwd=source)
     if toolchain == "msvc":
         run([make], cwd=source)
         run([make, "install_sw"], cwd=source)

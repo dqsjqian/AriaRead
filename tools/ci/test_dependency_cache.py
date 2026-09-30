@@ -209,7 +209,10 @@ class SourceTests(unittest.TestCase):
                                       'set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")\n'
                                       f'set(ZLIB_ROOT "{prefix.as_posix()}")\n'
                                       'set(ZLIB_USE_STATIC_LIBS ON)\nfind_package(ZLIB REQUIRED)\n'
-                                      f'if(NOT ZLIB_LIBRARY_RELEASE STREQUAL "{(prefix / "lib" / compatible).as_posix()}")\n'
+                                      # New FindZLIB versions know the upstream
+                                      # name; older versions require our alias.
+                                      f'if(NOT ZLIB_LIBRARY_RELEASE STREQUAL "{(prefix / "lib" / compatible).as_posix()}"\n'
+                                      f'   AND NOT ZLIB_LIBRARY_RELEASE STREQUAL "{(prefix / "lib" / original).as_posix()}")\n'
                                       'message(FATAL_ERROR "FindZLIB selected another library: ${ZLIB_LIBRARY_RELEASE}")\nendif()\n')
                     found = subprocess.run(['cmake', '-S', str(prefix), '-B', str(prefix / 'build')], encoding='utf-8', errors='replace',
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -294,6 +297,23 @@ class SourceTests(unittest.TestCase):
             self.assertEqual(builder.windows_toolchain(), 'mingw')
         with patch.dict(builder.os.environ, {'CC': '"/toolchain with spaces/cl.exe"'}, clear=True):
             self.assertEqual(builder.windows_toolchain(), 'msvc')
+
+    def test_openssl_msvc_compiler_path_is_quoted_once_by_upstream(self):
+        selected = {'path': r'C:\Program Files\Compiler\cl.exe', 'arguments': ['/DSELECTED=1']}
+        original = '"' + selected['path'] + '" /DSELECTED=1'
+        with patch.dict(builder.os.environ, {'CC': original, 'CFLAGS': '/O2'}, clear=True), \
+                patch.object(builder.sys, 'platform', 'win32'), \
+                patch.object(builder, 'windows_toolchain', return_value='msvc'), \
+                patch.object(builder.shutil, 'which', return_value='available'), \
+                patch.object(cache, 'compiler', return_value=selected) as compiler, \
+                patch.object(builder, 'run') as run:
+            builder.build_openssl(self.root, self.root / 'prefix', 1)
+            compiler.assert_called_once_with(original)
+            configure = run.call_args_list[0].args[0]
+            self.assertIn('CC=' + selected['path'], configure)
+            self.assertIn('CFLAGS=/DSELECTED=1 /O2', configure)
+            self.assertEqual(builder.os.environ['CC'], original)
+            self.assertEqual(builder.os.environ['CFLAGS'], '/O2')
 
     def test_compiler_path_with_spaces_is_one_executable(self):
         executable = self.root / 'compiler with spaces'
