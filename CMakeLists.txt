@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(AriaRead VERSION 0.2.0 LANGUAGES CXX C)
+project(AriaRead VERSION 0.2.1 LANGUAGES CXX C)
 
 # ──────────────────────────────────────────────
 # C++23 标准，全平台统一，与 Aria 和 Mira 的公开接口要求一致。

@@ -1,5 +1,7 @@
 # AriaRead
 
+Current version **0.2.1** · Aria **3.0.1**
+
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
 
 Built on [Aria](https://github.com/dqsjqian/Aria) (a C++23 reactive MVVM framework); compatible with mainstream book-source formats.
@@ -57,7 +59,7 @@ bash scripts/build_web_release.sh
 
 `build/bin/` contains `ariaread_web_server`, the Aria libraries, and `web/`. Copy this directory as a unit to run elsewhere. Assets are loaded beside the executable by default; use `--web-root bindings/web/ariaread/web` explicitly for source-tree assets during development.
 
-On Windows, use `scripts/build_web_release.ps1` and run `build/bin/ariaread_web_server.exe`. Multi-config generators use `build/bin/Release/` (or the selected configuration); pass `--config Debug` / `-Config Debug` to the scripts. `ARIAREAD_BUILD_DIR` selects another build directory.
+On Windows, use `scripts/build_web_release.ps1` and run `build/bin/ariaread_web_server.exe`; multi-config generators use `build/bin/Release/`. The pinned Windows dependency prefix provides Release libraries only, so the script accepts only `-Config Release`. `ARIAREAD_BUILD_DIR` selects another build directory.
 
 The project no longer uses a `release/` directory; run and distribute the build output above.
 

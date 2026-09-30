@@ -1,5 +1,7 @@
 # AriaRead
 
+当前版本 **0.2.1** · Aria **3.0.1**
+
 📖 跨平台阅读引擎，专注于开源中文书源生态。
 
 基于 [Aria](https://github.com/dqsjqian/Aria)（C++23 响应式 MVVM 框架）构建，兼容主流书源格式。
@@ -50,7 +52,7 @@ bash scripts/build_web_release.sh
 
 `build/bin/` 包含 `ariaread_web_server`、Aria 动态库和 `web/`，可整体复制到其他目录运行。默认读取程序旁的 `web/`；开发时可用 `--web-root bindings/web/ariaread/web` 显式指定源码资源。
 
-Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/ariaread_web_server.exe`。多配置生成器使用 `build/bin/Release/`（或所选配置），脚本可传 `--config Debug` / `-Config Debug`。`ARIAREAD_BUILD_DIR` 可指定其他构建目录。
+Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/ariaread_web_server.exe`；多配置生成器使用 `build/bin/Release/`。Windows 固定依赖前缀仅提供 Release 库，脚本只接受 `-Config Release`。`ARIAREAD_BUILD_DIR` 可指定其他构建目录。
 
 项目不再使用 `release/` 目录；启动与分发均使用上述构建产物。
 
