@@ -85,7 +85,7 @@ The entry point prints the actual executable path. Default runtime directories:
 
 Copy the directory as a unit, including Aria libraries, `web/` and `licenses/`. Assets load beside the executable; use `--web-root bindings/web/ariaread/web` for source-tree assets. `ARIAREAD_BUILD_DIR` and `ARIAREAD_DEPS_PREFIX` remain supported.
 
-The existing `scripts/build_web_release.sh`, `.ps1`, and `scripts/build_msvc.bat` delegate to the same entry point. Windows supports Release only and rejects incompatible configurations early. `--clean` cleans application output while preserving downloaded and compiled dependencies. CI caches verified prefixes and sources, excluding intermediate build trees.
+The existing `scripts/build_web_release.sh` and `.ps1` scripts delegate to the same entry point. Windows supports Release only and rejects incompatible configurations early. `--clean` cleans application output while preserving downloaded and compiled dependencies. CI caches verified prefixes and sources, excluding intermediate build trees.
 
 See [dependency responsibilities and Mira boundaries](docs/build-architecture.md).
 

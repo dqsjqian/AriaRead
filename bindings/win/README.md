@@ -30,7 +30,9 @@ python tools/build.py --clean-only
 
 默认 MSVC 构建目录为 `build/windows-msvc-release`，依赖安装在 `build/deps/windows-msvc/prefix`；MinGW 对应 `build/windows-mingw-release` 和 `build/deps/windows-mingw/prefix`。两种工具链不能共用同一个 CMake 构建目录或依赖安装目录。`--build-dir`、`--deps-prefix` 可分别覆盖路径；非标准安装可使用 `ARIAREAD_VS_ROOT`、`ARIAREAD_WINDOWS_KITS_ROOT` 或 `MSYS2_ROOT`。
 
-Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。旧入口 `scripts/build_msvc.bat` 和 `scripts/build_web_release.ps1` 均委托给同一 Python 入口。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
+显式安装路径优先；未指定时也会探测 D/E/F/G 盘常见布局，包括 `worksoft/VS2026`、`Windows Kits/10`、`msys64`、`msys2` 和 `worksoft/msys64`。受限环境阻止 `vswhere` 时会保留诊断并继续探测。只有显式选择 OpenSSL 才会额外查找原生 Perl，优先使用 `ARIAREAD_PERL_DIR` 或已有 `PATH`，随后检查 Strawberry Perl 与 MSYS2 的常见路径。
+
+Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。`scripts/build_web_release.ps1` 是同一 Python 入口的 PowerShell 薄包装。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
 
 ## 原生界面接入
 

@@ -23,6 +23,7 @@ class BuildTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="ariaread build tests ")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
+        self.drives = [self.root / "drives" / letter for letter in "CDEFG"]
         self.vs = self.root / "Program Files/Microsoft Visual Studio/2026/BuildTools"
         self.kits = self.root / "Program Files (x86)/Windows Kits/10"
         self.vc = self.make_vc("14.51.36247")
@@ -44,6 +45,7 @@ class BuildTests(unittest.TestCase):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(build, "ROOT", self.root))
+        self.stack.enter_context(patch.object(build, "windows_drive_roots", return_value=self.drives))
         self.stack.enter_context(patch.object(build, "executable", side_effect=self.which))
         self.stack.enter_context(patch.dict(os.environ, {}, clear=True))
         self.stack.enter_context(redirect_stdout(io.StringIO()))
@@ -220,8 +222,90 @@ class BuildTests(unittest.TestCase):
     def test_missing_msvc_and_incomplete_sdk_report_setup_instructions(self):
         for key, absent in (("ARIAREAD_VS_ROOT", self.root / "absent VS"),
                             ("ARIAREAD_WINDOWS_KITS_ROOT", self.root / "absent SDK")):
-            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "MSVC x64 and the Windows SDK"):
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "MSVC x64 and the Windows SDK|ARIAREAD_VS_ROOT"):
                 build.prepare_environment(build.parse_args([]), "msvc", {}, dict(self.env, **{key: str(absent)}))
+
+    def test_multidrive_msvc_sdk_fallback_survives_vswhere_failure_and_old_vs(self):
+        c_drive, d_drive, e_drive, _, _ = self.drives
+        selected_vs = d_drive / "worksoft/VS2026"
+        selected_kits = e_drive / "Windows Kits/10"
+        build.shutil.copytree(self.vs, selected_vs)
+        build.shutil.copytree(self.kits, selected_kits)
+        old_vs = c_drive / "Program Files/Microsoft Visual Studio/2022/BuildTools"
+        build.shutil.copytree(self.vs, old_vs)
+        (old_vs / "VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt").write_text("14.44.12345")
+        vswhere = self.touch(c_drive / "Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe")
+        environment = {"PATH": "", "PROGRAMFILES(X86)": str(c_drive / "Program Files (x86)")}
+        for failure in (PermissionError("execution blocked"),
+                        subprocess.CalledProcessError(1, [str(vswhere)], stderr="restricted policy")):
+            diagnostic = io.StringIO()
+            with self.subTest(failure=failure), redirect_stderr(diagnostic), \
+                    patch.object(build.subprocess, "run", side_effect=failure):
+                env, (cc, _), _ = build.prepare_environment(build.parse_args([]), "msvc", {}, environment)
+            self.assertEqual(cc, str(selected_vs / "VC/Tools/MSVC" / self.vc.name / "bin/Hostx64/x64/cl.exe"))
+            self.assertEqual(env["WINDOWSSDKDIR"], str(selected_kits) + "\\")
+            self.assertEqual(self.which("cmake", env), str(selected_vs /
+                             "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"))
+            self.assertIn("warning: vswhere failed", diagnostic.getvalue())
+
+    def test_explicit_vs_and_sdk_override_working_installations_on_other_drives(self):
+        other_vs = self.drives[1] / "worksoft/VS2026"
+        other_kits = self.drives[2] / "Windows Kits/10"
+        build.shutil.copytree(self.vs, other_vs)
+        build.shutil.copytree(self.kits, other_kits)
+        env = dict(self.env, PATH=str(other_vs / "VC/Tools/MSVC" / self.vc.name / "bin/Hostx64/x64"),
+                   INCLUDE="old include", LIB="old lib", WINDOWSSDKDIR=str(other_kits))
+        selected, (cc, _), _ = build.prepare_environment(build.parse_args([]), "msvc", {}, env)
+        self.assertEqual(cc, str(self.vc / "bin/Hostx64/x64/cl.exe"))
+        self.assertEqual(selected["WINDOWSSDKDIR"], str(self.kits) + "\\")
+        with self.assertRaisesRegex(ValueError, "ARIAREAD_VS_ROOT"):
+            build.prepare_environment(build.parse_args([]), "msvc", {},
+                                      dict(env, ARIAREAD_VS_ROOT=str(self.root / "missing explicit VS")))
+
+    def test_multidrive_mingw_fallback_and_explicit_root_priority(self):
+        destination = self.drives[3] / "worksoft/msys64/ucrt64/bin"
+        build.shutil.copytree(self.mingw, destination)
+        with patch.object(build.subprocess, "run", return_value=subprocess.CompletedProcess(
+                [], 0, "x86_64-w64-mingw32\n")):
+            _, (cc, _), _ = build.prepare_environment(build.parse_args([]), "mingw", {}, {"PATH": ""})
+            self.assertEqual(cc, str(destination / "gcc.exe"))
+            _, (cc, _), _ = build.prepare_environment(build.parse_args([]), "mingw", {},
+                                                     {"PATH": str(destination), "MSYS2_ROOT": str(self.msys)})
+            self.assertEqual(cc, str(self.mingw / "gcc.exe"))
+
+    def test_standalone_cmake_in_program_files_is_available_without_path_entry(self):
+        (self.cmake_bin / "cmake.exe").unlink()
+        standalone = self.touch(self.drives[0] / "Program Files/CMake/bin/cmake.exe")
+        env, _, _ = build.prepare_environment(build.parse_args([]), "msvc", {}, self.env)
+        self.assertEqual(self.which("cmake", env), str(standalone))
+
+    def test_openssl_finds_multidrive_perl_for_both_toolchains_only_when_requested(self):
+        for directory in (self.drives[1] / "worksoft/msys64/ucrt64/bin",
+                          self.drives[2] / "msys2/ucrt64/bin",
+                          self.drives[4] / "Program Files/Strawberry/perl/bin"):
+            perl = self.touch(directory / "perl.exe")
+            for toolchain in ("msvc", "mingw"):
+                with self.subTest(directory=directory, toolchain=toolchain), \
+                        patch.object(build.subprocess, "run", return_value=subprocess.CompletedProcess(
+                            [], 0, "x86_64-w64-mingw32\n")):
+                    source = dict(self.env, MSYS2_ROOT=str(self.msys))
+                    env, _, _ = build.prepare_environment(build.parse_args([]), toolchain, {}, source)
+                    self.assertIsNone(self.which("perl", env))
+                    env, _, _ = build.prepare_environment(build.parse_args(["--tls-backend", "openssl"]),
+                                                          toolchain, {}, source)
+                    self.assertEqual(self.which("perl", env), str(perl))
+            perl.unlink()
+
+    def test_openssl_respects_existing_perl_path_and_explicit_override(self):
+        existing = self.touch(self.root / "existing perl/perl.exe")
+        override = self.touch(self.root / "selected perl/perl.exe")
+        self.touch(self.drives[1] / "Strawberry/perl/bin/perl.exe")
+        args = build.parse_args(["--tls-backend", "openssl"])
+        env, _, _ = build.prepare_environment(args, "msvc", {}, dict(self.env, PATH=str(existing.parent)))
+        self.assertEqual(self.which("perl", env), str(existing))
+        env, _, _ = build.prepare_environment(args, "msvc", {},
+            dict(self.env, PATH=str(existing.parent), ARIAREAD_PERL_DIR=str(override.parent)))
+        self.assertEqual(self.which("perl", env), str(override))
 
     def test_existing_developer_prompt_rejects_x86(self):
         env = dict(self.env, PATH=str(self.vc / "bin/Hostx64/x64"), INCLUDE="include", LIB="lib",

@@ -2,7 +2,7 @@
 """Build AriaRead with one toolchain from dependencies through runtime packaging.
 
 Windows defaults to MSVC x64. MinGW is an explicit, isolated alternative.
-Existing shell/PowerShell/batch entry points delegate here. Python 3.10+ only;
+Existing shell/PowerShell entry points delegate here. Python 3.10+ only;
 no Python packages are needed.
 """
 from __future__ import annotations
@@ -132,32 +132,62 @@ def stable_msvc_directory(root: Path) -> Path | None:
     return next((path for path in versions if re.fullmatch(r"14\.51\.\d+(?:\.\d+)*", path.name)), None)
 
 
+def windows_drive_roots() -> list[Path]:
+    return [Path(f"{letter}:/") for letter in "CDEFG"]
+
+
+def program_files_directories(env: dict[str, str]) -> list[Path]:
+    selected = [Path(env[key]) for key in ("PROGRAMFILES(X86)", "PROGRAMFILES") if env.get(key)]
+    return list(dict.fromkeys([*selected, *(drive / name for drive in windows_drive_roots()
+                                          for name in ("Program Files (x86)", "Program Files"))]))
+
+
+def msys2_bin_directories(env: dict[str, str]) -> list[Path]:
+    roots = [Path(env["MSYS2_ROOT"])] if env.get("MSYS2_ROOT") else []
+    roots.extend(drive / name for drive in windows_drive_roots()
+                 for name in ("msys64", "msys2", "worksoft/msys64"))
+    return list(dict.fromkeys(root / part / "bin" for root in roots for part in ("ucrt64", "mingw64")))
+
+
 def visual_studio_roots(env: dict[str, str]) -> list[Path]:
-    roots = [Path(env[key]) for key in ("ARIAREAD_VS_ROOT", "VSINSTALLDIR") if env.get(key)]
+    if env.get("ARIAREAD_VS_ROOT"):
+        return [Path(env["ARIAREAD_VS_ROOT"])]
+    roots = [Path(env["VSINSTALLDIR"])] if env.get("VSINSTALLDIR") else []
     # Developer prompts do not always export VSINSTALLDIR.
     if env.get("VCTOOLSINSTALLDIR"):
         roots.append(Path(env["VCTOOLSINSTALLDIR"]).parents[3])
-    program_files = [Path(env[key]) for key in ("PROGRAMFILES(X86)", "PROGRAMFILES") if env.get(key)]
+    program_files = program_files_directories(env)
     vswhere = next((root / "Microsoft Visual Studio/Installer/vswhere.exe" for root in program_files
                     if (root / "Microsoft Visual Studio/Installer/vswhere.exe").is_file()), None)
     if vswhere:
-        found = subprocess.run([str(vswhere), "-latest", "-products", "*", "-requires",
-                                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property",
-                                "installationPath", "-utf8"], env=env, check=True,
-                               capture_output=True, text=True, encoding="utf-8")
-        roots.extend(Path(line.strip()) for line in found.stdout.splitlines() if line.strip())
-    for root in program_files:
-        base = root / "Microsoft Visual Studio"
+        try:
+            found = subprocess.run([str(vswhere), "-latest", "-products", "*", "-requires",
+                                    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property",
+                                    "installationPath", "-utf8"], env=env, check=True, timeout=10,
+                                   capture_output=True, text=True, encoding="utf-8")
+            roots.extend(Path(line.strip()) for line in found.stdout.splitlines() if line.strip())
+        except (OSError, subprocess.SubprocessError) as error:
+            diagnostic = str(getattr(error, "stderr", "") or "").strip()
+            print(f"warning: vswhere failed ({error}); probing known installation paths. {diagnostic}",
+                  file=sys.stderr)
+    bases = [root / "Microsoft Visual Studio" for root in program_files]
+    bases.extend(drive / name for drive in windows_drive_roots()
+                 for name in ("Microsoft Visual Studio", "worksoft/VS2026"))
+    for base in bases:
+        roots.append(base)
+        roots.extend(sorted(base.glob("[0-9]*"), reverse=True))
         roots.extend(sorted(base.glob("[0-9]*/*"), reverse=True))
     return list(dict.fromkeys(roots))
 
 
 def msvc_environment(env: dict[str, str]) -> tuple[str, str]:
     roots = visual_studio_roots(env)
-    for root in roots:
-        prepend_path(env, [root / "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja",
-                           root / "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"])
+    prepend_path(env, [root / part for root in roots for part in (
+        "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja",
+        "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin")])
     current = executable("cl", env)
+    if current and env.get("ARIAREAD_VS_ROOT") and not Path(current).is_relative_to(Path(env["ARIAREAD_VS_ROOT"])):
+        current = None  # An explicit installation takes precedence over another developer prompt.
     if current and env.get("INCLUDE") and env.get("LIB"):
         target = env.get("VSCMD_ARG_TGT_ARCH", "").lower()
         if target and target not in ("x64", "amd64"):
@@ -169,25 +199,39 @@ def msvc_environment(env: dict[str, str]) -> tuple[str, str]:
             raise ValueError("The active developer prompt selects MSVC " + ", ".join(versions) +
                              "; AriaRead requires stable MSVC 14.51. Open a stable Visual Studio 2026 "
                              "18.10.3 x64 prompt or build from a plain shell; preview toolsets are unsupported.")
-        if versions:
+        if versions and not env.get("ARIAREAD_WINDOWS_KITS_ROOT"):
             env["VCTOOLSVERSION"] = versions[0]
             return current, current
-    kits = env.get("ARIAREAD_WINDOWS_KITS_ROOT") or env.get("WINDOWSSDKDIR")
-    if not kits:
-        kits = str(Path(env.get("PROGRAMFILES(X86)", "C:/Program Files (x86)")) / "Windows Kits/10")
-    kits_root = Path(kits)
+    kits_roots = [Path(env[key]) for key in ("ARIAREAD_WINDOWS_KITS_ROOT", "WINDOWSSDKDIR") if env.get(key)]
+    kits_roots.extend(root / "Windows Kits/10" for root in program_files_directories(env))
+    kits_roots.extend(root / "Windows Kits/10" for root in windows_drive_roots())
     # SDK upgrades can leave incomplete version directories. Use the newest
     # complete x64 SDK instead of letting a partial install hide a working one.
-    sdk = next((path for path in version_directories(kits_root / "Include", ("ucrt", "um", "shared"))
-                if all((kits_root / "Lib" / path.name / part / "x64").is_dir() for part in ("ucrt", "um"))
-                and all((kits_root / "bin" / path.name / "x64" / tool).is_file()
-                        for tool in ("rc.exe", "mt.exe"))), None)
+    sdk = None
+    for kits_root in dict.fromkeys(kits_roots):
+        sdk = next((path for path in version_directories(kits_root / "Include", ("ucrt", "um", "shared"))
+                    if all((kits_root / "Lib" / path.name / part / "x64").is_dir() for part in ("ucrt", "um"))
+                    and all((kits_root / "bin" / path.name / "x64" / tool).is_file()
+                            for tool in ("rc.exe", "mt.exe"))), None)
+        if sdk:
+            break
+    diagnostics = []
     for root in roots:
-        vc = stable_msvc_directory(root)
+        try:
+            vc = stable_msvc_directory(root)
+            if not vc and env.get("ARIAREAD_VS_ROOT"):
+                raise ValueError(f"ARIAREAD_VS_ROOT has no complete stable MSVC 14.51 x64 toolset: {root}")
+        except ValueError as error:
+            if env.get("ARIAREAD_VS_ROOT"):
+                raise
+            diagnostics.append(str(error))
+            continue
         if not vc or not sdk:
             continue
         version = sdk.name
         prepend_path(env, [vc / "bin/Hostx64/x64", kits_root / "bin" / version / "x64",
+                           root / "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja",
+                           root / "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin",
                            root / "Common7/IDE", root / "Common7/Tools"])
         env["INCLUDE"] = ";".join(str(path) for path in [vc / "include", *(
             sdk / name for name in ("ucrt", "um", "shared", "winrt", "cppwinrt")
@@ -204,17 +248,21 @@ def msvc_environment(env: dict[str, str]) -> tuple[str, str]:
     raise ValueError("Stable MSVC x64 and the Windows SDK were not found. Install Visual Studio 2026 "
                      "18.10.3 Build Tools (MSVC 14.51) "
                      "with Desktop development with C++ and C++ CMake tools, or set ARIAREAD_VS_ROOT. "
-                     "To use MSYS2 UCRT64 explicitly, pass --toolchain mingw.")
+                     "To use MSYS2 UCRT64 explicitly, pass --toolchain mingw. " + " | ".join(diagnostics))
 
 
 def mingw_environment(env: dict[str, str]) -> tuple[str, str]:
-    candidates = []
+    candidates = msys2_bin_directories(env)
+    c = cxx = None
     if env.get("MSYS2_ROOT"):
-        candidates.extend(Path(env["MSYS2_ROOT"]) / part / "bin" for part in ("ucrt64", "mingw64"))
-    candidates.extend(Path(path) for path in ("C:/msys64/ucrt64/bin", "C:/msys64/mingw64/bin",
-                                             "C:/msys2/mingw64/bin"))
+        for path in candidates[:2]:
+            if (path / "gcc.exe").is_file() and (path / "g++.exe").is_file():
+                prepend_path(env, [path])
+                c, cxx = str(path / "gcc.exe"), str(path / "g++.exe")
+                break
     # Preserve an explicitly selected UCRT64/MINGW64 shell before probing defaults.
-    c, cxx = executable("gcc", env), executable("g++", env)
+    if not (c and cxx):
+        c, cxx = executable("gcc", env), executable("g++", env)
     if not (c and cxx):
         for path in candidates:
             if (path / "gcc.exe").is_file() and (path / "g++.exe").is_file():
@@ -238,6 +286,22 @@ def compiler_command(value: str, env: dict[str, str], windows: bool) -> tuple[st
     if not path:
         raise ValueError(f"Compiler is unavailable: {value}")
     return str(Path(path).resolve()), parts[1:]
+
+
+def prepare_windows_perl(env: dict[str, str]) -> None:
+    explicit = Path(env["ARIAREAD_PERL_DIR"]) if env.get("ARIAREAD_PERL_DIR") else None
+    if explicit and (explicit / "perl.exe").is_file():
+        prepend_path(env, [explicit])
+        return
+    if executable("perl", env):
+        return
+    candidates = [root / "Strawberry/perl/bin" for root in windows_drive_roots()]
+    candidates.extend(root / "Strawberry/perl/bin" for root in program_files_directories(env))
+    candidates.extend(msys2_bin_directories(env))
+    for path in candidates:
+        if (path / "perl.exe").is_file():
+            prepend_path(env, [path])
+            return
 
 
 def prepare_environment(args, toolchain: str, cache: dict[str, str], source_env=None):
@@ -278,13 +342,10 @@ def prepare_environment(args, toolchain: str, cache: dict[str, str], source_env=
     quote = subprocess.list2cmdline if windows else shlex.join
     env.update(CC=quote([cc, *cargs]), CXX=quote([cxx, *cxxargs]), PYTHONIOENCODING="utf-8")
     # OpenSSL is optional on Windows; Perl is only relevant when explicitly requested.
-    if toolchain == "msvc" and args.tls_backend == "openssl":
-        perl_dirs = [Path(env[key]) for key in ("ARIAREAD_PERL_DIR",) if env.get(key)]
-        perl_dirs.extend([Path("C:/Strawberry/perl/bin"), Path("C:/msys64/ucrt64/bin")])
-        for path in perl_dirs:
-            if (path / "perl.exe").is_file():
-                prepend_path(env, [path])
-                break
+    if windows and args.tls_backend == "openssl":
+        prepare_windows_perl(env)
+    if windows and not executable("cmake", env):
+        prepend_path(env, [root / "CMake/bin" for root in program_files_directories(env)])
     if not executable("cmake", env):
         raise ValueError("CMake 3.21+ is required; install it or enable Visual Studio C++ CMake tools")
     generator = env.get("CMAKE_GENERATOR")
