@@ -19,6 +19,36 @@ Other knobs: --config (Release/Debug/...), --generator, --jobs, --tls-backend
 (openssl/schannel), --offline, --require-web-tests, --build-dir, --deps-prefix.
 Environment overrides: ARIAREAD_BUILD_DIR, ARIAREAD_DEPS_PREFIX,
 ARIAREAD_BUILD_JOBS, ARIAREAD_VS_ROOT, ARIAREAD_WINDOWS_KITS_ROOT, MSYS2_ROOT.
+
+This module is the reference implementation for build entry points across the
+Aria ecosystem; other projects copy this pattern. The invariants that make it
+work, in the order a copier is most likely to break them:
+
+1.  One entry point per repository. Compatibility wrappers may forward
+    arguments but never carry build logic of their own.
+2.  Windows build directories and dependency prefixes are per toolchain
+    (windows-msvc-release, windows-mingw-release). MSVC and MinGW must never
+    share a CMake cache or an installed prefix, even when both compilers are
+    on PATH.
+3.  MSVC is pinned to the stable 14.51 series through Visual Studio's own
+    Microsoft.VCToolsVersion.default.txt, never through the largest toolset
+    directory: side-by-side preview toolsets must not win.
+4.  Toolchain discovery order: explicit environment overrides first
+    (ARIAREAD_VS_ROOT, ARIAREAD_WINDOWS_KITS_ROOT, MSYS2_ROOT), then vswhere,
+    then the standard Program Files layouts, then the remaining fixed drives.
+5.  Every failure names the override that would fix it. A build that cannot
+    start should not require reading the source to learn which variable to
+    set.
+6.  Dependency installs are resumable: locked versions with SHA256
+    verification, a per-dependency completed set, and a cache identity that
+    fingerprints the selected compiler and its flags. Interrupted runs
+    continue; toolchain changes rebuild.
+7.  On CJK Windows consoles the CTest run switches the console output code
+    page to UTF-8 so Chinese test names render correctly, restoring the
+    previous page afterwards (see utf8_console).
+
+The dependency strategy (what is kept, dropped, and which TLS backend serves
+which platform) lives in docs/build-architecture.md.
 """
 from __future__ import annotations
 
