@@ -41,6 +41,26 @@ foreach ($candidate in $mingwCandidates) {
     }
 }
 
+# The pinned dependency build compiles OpenSSL 4 from source, and its Configure
+# step needs perl on PATH. ARIAREAD_PERL_DIR overrides the probe; otherwise
+# reuse the MSYS2 prefix resolved above and fall back to the usual layouts.
+if (-not (Get-Command perl -ErrorAction SilentlyContinue)) {
+    $perlDirs = @()
+    if ($env:ARIAREAD_PERL_DIR) { $perlDirs += $env:ARIAREAD_PERL_DIR }
+    if ($mingwCandidates -and (Test-Path $mingwCandidates[0])) { $perlDirs += $mingwCandidates[0] }
+    $perlDirs += @("C:\msys64\ucrt64\bin", "C:\Strawberry\perl\bin",
+                   "$env:ProgramFiles\Strawberry\perl\bin")
+    $perlDirs += @("D", "E", "F", "G") | ForEach-Object {
+        @("$($_):\msys64\ucrt64\bin", "$($_):\msys2\ucrt64\bin", "$($_):\worksoft\msys64\ucrt64\bin")
+    }
+    foreach ($dir in $perlDirs) {
+        if (Test-Path (Join-Path $dir "perl.exe")) {
+            $env:PATH = "$dir;$env:PATH"
+            break
+        }
+    }
+}
+
 # Toolchain auto-detect: MSVC first (self-contained env assembly -- no
 # vcvarsall.bat and no reg.exe, which restricted environments may block), then
 # fall back to MinGW gcc. Both feed Ninja single-config builds.
