@@ -524,8 +524,39 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/application-object"
 add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-object")
 ''')
         environment = dict(self.original_env)
-        subprocess.run([cmake, "-S", str(source), "-B", str(folder)], env=environment,
-                       check=True, capture_output=True)
+        configure = [cmake, "-S", str(source), "-B", str(folder)]
+        if os.name == "nt":
+            # tools/build.py pins Ninja on Windows, and Ninja's clean target is
+            # the one that removes custom-command outputs; the Visual Studio
+            # generator leaves them, which would assert against a generator
+            # the product never selects. The suite clears os.environ, so the
+            # vswhere lookup must run against the captured real environment.
+            ninja = build.shutil.which("ninja", path=self.original_path)
+            if ninja is None:
+                # The VS Installer lives at a fixed location even when the
+                # surrounding environment is stripped (this suite clears
+                # os.environ, and parenthesised variables can drop out of
+                # inherited environments), so fall back to the standard path.
+                installer_root = self.original_env.get("ProgramFiles(x86)") or \
+                    r"C:\Program Files (x86)"
+                vswhere = Path(installer_root) / \
+                    "Microsoft Visual Studio/Installer/vswhere.exe"
+                roots = []
+                if vswhere.is_file():
+                    listed = subprocess.run([str(vswhere), "-latest", "-property",
+                                             "installationPath"], capture_output=True,
+                                            text=True, env=self.original_env)
+                    roots = [line.strip() for line in listed.stdout.splitlines() if line.strip()]
+                for root in roots:
+                    candidate = Path(root) / "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+                    if candidate.is_file():
+                        ninja = str(candidate)
+                        break
+            if ninja is None:
+                self.skipTest("Ninja unavailable to pin the Windows generator")
+            environment["PATH"] = str(Path(ninja).parent) + os.pathsep + environment.get("PATH", "")
+            configure += ["-G", "Ninja"]
+        subprocess.run(configure, env=environment, check=True, capture_output=True)
         subprocess.run([cmake, "--build", str(folder)], env=environment,
                        check=True, capture_output=True)
         artifact = folder / "application-object"
