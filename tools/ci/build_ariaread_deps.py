@@ -283,6 +283,7 @@ RECIPES: tuple[Dependency, ...] = (
         sha256="",
         license="MIT", license_files=("LICENSE.txt",), root="",
         kind="cmake", uses_libdir=True,
+        patch="doctest-2.5.3-cmake-utf8-discovery.patch",
         options=("-DDOCTEST_WITH_TESTS=OFF", "-DDOCTEST_WITH_MAIN_IN_STATIC_LIB=OFF"),
         artifacts=("include/doctest/doctest.h",),
     ),
@@ -751,7 +752,7 @@ def output_path(value: Path) -> Path:
 
 # A patch is approved for a specific upstream version, never blindly carried forward.
 PATCH_VERSIONS = {'gumbo': {'0.10.1'}, 'quickjs': {'2026-06-04'},
-                  'sqlite_modern_cpp': {'3.2'}}
+                  'sqlite_modern_cpp': {'3.2'}, 'doctest': {'2.5.3'}}
 
 
 def configured_recipes(profile='tests', tls_backend='auto'):
