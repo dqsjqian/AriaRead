@@ -55,7 +55,12 @@ def compiler(command):
     # the same banner without dropping any compiler-version information.
     executable = str(Path(executable).resolve())
     argument = '/Bv' if Path(executable).stem.lower() == 'cl' else '--version'
+    # Children are pinned to UTF-8 (python children reconfigure their streams,
+    # and CL=/utf-8 makes cl emit UTF-8), so decode explicitly. The locale
+    # codec on Chinese Windows (GBK) would crash on the very output this
+    # function exists to capture.
     result = subprocess.run([executable, *parts[1:], argument], text=True,
+                            encoding='utf-8', errors='replace',
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return {'path': str(Path(executable).resolve()),
             'binary_sha256': hashlib.sha256(Path(executable).read_bytes()).hexdigest(),

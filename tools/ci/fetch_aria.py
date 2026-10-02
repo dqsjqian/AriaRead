@@ -21,7 +21,8 @@ DEST = ROOT / "build" / "deps" / "aria"
 
 
 def git(*args):
-    result = subprocess.run(["git", *map(str, args)], capture_output=True, text=True)
+    result = subprocess.run(["git", *map(str, args)], capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
     if result.returncode:
         raise RuntimeError("git %s failed: %s" % (" ".join(map(str, args)), result.stderr.strip()))
     return result.stdout.strip()

@@ -172,7 +172,8 @@ class Context:
         # this process or to release-asset download hosts.
         if shutil.which("gh"):
             result = subprocess.run(["gh", "api", "--hostname", "github.com", path],
-                                    capture_output=True, text=True, check=False)
+                                    capture_output=True, text=True, encoding="utf-8",
+                                    errors="replace", check=False)
             if result.returncode == 0:
                 return json.loads(result.stdout)
             if "404" in result.stderr:

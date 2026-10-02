@@ -698,7 +698,8 @@ def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
     """Cache a clean checkout by immutable revision; never overwrite edited sources."""
     target = work / "git" / dependency.name / dependency.revision
     def git(*arguments):
-        return subprocess.check_output(["git", "-C", str(target), *arguments], text=True).strip()
+        return subprocess.check_output(["git", "-C", str(target), *arguments], text=True,
+                                       encoding="utf-8", errors="replace").strip()
     if target.is_symlink():
         raise ValueError(f"Refusing symbolic-link Git cache: {target}")
     if target.exists():
@@ -715,7 +716,8 @@ def fetch_git(work: Path, dependency: Dependency, offline: bool) -> Path:
     run(["git", "-C", str(temporary), "remote", "add", "origin", dependency.url])
     run(["git", "-C", str(temporary), "fetch", "--depth", "1", "origin", dependency.revision])
     run(["git", "-C", str(temporary), "checkout", "--detach", "FETCH_HEAD"])
-    actual = subprocess.check_output(["git", "-C", str(temporary), "rev-parse", "HEAD"], text=True).strip()
+    actual = subprocess.check_output(["git", "-C", str(temporary), "rev-parse", "HEAD"], text=True,
+                                     encoding="utf-8", errors="replace").strip()
     if actual != dependency.revision:
         raise ValueError(f"Git checkout revision mismatch; preserved: {temporary}")
     temporary.rename(target)
