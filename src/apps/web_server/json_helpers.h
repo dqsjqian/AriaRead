@@ -29,7 +29,7 @@ json source_summary_to_json(const ariaread::SourceSummary& s);
 /// BookshelfDetail → JSON（含阅读进度）
 json bookshelf_detail_to_json(const ariaread::BookshelfDetail& d);
 
-/// HTTP GET 下载（libcurl，用于 /api/sources/url）
+/// HTTP GET 下载（统一客户端，校验证书并限制解压后正文为 32 MiB；用于 /api/sources/url）
 std::string httpDownload(const std::string& url, int timeoutSec = 30);
 
 /// 安全 JSON 序列化：非法 UTF-8 字节替换为 U+FFFD，不会抛异常。

@@ -23,15 +23,19 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Verify selection, rollback and cache contracts
         run: python -m unittest discover -s tools/ci -p 'test_*.py'
+      - name: Verify build entrypoints
+        run: python tools/test_build.py
 
   vs2026:
     name: Build and regressions (VS2026 MSVC)
     runs-on: windows-2025-vs2026
-    timeout-minutes: 60
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
@@ -39,55 +43,32 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      # OpenSSL 的 MSVC 构建走 nmake + cl（ExternalProject），
-      # configure 期 find_program(nmake REQUIRED) 与 build 期 nmake 执行
-      # 都要求 VS 开发者环境在 PATH 里。
       - uses: ilammy/msvc-dev-cmd@v1
-      # 统一 web 回归的 Python 版本（镜像预装 3.12，与 matrix job 的 3.13 对齐，
-      # 避免测试代码在本机/CI 不同 minor 间行为漂移）
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # Aria 不走 submodule：按锁中的完整提交取到 build/deps/aria。
-      - name: Fetch pinned Aria
-        run: python tools/ci/fetch_aria.py
-      # 依赖按提交的锁与 SHA256 显式构建到 build/deps/prefix。
-      # GitHub token 用于发布元数据 API 的认证访问与限流配额。
-      - name: Build pinned dependencies
+      - name: Identify compiler and SDK
+        id: toolchain
+        run: python tools/ci/build_cache_key.py >> $env:GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/deps/cache
+            build/deps/git
+            build/deps/aria
+            build/deps/resolver
+            build/deps/windows-msvc/prefix
+          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          restore-keys: deps-msvc-${{ steps.toolchain.outputs.key }}-
+      # The default Schannel backend needs neither OpenSSL nor Perl/MSYS2.
+      - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python tools/ci/build_ariaread_deps.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Configure tests
-        run: |
-          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Build engine, ViewModels and Web server
-        run: |
-          cmake --build build/ci-vs2026 --config Release --parallel 3
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Dump test-binary DLL dependencies on failure
-        if: failure()
-        run: |
-          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\ariaread-tests.exe
-          dumpbin /DEPENDENTS build\ci-vs2026\bin\Release\ariaread_web_server.exe
-      - name: Run engine, ViewModel and Web regressions
-        # 这里曾经是阻塞门禁的例外：MSVC 侧的静态 CRT 与共享 Aria DLL 不匹配
-        # （/MT 下每个模块各自一个 CRT 堆，跨模块释放堆内存即 0xc0000374 堆损坏），
-        # 169 个用例里挂 114 个。改用动态 CRT（/MD）后病灶消除，本机与 CI
-        # 都稳定 169/169，故恢复为阻塞门禁。
-        run: |
-          $env:PATH = "$PWD\build\ci-vs2026\bin\Release;$env:PATH"
-          ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error --parallel 3 --timeout 120
-      - name: Web server smoke test
-        run: |
-          ./build/ci-vs2026/bin/Release/ariaread_web_server.exe --help
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Upload build and test diagnostics on failure
+        run: python tools/build.py --toolchain msvc --generator "Visual Studio 18 2026" --build-dir build/ci-vs2026 --test --require-web-tests --jobs 3
+      - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -96,7 +77,7 @@ jobs:
             build/ci-vs2026/CMakeCache.txt
             build/ci-vs2026/CMakeFiles/CMakeConfigureLog.yaml
             build/ci-vs2026/Testing/Temporary/
-            build/deps/prefix/share/ariaread-deps/manifest.json
+            build/deps/windows-msvc/prefix/share/ariaread-deps/manifest.json
           if-no-files-found: ignore
 
   windows:
@@ -115,36 +96,30 @@ jobs:
           msystem: UCRT64
           update: true
           install: >-
-            git make perl
+            git
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-zlib
             mingw-w64-ucrt-x86_64-python
             mingw-w64-ucrt-x86_64-nodejs
-      - name: Build pinned dependencies
+      - name: Identify compiler and SDK
+        id: toolchain
+        run: python tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/deps/cache
+            build/deps/git
+            build/deps/aria
+            build/deps/resolver
+            build/deps/windows-mingw/prefix
+          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          restore-keys: deps-mingw-${{ steps.toolchain.outputs.key }}-
+      - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python tools/ci/build_ariaread_deps.py
-      - name: Fetch pinned Aria
-        run: python tools/ci/fetch_aria.py
-      - name: Configure tests
-        run: |
-          cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DARIAREAD_BUILD_TESTS=ON -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
-      - name: Build engine, ViewModels and Web server
-        run: cmake --build build/ci-win --parallel 3
-      - name: Dump test-binary DLL dependencies on failure
-        if: failure()
-        run: |
-          objdump -p build/ci-win/bin/ariaread-tests.exe | grep -i "DLL Name"
-          objdump -p build/ci-win/bin/ariaread_web_server.exe | grep -i "DLL Name"
-      - name: Run engine, ViewModel and Web regressions
-        run: |
-          export PATH="$PWD/build/ci-win/bin:$PATH"
-          ctest --test-dir build/ci-win --output-on-failure --no-tests=error --parallel 3 --timeout 120
-          ./build/ci-win/bin/ariaread_web_server.exe --help
-      - name: Upload build and test diagnostics on failure
+        run: python tools/build.py --toolchain mingw --generator Ninja --build-dir build/ci-win --test --require-web-tests --jobs 3
+      - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -153,17 +128,65 @@ jobs:
             build/ci-win/CMakeCache.txt
             build/ci-win/CMakeFiles/CMakeConfigureLog.yaml
             build/ci-win/Testing/Temporary/
+            build/deps/windows-mingw/prefix/share/ariaread-deps/manifest.json
+          if-no-files-found: ignore
+
+  gcc-current:
+    name: Build and regressions (Linux GCC 16.2, C++23)
+    runs-on: ubuntu-24.04
+    container: gcc:16.2.0-trixie
+    timeout-minutes: 45
+    env:
+      CC: gcc
+      CXX: g++
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install build and regression tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake ninja-build python3 nodejs ca-certificates
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Identify compiler and SDK
+        id: toolchain
+        run: python3 tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/deps/cache
+            build/deps/git
+            build/deps/aria
+            build/deps/resolver
+            build/deps/prefix
+          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          restore-keys: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-
+      - name: Build, package and run all regressions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/build.py --generator Ninja --build-dir build/ci-gcc16 --test --require-web-tests --jobs 3
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ariaread-diagnostics-linux-gcc16
+          path: |
+            build/ci-gcc16/CMakeCache.txt
+            build/ci-gcc16/CMakeFiles/CMakeConfigureLog.yaml
+            build/ci-gcc16/Testing/Temporary/
             build/deps/prefix/share/ariaread-deps/manifest.json
           if-no-files-found: ignore
 
   build-and-test:
-    name: Build and regressions (${{ matrix.os }})
+    name: Build and regressions (macOS, Xcode 27)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-26]
+        os: [macos-26]
     defaults:
       run:
         shell: bash
@@ -171,52 +194,36 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-
-      # Aria (sibling framework) is not a submodule: fetch at a pinned SHA.
-      - name: Fetch pinned Aria
-        run: python3 tools/ci/fetch_aria.py
-
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build gcc-14 g++-14 perl make zlib1g-dev
-          echo "CC=gcc-14" >> "$GITHUB_ENV"
-          echo "CXX=g++-14" >> "$GITHUB_ENV"
-
-      - name: Install macOS build dependencies
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Install macOS build tools
         if: runner.os == 'macOS'
         run: brew install ninja
-
-      - name: Build pinned dependencies
+      - name: Identify compiler and SDK
+        id: toolchain
+        run: python3 tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/deps/cache
+            build/deps/git
+            build/deps/aria
+            build/deps/resolver
+            build/deps/prefix
+          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          restore-keys: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-
+      - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 tools/ci/build_ariaread_deps.py
-      - name: Configure tests
-        run: |
-          cmake -S . -B build/ci -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DARIAREAD_BUILD_TESTS=ON \
-            -DARIAREAD_BUILD_WEB_TESTS=ON -DARIAREAD_REQUIRE_WEB_TESTS=ON
-
-      - name: Build engine, ViewModels and Web server
-        run: cmake --build build/ci --parallel 3
-
-      - name: Run engine, ViewModel and Web regressions
-        run: ctest --test-dir build/ci --output-on-failure --no-tests=error --parallel 3 --timeout 120
-
-      - name: Verify Web runtime layout and dynamic libraries
-        run: ARIAREAD_BUILD_DIR="$PWD/build/ci" bash scripts/build_web_release.sh --skip-cmake
-
-      - name: Upload build and test diagnostics on failure
+        run: python3 tools/build.py --generator Ninja --build-dir build/ci --test --require-web-tests --jobs 3
+      - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:

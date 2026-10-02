@@ -66,6 +66,8 @@ class Dependency:
     #: 哈希来源说明，写进 manifest
     hash_note: str = "SHA256 verified against dependencies.json resolved metadata"
     revision: str = ""
+    #: Libraries consumed by this recipe; changes invalidate its static consumers.
+    requires: tuple[str, ...] = ()
 
     @property
     def archive_name(self) -> str:
@@ -157,17 +159,13 @@ cmake_minimum_required(VERSION 3.16)
 project(quickjs C)
 add_library(quickjs STATIC
     quickjs.c libregexp.c libunicode.c cutils.c dtoa.c)
-# quickjs-libc.c 提供 os/std 模块，依赖 POSIX API，MSVC 下不可移植；
-# AriaRead 的 JsRuntime 不使用这些符号。
-if(NOT MSVC)
-    target_sources(quickjs PRIVATE quickjs-libc.c)
-endif()
+# AriaRead embeds the JS engine only; the CLI's os/std helpers are unused.
 target_include_directories(quickjs PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                                           $<INSTALL_INTERFACE:include>)
 set_target_properties(quickjs PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON
                                         POSITION_INDEPENDENT_CODE ON)
 # CONFIG_VERSION 上游由 Makefile 传入（quickjs.c 里直接用），CMake 侧必须补上。
-# _GNU_SOURCE：quickjs-libc.c 用到 environ 与 sighandler_t，strict c11 下不可见。
+# Keep the engine's GNU extensions visible on POSIX platforms.
 target_compile_definitions(quickjs PRIVATE CONFIG_VERSION="@QUICKJS_VERSION@")
 if(NOT MSVC)
     target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
@@ -185,7 +183,7 @@ if(UNIX AND NOT APPLE)
     endif()
 endif()
 install(TARGETS quickjs EXPORT QuickJSTargets ARCHIVE DESTINATION lib)
-install(FILES quickjs.h quickjs-libc.h cutils.h DESTINATION include)
+install(FILES quickjs.h cutils.h DESTINATION include)
 install(EXPORT QuickJSTargets FILE QuickJSTargets.cmake NAMESPACE quickjs::
         DESTINATION lib/cmake/QuickJS)
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/QuickJSConfig.cmake
@@ -223,6 +221,8 @@ RECIPES: tuple[Dependency, ...] = (
         uses_libdir=True,
         options=(
             "-DBUILD_CURL_EXE=OFF", "-DBUILD_TESTING=OFF", "-DCURL_DISABLE_INSTALL=OFF",
+            "-DBUILD_LIBCURL_DOCS=OFF", "-DBUILD_MISC_DOCS=OFF", "-DENABLE_CURL_MANUAL=OFF",
+            "-DHTTP_ONLY=ON",
             "-DCURL_ENABLE_SSL=ON", "-DCURL_USE_OPENSSL=ON", "-DCURL_ZLIB=ON",
             "-DCURL_USE_LIBPSL=OFF", "-DCURL_USE_LIBSSH2=OFF", "-DCURL_ZSTD=OFF",
             "-DCURL_BROTLI=OFF", "-DUSE_NGHTTP2=OFF", "-DUSE_LIBIDN2=OFF",
@@ -230,6 +230,7 @@ RECIPES: tuple[Dependency, ...] = (
             '-DCURL_CA_PATH=none', '-DCURL_CA_BUNDLE=none',
         ),
         artifacts=("lib/libcurl.a", "include/curl/curl.h"),
+        requires=("zlib", "openssl"),
     ),
     Dependency(
         name="json", version="",
@@ -688,10 +689,39 @@ PATCH_VERSIONS = {'gumbo': {'0.10.1'}, 'quickjs': {'2026-06-04'},
                   'sqlite_modern_cpp': {'3.2'}}
 
 
-def locked_recipes(lock):
-    entries = lock.get('dependencies', {})
+def configured_recipes(profile='tests', tls_backend='auto'):
+    """Select required components before resolving or downloading any sources."""
+    if profile not in ('runtime', 'tests'):
+        raise ValueError(f'Unknown dependency profile: {profile}')
+    if tls_backend == 'auto':
+        tls_backend = 'schannel' if sys.platform == 'win32' else 'openssl'
+    if tls_backend not in ('openssl', 'schannel'):
+        raise ValueError(f'Unknown TLS backend: {tls_backend}')
+    if tls_backend == 'schannel' and sys.platform != 'win32':
+        raise ValueError('Schannel requires Windows')
     result = []
     for recipe in RECIPES:
+        if recipe.name == 'doctest' and profile == 'runtime':
+            continue
+        if recipe.name == 'openssl' and tls_backend == 'schannel':
+            continue
+        if recipe.name == 'curl':
+            options = tuple(option for option in recipe.options
+                            if not option.startswith('-DCURL_USE_OPENSSL='))
+            options += (f'-DCURL_USE_OPENSSL={"ON" if tls_backend == "openssl" else "OFF"}',
+                        f'-DCURL_USE_SCHANNEL={"ON" if tls_backend == "schannel" else "OFF"}')
+            if sys.platform == 'darwin':
+                options += ('-DUSE_APPLE_SECTRUST=ON',)
+            recipe = replace(recipe, options=options,
+                             requires=('zlib', 'openssl') if tls_backend == 'openssl' else ('zlib',))
+        result.append(recipe)
+    return result
+
+
+def locked_recipes(lock, recipes=None):
+    entries = lock.get('dependencies', {})
+    result = []
+    for recipe in RECIPES if recipes is None else recipes:
         entry = entries.get(recipe.name)
         if not entry:
             raise ValueError(f'Missing locked dependency: {recipe.name}')
@@ -718,10 +748,15 @@ def recipe_digest(dependencies):
     """Fingerprint the actual source/build pipeline, independent of CLI storage syntax."""
     patches = {name: sha256(PATCHES / name) for dep in dependencies
                for name in (dep.patch, *dep.extra_files) if name}
-    functions = (run, download, fetch_git, extract, apply_patch, prepare_source,
-                 copy_licenses, windows_toolchain, build_cmake, build_openssl,
+    functions = (run, extract, apply_patch, prepare_source,
+                 copy_licenses, windows_toolchain,
                  artifact_present, build_environment, cmake_arguments, install_component,
-                 dependency_selection, normalize_zlib_static, cache_state.compiler, cache_state.build_context)
+                 dependency_selection, cache_state.compiler, cache_state.build_context)
+    functions += (build_openssl,) if any(dep.kind == 'openssl' for dep in dependencies) else ()
+    functions += (build_cmake,) if any(dep.kind != 'openssl' for dep in dependencies) else ()
+    functions += (fetch_git,) if any(dep.kind == 'git' for dep in dependencies) else ()
+    functions += (download,) if any(dep.kind != 'git' for dep in dependencies) else ()
+    functions += (normalize_zlib_static,) if any(dep.name == 'zlib' for dep in dependencies) else ()
     return cache_state.fingerprint({'recipes': [asdict(dep) for dep in dependencies],
                                     'patches': patches,
                                     'pipeline': {fn.__name__: inspect.getsource(fn)
@@ -729,29 +764,98 @@ def recipe_digest(dependencies):
 
 
 def dependency_selection(names, dependencies):
-    all_names = {dep.name for dep in dependencies}
+    by_name = {dep.name: dep for dep in dependencies}
+    all_names = set(by_name)
     selected = {name.strip() for name in names.split(',') if name.strip()} or all_names
     if selected - all_names:
         raise ValueError(f'Unknown dependencies: {sorted(selected - all_names)}')
     # Static consumers must be built against this installation's matching libraries.
-    if 'curl' in selected:
-        selected.update({'openssl', 'zlib'})
+    while True:
+        required = {name for selected_name in selected for name in by_name[selected_name].requires}
+        if required - all_names:
+            raise ValueError(f'Missing dependency recipes: {sorted(required - all_names)}')
+        if required <= selected:
+            break
+        selected.update(required)
     return selected
 
 
-def verify_prefix(prefix, resolution, dependencies, selected, c=None, cxx=None, toolchain=None):
+def component_identities(dependencies, context):
+    """Version/patch changes rebuild the component and its consumers, not its peers."""
+    if 'environment' in context:
+        # The selected compiler records already cover the executable, its hash,
+        # version and arguments. CC/CXX only retain the caller's spelling (or
+        # absence), which changes when switching between the standalone builder
+        # and tools/build.py. A generator alone does not change the target ABI;
+        # retain its platform/toolset and every other build environment input.
+        context = {**context, 'environment': {
+            key: value for key, value in context['environment'].items()
+            if key not in ('CC', 'CXX', 'CMAKE_GENERATOR')}}
+    identities = {}
+    for dep in dependencies:
+        missing = set(dep.requires) - identities.keys()
+        if missing:
+            raise ValueError(f'Dependency recipes are not topologically ordered: {dep.name}: {sorted(missing)}')
+        identities[dep.name] = cache_state.fingerprint({
+            'recipe': recipe_digest([dep]), 'context': context,
+            'requires': {name: identities[name] for name in dep.requires}})
+    return identities
+
+
+def reusable_components(previous, identities):
+    if not previous:
+        return set()
+    components = previous.get('components', {})
+    # Older installations lack ownership receipts. Preserve the old prefix as a
+    # backup, but rebuild it once rather than guessing which files belong to whom.
+    owned = set()
+    for name in previous.get('completed', []):
+        component = components.get(name, {})
+        files = component.get('files', [])
+        if not files or owned.intersection(files):
+            return set()
+        owned.update(files)
+    if owned != set(previous.get('files', {})):
+        return set()
+    return {name for name in previous.get('completed', [])
+            if components[name].get('identity') == identities.get(name)}
+
+
+def copy_component_files(source, destination, files):
+    """Copy verified owned files; retain symlinks for their final prefix location."""
+    for relative in files:
+        origin, target = source / relative, destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if origin.is_symlink():
+            target.symlink_to(os.readlink(origin), target_is_directory=origin.is_dir())
+        else:
+            shutil.copy2(origin, target)
+
+
+def verify_prefix(prefix, resolution, dependencies, selected, c=None, cxx=None, toolchain=None,
+                  c_arg1='', cxx_arg1=''):
     state = cache_state.read_state(prefix)
     if not state:
         raise ValueError('Unverified/legacy prefix: run tools/ci/build_ariaread_deps.py first')
-    if state.get('resolution') != cache_state.fingerprint(resolution) or state.get('recipe') != recipe_digest(dependencies):
+    if state.get('components'):
+        identities = component_identities(dependencies, state['context'])
+        if not selected <= reusable_components(state, identities):
+            raise ValueError('Dependency resolution or recipe changed: run tools/ci/build_ariaread_deps.py')
+    elif state.get('resolution') != cache_state.fingerprint(resolution) or state.get('recipe') != recipe_digest(dependencies):
         raise ValueError('Dependency resolution or recipe changed: run tools/ci/build_ariaread_deps.py')
     if not selected <= set(state.get('completed', [])):
         raise ValueError('Dependency prefix is incomplete: run tools/ci/build_ariaread_deps.py')
     context = state['context']
     cache_state.verify_environment(context, toolchain)
     cache_state.verify_location(context, prefix)
-    for name, command in [('c', c), ('cxx', cxx)]:
+    for name, command, arguments in [('c', c, c_arg1), ('cxx', cxx, cxx_arg1)]:
         if command:
+            if arguments:
+                # CMake exposes the executable and its pre-command arguments
+                # separately. Preserve the executable as one token, then let
+                # compiler() parse the argument string with host quoting rules.
+                quote = subprocess.list2cmdline if os.name == 'nt' else shlex.join
+                command = quote([command]) + ' ' + arguments
             actual = cache_state.compiler(command)
             if cache_state.same_compiler(context[name], actual):
                 continue
@@ -770,6 +874,11 @@ def build_environment(prefix, c=None, cxx=None, toolchain=None):
     if sys.platform == 'win32' and os.environ.get('CMAKE_GENERATOR_PLATFORM', '').lower() not in ('', 'x64'):
         raise ValueError('Windows dependency recipes currently target x64')
     context = cache_state.build_context(prefix, c, cxx)
+    if sys.platform == 'win32':
+        families = {'msvc' if Path(context[key]['path']).stem.lower() in ('cl', 'clang-cl') else 'mingw'
+                    for key in ('c', 'cxx')}
+        if len(families) != 1:
+            raise ValueError('C and C++ compilers must use the same Windows toolchain (MSVC or MinGW)')
     # OpenSSL Configure and CMake must consume the same selected compiler.
     for variable, key in [('CC', 'c'), ('CXX', 'cxx')]:
         command = [context[key]['path'], *context[key]['arguments']]
@@ -834,6 +943,10 @@ def main():
     parser.add_argument('--prefix', type=Path)
     parser.add_argument('--jobs', type=positive_jobs, default=min(os.cpu_count() or 1, 8))
     parser.add_argument('--only', default='')
+    parser.add_argument('--profile', choices=('runtime', 'tests'), default='tests',
+                        help='Runtime dependencies only, or include the test framework (default)')
+    parser.add_argument('--tls-backend', choices=('auto', 'openssl', 'schannel'), default='auto',
+                        help='auto uses Windows Schannel; other platforms use OpenSSL')
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--update', action='store_true', help='Explicitly refresh latest stable dependencies')
     parser.add_argument('--version', action='append', default=[], metavar='NAME=VERSION')
@@ -842,9 +955,13 @@ def main():
     parser.add_argument('--verify-prefix', action='store_true', help='Offline installed-prefix verification only')
     parser.add_argument('--c-compiler')
     parser.add_argument('--cxx-compiler')
+    parser.add_argument('--c-compiler-arg1', default='', help='CMake C compiler arguments for --verify-prefix')
+    parser.add_argument('--cxx-compiler-arg1', default='', help='CMake C++ compiler arguments for --verify-prefix')
     parser.add_argument('--toolchain-file', default=None)
     parser.add_argument('--cmake-platform', default='')
     args = parser.parse_args()
+    recipes = configured_recipes(args.profile, args.tls_backend)
+    selected = dependency_selection(args.only, recipes)
     work = output_path(args.path)
     raw_prefix = args.prefix or work / 'prefix'
     if raw_prefix.is_symlink():
@@ -855,7 +972,7 @@ def main():
         if prefix == other or prefix in other.parents or other in prefix.parents:
             raise ValueError('--prefix overlaps the source/build cache')
     if not args.verify_prefix:
-        names = {dep.name for dep in RECIPES}
+        names = {dep.name for dep in recipes}
         for version in args.version:
             if version.partition('=')[0] not in names:
                 raise ValueError(f'Unknown third-party dependency override: {version}')
@@ -870,11 +987,11 @@ def main():
             command += ['--version', version]
         run(command)
     # Aria has its own bootstrap checkout. Only validate the installed third-party set.
-    resolution = dependency_resolver.read_resolved(args.file, only=[dep.name for dep in RECIPES])
-    dependencies = locked_recipes(resolution)
-    selected = dependency_selection(args.only, dependencies)
+    resolution = dependency_resolver.read_resolved(args.file, only=[dep.name for dep in recipes])
+    dependencies = locked_recipes(resolution, recipes)
     if args.verify_prefix:
-        verify_prefix(prefix, resolution, dependencies, selected, args.c_compiler, args.cxx_compiler, args.toolchain_file)
+        verify_prefix(prefix, resolution, dependencies, selected, args.c_compiler, args.cxx_compiler,
+                      args.toolchain_file, args.c_compiler_arg1, args.cxx_compiler_arg1)
         if sys.platform == 'win32' and args.cmake_platform.lower() not in ('', 'x64'):
             raise ValueError('The Windows dependency prefix targets x64; configure the project for x64')
         print(f'Verified locked dependency prefix: {prefix}')
@@ -883,11 +1000,15 @@ def main():
 
     metadata = {'resolution': cache_state.fingerprint(resolution), 'recipe': recipe_digest(dependencies),
                 'context': context, 'generator': 'tools/ci/build_ariaread_deps.py'}
-    identity = cache_state.fingerprint(metadata)
+    identities = component_identities(dependencies, context)
+    # A change to component identity rules must also invalidate the transaction
+    # receipt. Otherwise installation() can trust an old completed set even
+    # after reusable_components() correctly rejected those components.
+    identity = cache_state.fingerprint({'metadata': metadata, 'components': identities})
     (work / 'cache').mkdir(parents=True, exist_ok=True)
     with cache_state.prefix_lock(prefix):
         previous = cache_state.read_state(prefix) if prefix.exists() else None
-        completed = set(previous.get('completed', [])) if previous and previous.get('identity') == identity else set()
+        completed = reusable_components(previous, identities)
         if selected <= completed:
             print(f'Reusing verified dependency prefix: {prefix}')
             return
@@ -899,18 +1020,41 @@ def main():
         runs = work / 'runs'
         runs.mkdir(parents=True, exist_ok=True)
         run_root = Path(tempfile.mkdtemp(prefix=identity[:12] + '-', dir=runs))
+        # The transaction builds at the final prefix, because some upstream
+        # exports embed it. Stage only unchanged, inventoried component files
+        # before it moves the old prefix, keeping rollback and local-edit guards.
+        staged = run_root / 'reused'
+        if completed and previous.get('identity') != identity:
+            for name in sorted(completed):
+                copy_component_files(prefix, staged, previous['components'][name]['files'])
         common = cmake_arguments(prefix, context)
         with cache_state.installation(prefix, identity, selected, metadata) as (done, state):
             if done is None:
                 return
-            records = list(previous.get('dependencies', [])) if completed else []
+            records = [record for record in previous.get('dependencies', []) if record['name'] in completed] if previous else []
+            components = {name: previous['components'][name] for name in completed}
+            if staged.exists():
+                for name in sorted(completed):
+                    copy_component_files(staged, prefix, components[name]['files'])
+                done.update(completed)
+            for name in sorted(completed):
+                print(f'Reusing verified component: {name}', flush=True)
             for dep in dependencies:
                 if dep.name not in selected - done:
                     continue
+                before = cache_state.inventory(prefix)
                 records.append(install_component(dep, available[dep.name], run_root, prefix,
                                                  args.jobs, common))
+                after = cache_state.inventory(prefix)
+                changed = [name for name, content in before.items() if after.get(name) != content]
+                if changed:
+                    raise ValueError(f'{dep.name} overwrote another component: {changed}')
+                components[dep.name] = {'identity': identities[dep.name],
+                                        'files': sorted(after.keys() - before.keys())}
                 done.add(dep.name)
-            state.update(completed=sorted(done), dependencies=records)
+            state.update(completed=sorted(done), dependencies=records, components=components)
+        if staged.exists():
+            shutil.rmtree(staged)
         print(f'Installed locked dependency prefix: {prefix}')
 
 

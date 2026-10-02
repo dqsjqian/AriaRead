@@ -1,5 +1,19 @@
 cmake_minimum_required(VERSION 3.21)
 project(AriaRead VERSION 0.2.2 LANGUAGES CXX C)
+include(cmake/CompilerRequirements.cmake)
+
+# The installed dependency SDK uses Release. Pick it for ordinary single-config
+# builds and reject Windows Debug before reaching a CRT-mismatch linker error.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build configuration" FORCE)
+endif()
+if(WIN32)
+    if(CMAKE_CONFIGURATION_TYPES)
+        set(CMAKE_CONFIGURATION_TYPES Release CACHE STRING "Supported SDK configuration" FORCE)
+    elseif(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        message(FATAL_ERROR "The Windows dependency SDK uses Release. Configure with -DCMAKE_BUILD_TYPE=Release.")
+    endif()
+endif()
 
 # ──────────────────────────────────────────────
 # C++23 标准，全平台统一，与 Aria 和 Mira 的公开接口要求一致。
@@ -31,6 +45,13 @@ endif()
 # ──────────────────────────────────────────────
 option(ARIAREAD_BUILD_SHARED    "Build shared library"              OFF)
 option(ARIAREAD_BUILD_TESTS     "Build unit tests"                  ON)
+set(ARIAREAD_TLS_BACKEND auto CACHE STRING "curl TLS backend: auto, openssl, schannel")
+set_property(CACHE ARIAREAD_TLS_BACKEND PROPERTY STRINGS auto openssl schannel)
+if(ARIAREAD_BUILD_TESTS)
+    set(_ariaread_deps_profile tests)
+else()
+    set(_ariaread_deps_profile runtime)
+endif()
 # ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Mira) fully replaces Python/Flask
 # ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
 # 一个来源（tools/ci/build_ariaread_deps.py 的锁定版本前缀），不再有"系统库 vs
@@ -85,8 +106,10 @@ find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/build_ariaread_deps.py"
         --verify-prefix --prefix "${ARIAREAD_DEPS_PREFIX}"
+        --profile "${_ariaread_deps_profile}" --tls-backend "${ARIAREAD_TLS_BACKEND}"
         --file "${CMAKE_SOURCE_DIR}/dependencies.json"
         --c-compiler "${CMAKE_C_COMPILER}" --cxx-compiler "${CMAKE_CXX_COMPILER}"
+        "--c-compiler-arg1=${CMAKE_C_COMPILER_ARG1}" "--cxx-compiler-arg1=${CMAKE_CXX_COMPILER_ARG1}"
         --toolchain-file "${CMAKE_TOOLCHAIN_FILE}" --cmake-platform "${CMAKE_GENERATOR_PLATFORM}"
     RESULT_VARIABLE _ariaread_deps_result OUTPUT_VARIABLE _ariaread_deps_output
     ERROR_VARIABLE _ariaread_deps_error)
@@ -95,7 +118,7 @@ if(NOT "${_ariaread_deps_result}" STREQUAL "0")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/dependencies.json")
-list(APPEND CMAKE_PREFIX_PATH "${ARIAREAD_DEPS_PREFIX}")
+list(PREPEND CMAKE_PREFIX_PATH "${ARIAREAD_DEPS_PREFIX}")
 message(STATUS "Using pinned dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
 
 # 前缀里同时有静态库和动态库时优先静态：产物是"拷走就能跑"的目录，
@@ -117,8 +140,9 @@ find_package(Mira 1.0 REQUIRED COMPONENTS core transport http)
 find_package(nlohmann_json 3.12 REQUIRED)
 # zlib：libcurl 的 gzip 解压后端，缺了书源会 CURLE_BAD_CONTENT_ENCODING
 find_package(ZLIB REQUIRED)
-# libcurl（HTTP 客户端，静态链接，OpenSSL 后端由 curl 自己的 config 带入）
-find_package(CURL REQUIRED)
+# libcurl exports the selected TLS backend: Schannel on Windows, OpenSSL on
+# other platforms. CONFIG avoids FindCURL silently selecting a system library.
+find_package(CURL REQUIRED CONFIG PATHS "${ARIAREAD_DEPS_PREFIX}" NO_DEFAULT_PATH)
 set(CURL_FOUND TRUE)
 # Gumbo（HTML5 解析）、QuickJS（书源 JS 引擎）、SQLite3（amalgamation）
 find_package(Gumbo REQUIRED)

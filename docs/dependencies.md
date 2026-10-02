@@ -83,7 +83,7 @@ Aria 获取器支持 `--file`、`--version`、`--update`、`--offline` 和 `--so
 
 CMake 固定读取仓库根目录的 `dependencies.json`，只验证结果和前缀，不联网、不重新选择版本。因此本次合法 CLI 覆盖得到的结果能被 CMake 消费；下一次 builder 的版本选择仍遵守前述优先级。
 
-前缀绑定解析结果、构建配方/补丁、编译器、ABI 环境和安装文件内容。输入变化后从干净前缀重建，保留 `prefix-backup-*`；构建失败恢复旧前缀，并保留 `prefix-failed-*`。修改过的安装文件或 Git 缓存不会被覆盖。QuickJS、Gumbo、sqlite_modern_cpp 的补丁仅适用于已审核版本，新版本需要先适配配方。Windows 配方支持 x64、Release，以及 Visual Studio、Ninja、Ninja Multi-Config、NMake 的相应生成器参数。
+前缀按组件绑定解析结果、构建配方/补丁、编译器、ABI 环境和安装文件内容。局部变化只重建该组件及受影响的静态消费者；编译器/ABI 变化使整个前缀失效。更新保留 `prefix-backup-*`；构建失败恢复旧前缀，并保留 `prefix-failed-*`。旧格式缓存迁移需首次重建一次。修改过的安装文件或 Git 缓存不会被覆盖。QuickJS、Gumbo、sqlite_modern_cpp 的补丁仅适用于已审核版本，新版本需要先适配配方。Windows 配方支持 x64、Release，以及 Visual Studio、Ninja、Ninja Multi-Config、NMake 的相应生成器参数。
 
 更新器和底层解析器还支持 `--file PATH`、`--output PATH`、`--cache-dir PATH`。没有 `--output` 时原子更新输入文件；指定它时写入另一份完整文件，适合实验：
 
@@ -97,3 +97,9 @@ python tools/ci/build_ariaread_deps.py --file build/deps/experiment.json --path 
 ## 失败与回退
 
 解析或下载校验失败时不提交半套新结果；先修正版本、网络或 API 限流问题。不要手改 SHA256 来接受不同字节。若新版本不兼容，保留当前修改后，从已验证的 Git 提交恢复 **`dependencies.json` 这一个文件**，再运行获取、构建和测试。恢复元数据不会自动恢复二进制；受保护的旧前缀和失败目录可用于排查。
+
+## 统一入口与平台精简
+
+推荐 `python tools/build.py`；它完成固定依赖获取、配置、编译和运行目录检查。`--test` 同时补测试依赖并执行 CTest。底层依赖脚本默认 `--profile tests`，仅运行时可用 `--profile runtime` 并给 CMake 传 `-DARIAREAD_BUILD_TESTS=OFF`。
+
+Windows 默认 `--tls-backend auto` 选择 Schannel，OpenSSL 不在构建集合；显式 `--tls-backend openssl` 才构建它，CMake 同时传 `-DARIAREAD_TLS_BACKEND=openssl`。macOS/Linux 的 auto 仍为 OpenSSL，macOS 启用 Apple SecTrust。Windows MSVC/MinGW 不共用二进制前缀；下载缓存仍共享。详见[依赖精简与分工](build-architecture.md)。

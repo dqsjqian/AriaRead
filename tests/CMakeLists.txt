@@ -126,8 +126,11 @@ if(Python3_Interpreter_FOUND)
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/test_fetch_aria.py")
     add_test(NAME ariaread-dependency-cache
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/test_dependency_cache.py")
+    add_test(NAME ariaread-build-entrypoint
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/test_build.py")
     set_tests_properties(ariaread-fetch-aria PROPERTIES TIMEOUT 60 LABELS "dependencies")
     set_tests_properties(ariaread-dependency-cache PROPERTIES TIMEOUT 120 LABELS "dependencies")
+    set_tests_properties(ariaread-build-entrypoint PROPERTIES TIMEOUT 60 LABELS "dependencies")
 endif()
 
 # Optional Web regressions use only Node.js / Python standard libraries.
@@ -163,6 +166,10 @@ if(ARIAREAD_BUILD_WEB_TESTS)
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_debug_http.py"
                 --server "$<TARGET_FILE:ariaread_web_server>")
         set_tests_properties(ariaread-debug-http PROPERTIES TIMEOUT 120 LABELS "web;debug")
+        add_test(NAME ariaread-http-client
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_http_client.py"
+                --server "$<TARGET_FILE:ariaread_web_server>")
+        set_tests_properties(ariaread-http-client PROPERTIES TIMEOUT 120 LABELS "web;http;tls")
     endif()
 else()
     message(STATUS "Skipping Web regressions: ARIAREAD_BUILD_WEB_TESTS=OFF")
@@ -170,7 +177,7 @@ endif()
 
 # CI can require complete coverage while local builds keep optional dependencies optional.
 if(ARIAREAD_REQUIRE_WEB_TESTS)
-    foreach(_ariaread_web_test IN ITEMS ariaread-debug-ui ariaread-rss-ui ariaread-debug-http)
+    foreach(_ariaread_web_test IN ITEMS ariaread-debug-ui ariaread-rss-ui ariaread-debug-http ariaread-http-client)
         if(NOT TEST "${_ariaread_web_test}")
             message(FATAL_ERROR "ARIAREAD_REQUIRE_WEB_TESTS requires ${_ariaread_web_test}; install its test dependencies and enable ARIAREAD_BUILD_WEB_TESTS")
         endif()

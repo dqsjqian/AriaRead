@@ -10,12 +10,12 @@ identities. Explicit overrides must be reviewed using their actual sources.
 | Aria | 3.1.1 | MIT | Shared framework runtime and bindings |
 | Mira | 1.0.0 | MIT | Static HTTP/1.1 transport; its TLS/WebSocket/HTTP2/HTTP3 modules are disabled here |
 | nlohmann/json | 3.12.0 | MIT | Compiled header implementation |
-| OpenSSL | 4.0.3 | Apache-2.0 | Static TLS backend used by curl |
+| OpenSSL | 4.0.3 | Apache-2.0 | Static curl TLS backend on macOS/Linux; optional on Windows (Schannel is the default) |
 | zlib | 1.3.2 | Zlib | Static decompression library |
 | curl | 8.22.0 | curl license | Static HTTP client |
 | SQLite | 3.53.4 | Public-domain dedication | Static database amalgamation |
 | Gumbo | 0.10.1 | Apache-2.0 | Static HTML parser with an MSVC compatibility patch |
-| QuickJS | 2026-06-04 | MIT | Static JavaScript engine with an MSVC compatibility patch |
+| QuickJS | 2026-06-04 | MIT | Static JavaScript engine with an MSVC compatibility patch; unused os/std helper modules excluded |
 | sqlite_modern_cpp | 3.2 | MIT | Header wrapper with a compatibility patch |
 | doctest | 2.5.3 | MIT; embedded Boost-1.0 portions | Tests only; not linked into the Web server |
 
@@ -24,6 +24,12 @@ dependency file and installed dependency receipt. The build copies selected
 upstream license texts, any root `NOTICE`/`NOTICE.txt`, JSON's embedded SPDX
 attributions, and SQLite's source dedication to the dependency prefix. Gumbo's
 modified source files identify the local changes; upstream notices remain.
+
+The runtime profile does not build doctest. Windows' default profile uses the
+operating system's Schannel TLS implementation and does not build or incorporate
+OpenSSL. The receipt and distribution inventory list the actual selected set;
+the table above includes optional components. macOS uses Apple SecTrust for
+certificate verification while retaining OpenSSL for TLS transport.
 
 The SDK installation includes `share/licenses/ariaread/`. The Web runtime
 directory includes `licenses/`, with the project's and selected Aria's notices

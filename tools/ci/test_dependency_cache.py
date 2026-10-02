@@ -3,6 +3,7 @@
 import io
 import json
 import os
+import shlex
 import sys
 import tarfile
 import subprocess
@@ -384,6 +385,26 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], [str(executable.resolve()), '--version'])
         self.assertEqual(record['path'], str(executable.resolve()))
 
+    def test_verify_prefix_preserves_separate_compiler_arguments(self):
+        executable = self.root / 'compiler with spaces'
+        executable.write_text('fixture compiler')
+        result = subprocess.CompletedProcess([], 0, stdout='compiler 1.0')
+        quote = subprocess.list2cmdline if os.name == 'nt' else shlex.join
+        arguments = ['/DTEST=1', 'argument with spaces'] if os.name == 'nt' else ['-arch', 'arm64', '-I/include with spaces']
+        with patch.object(cache.shutil, 'which', return_value=str(executable)), \
+                patch.object(cache.subprocess, 'run', return_value=result):
+            recorded = cache.compiler(quote([str(executable), *arguments]))
+            state = {'resolution': cache.fingerprint({}), 'recipe': 'recipe', 'completed': ['library'],
+                     'context': {'c': recorded, 'cxx': recorded}}
+            with patch.object(cache, 'read_state', return_value=state), \
+                    patch.object(cache, 'verify_environment'), patch.object(cache, 'verify_location'), \
+                    patch.object(builder, 'recipe_digest', return_value='recipe'):
+                builder.verify_prefix(self.root, {}, [], {'library'}, str(executable), str(executable),
+                                      c_arg1=quote(arguments), cxx_arg1=quote(arguments))
+                with self.assertRaisesRegex(ValueError, 'compiler differs'):
+                    builder.verify_prefix(self.root, {}, [], {'library'}, str(executable),
+                                          c_arg1=quote([*arguments, '-different-abi']))
+
     def test_native_windows_and_msys_host_spellings_are_equivalent(self):
         context = {'prefix': self.root.as_posix(), 'platform': 'Windows', 'machine': 'AMD64'}
         with patch.object(cache.platform, 'system', return_value='Windows'), \
@@ -429,6 +450,127 @@ class SourceTests(unittest.TestCase):
 
 
 class BuilderIntegrationTests(unittest.TestCase):
+    def test_profiles_select_native_windows_tls_without_openssl_or_test_sources(self):
+        with patch.object(builder.sys, 'platform', 'win32'):
+            recipes = builder.configured_recipes('runtime')
+            names = {dep.name for dep in recipes}
+            self.assertNotIn('openssl', names)
+            self.assertNotIn('doctest', names)
+            curl = next(dep for dep in recipes if dep.name == 'curl')
+            self.assertIn('-DCURL_USE_SCHANNEL=ON', curl.options)
+            self.assertIn('-DCURL_USE_OPENSSL=OFF', curl.options)
+            self.assertIn('-DBUILD_LIBCURL_DOCS=OFF', curl.options)
+            self.assertEqual(builder.dependency_selection('curl', recipes), {'curl', 'zlib'})
+            self.assertIn('openssl', {dep.name for dep in builder.configured_recipes('runtime', 'openssl')})
+        with patch.object(builder.sys, 'platform', 'darwin'):
+            recipes = builder.configured_recipes('tests')
+            self.assertIn('doctest', {dep.name for dep in recipes})
+            curl = next(dep for dep in recipes if dep.name == 'curl')
+            self.assertIn('-DUSE_APPLE_SECTRUST=ON', curl.options)
+            self.assertEqual(builder.dependency_selection('curl', recipes), {'curl', 'zlib', 'openssl'})
+            with self.assertRaisesRegex(ValueError, 'requires Windows'):
+                builder.configured_recipes('runtime', 'schannel')
+
+    def test_component_changes_invalidate_transitive_consumers_only(self):
+        recipes = [replace(builder.RECIPES[0], name='base', requires=()),
+                   replace(builder.RECIPES[0], name='consumer', requires=('base',)),
+                   replace(builder.RECIPES[0], name='indirect', requires=('consumer',)),
+                   replace(builder.RECIPES[0], name='other', requires=())]
+        original = builder.component_identities(recipes, {'compiler': 'one'})
+        upgraded = builder.component_identities([replace(recipes[0], version='2'), *recipes[1:]], {'compiler': 'one'})
+        self.assertNotEqual(original['base'], upgraded['base'])
+        self.assertNotEqual(original['consumer'], upgraded['consumer'])
+        self.assertNotEqual(original['indirect'], upgraded['indirect'])
+        self.assertEqual(original['other'], upgraded['other'])
+        self.assertEqual(builder.dependency_selection('indirect', recipes), {'base', 'consumer', 'indirect'})
+        switched = builder.component_identities(recipes, {'compiler': 'two'})
+        self.assertTrue(all(original[name] != switched[name] for name in original))
+
+    def test_partial_ownership_receipts_are_never_reused(self):
+        previous = {'completed': ['one', 'two'], 'files': {'one.h': {}, 'two.h': {}},
+                    'components': {'one': {'identity': '1', 'files': ['one.h']},
+                                   'two': {'identity': '2', 'files': ['two.h']}}}
+        self.assertEqual(builder.reusable_components(previous, {'one': '1', 'two': '2'}), {'one', 'two'})
+        self.assertEqual(builder.reusable_components(previous, {'one': 'new', 'two': '2'}), {'two'})
+        previous['components']['one']['files'].append('two.h')
+        self.assertEqual(builder.reusable_components(previous, {'one': '1', 'two': '2'}), set())
+
+    def test_component_identity_ignores_compiler_spelling_and_generator_only(self):
+        compiler = {'path': '/tools/cc', 'arguments': [], 'binary_sha256': 'binary',
+                    'version': 'compiler 1.0'}
+        context = {'c': compiler, 'cxx': compiler, 'environment': {
+            'CC': '', 'CXX': '', 'CMAKE_GENERATOR': 'Unix Makefiles',
+            'CMAKE_GENERATOR_PLATFORM': '', 'CMAKE_GENERATOR_TOOLSET': '',
+            'CFLAGS': '', 'CXXFLAGS': '', 'CMAKE_TOOLCHAIN_FILE': ''}}
+        recipes = [builder.RECIPES[0]]
+        original = builder.component_identities(recipes, context)
+        canonical = {**context, 'environment': {**context['environment'],
+                     'CC': '/tools/cc', 'CXX': '/tools/cc', 'CMAKE_GENERATOR': 'Ninja'}}
+        self.assertEqual(builder.component_identities(recipes, canonical), original)
+        self.assertEqual(context['environment']['CC'], '')
+        for key in ('CMAKE_GENERATOR_PLATFORM', 'CMAKE_GENERATOR_TOOLSET',
+                    'CFLAGS', 'CXXFLAGS', 'CMAKE_TOOLCHAIN_FILE'):
+            changed = {**canonical, 'environment': {**canonical['environment'], key: 'different'}}
+            with self.subTest(environment=key):
+                self.assertNotEqual(builder.component_identities(recipes, changed), original)
+        for key, value in (('path', '/other/cc'), ('binary_sha256', 'different'),
+                           ('version', 'compiler 2.0'), ('arguments', ['-m32'])):
+            changed = {**canonical, 'c': {**compiler, key: value}}
+            with self.subTest(compiler=key):
+                self.assertNotEqual(builder.component_identities(recipes, changed), original)
+
+    def test_old_component_identity_cannot_short_circuit_transaction_rebuild(self):
+        with tempfile.TemporaryDirectory(prefix='ariaread-receipt-migration-') as temporary:
+            work = Path(temporary).resolve()
+            prefix = work / 'prefix'
+            dependency = next(dep for dep in builder.RECIPES if dep.name == 'json')
+            compiler = {'path': '/tools/cc', 'arguments': []}
+            context = {'c': compiler, 'cxx': compiler,
+                       'environment': {'CC': '', 'CXX': '', 'CMAKE_TOOLCHAIN_FILE': ''}}
+            resolution = {'fixture': 'unchanged'}
+            metadata = {'resolution': cache.fingerprint(resolution), 'recipe': 'same-recipe',
+                        'context': context, 'generator': 'tools/ci/build_ariaread_deps.py'}
+            # Emulate an installation produced before compiler spelling was
+            # normalized, using the old whole-prefix transaction identity.
+            old_component = cache.fingerprint({'recipe': 'same-recipe',
+                                               'context': context, 'requires': {}})
+            record = {'name': 'json', 'version': 'fixture'}
+            with cache.installation(prefix, cache.fingerprint(metadata), {'json'}, metadata) as (done, state):
+                (prefix / 'library.a').write_text('old build')
+                state.update(completed=['json'], dependencies=[record], components={
+                    'json': {'identity': old_component, 'files': ['library.a']}})
+
+            def install(*args):
+                (prefix / 'library.a').write_text('rebuilt')
+                return record
+
+            with patch.object(sys, 'argv', ['builder', '--path', str(work), '--only', 'json']), \
+                    patch.object(builder, 'configured_recipes', return_value=[dependency]), \
+                    patch.object(builder, 'run'), \
+                    patch.object(builder.dependency_resolver, 'read_resolved', return_value=resolution), \
+                    patch.object(builder, 'locked_recipes', return_value=[dependency]), \
+                    patch.object(builder, 'build_environment', return_value=context), \
+                    patch.object(builder, 'recipe_digest', return_value='same-recipe'), \
+                    patch.object(builder, 'download', return_value=work / 'source'), \
+                    patch.object(builder, 'install_component', side_effect=install) as rebuilt:
+                builder.main()
+                rebuilt.assert_called_once()
+                current = builder.component_identities([dependency], context)
+                self.assertEqual(builder.reusable_components(cache.read_state(prefix), current), {'json'})
+            self.assertEqual((prefix / 'library.a').read_text(), 'rebuilt')
+            backup, = work.glob('prefix-backup-*')
+            self.assertEqual((backup / 'library.a').read_text(), 'old build')
+
+    def test_windows_compilers_cannot_mix_msvc_and_mingw(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.dict(builder.os.environ, {}, clear=True), \
+                patch.object(builder.sys, 'platform', 'win32'), \
+                patch.object(builder.shutil, 'which', return_value='available'), \
+                patch.object(cache, 'build_context', return_value={
+                    'c': {'path': '/tools/cl.exe'}, 'cxx': {'path': '/tools/g++.exe'}}):
+            with self.assertRaisesRegex(ValueError, 'same Windows toolchain'):
+                builder.build_environment(Path(temporary))
+
     def test_cli_and_resolver_emit_utf8_with_legacy_parent_encoding(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -458,12 +600,31 @@ class BuilderIntegrationTests(unittest.TestCase):
                        for dep in builder.RECIPES}
             file = root / 'dependencies.json'
 
+            # An unrelated installed component must survive a JSON-only version
+            # change without another download, configure, or installation.
+            data = io.BytesIO()
+            with tarfile.open(fileobj=data, mode='w:gz') as package:
+                for name, content in {
+                        'LICENSE.txt': 'Doctest fixture license', 'doctest.h': 'untouched test header',
+                        'CMakeLists.txt': 'cmake_minimum_required(VERSION 3.20)\nproject(DoctestFixture NONE)\n'
+                                          'install(FILES doctest.h DESTINATION include/doctest)\n'}.items():
+                    encoded = content.encode()
+                    info = tarfile.TarInfo('source/' + name)
+                    info.size = len(encoded)
+                    package.addfile(info, io.BytesIO(encoded))
+            digest = cache.hashlib.sha256(data.getvalue()).hexdigest()
+            (work / 'cache' / digest).write_bytes(data.getvalue())
+            records['doctest']['sha256'] = digest
+
             def archive(version, fail=False):
                 contents = {'LICENSE.MIT': 'Fixture license', 'json.hpp': version,
                             'include/nlohmann/notice.hpp': '// SPDX-FileCopyrightText: Fixture Author\n// SPDX-License-Identifier: MIT\n',
                             'CMakeLists.txt': ('cmake_minimum_required(VERSION 3.20)\n'
                               'project(Fixture C CXX)\n' + ('message(FATAL_ERROR "fixture build failure")\n' if fail else
-                              'install(FILES json.hpp DESTINATION include/nlohmann)\n'))}
+                              'install(FILES json.hpp DESTINATION include/nlohmann)\n' +
+                              ('install(FILES obsolete.hpp DESTINATION include/nlohmann)\n' if version == '1.0' else '')))}
+                if version == '1.0':
+                    contents['obsolete.hpp'] = 'removed by the upgrade'
                 data = io.BytesIO()
                 with tarfile.open(fileobj=data, mode='w:gz') as package:
                     for name, text in contents.items():
@@ -482,32 +643,65 @@ class BuilderIntegrationTests(unittest.TestCase):
                     entries[name] = {**spec, 'resolved': resolved}
                 file.write_text(json.dumps({'schema': 2, 'dependencies': entries}))
 
-            def invoke(*extra):
+            def invoke(*extra, environment=None):
                 return subprocess.run([sys.executable, str(Path(builder.__file__)),
                     '--path', str(work), '--file', str(file),
-                    '--only', 'json', '--offline', '--jobs', '1', *extra], text=True, encoding='utf-8', errors='replace',
+                    '--only', 'json,doctest', '--offline', '--jobs', '1', *extra], text=True, encoding='utf-8', errors='replace',
+                    env=environment,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
             archive('1.0')
-            first = invoke()
+            first = invoke('--only', 'json', '--profile', 'runtime')
             self.assertEqual(first.returncode, 0, first.stdout)
             header = work / 'prefix/include/nlohmann/json.hpp'
             self.assertEqual(header.read_text(), '1.0')
+            other = work / 'prefix/include/doctest/doctest.h'
+            self.assertFalse(other.exists())
+            header_timestamp = header.stat().st_mtime_ns
+            expanded = invoke()
+            self.assertEqual(expanded.returncode, 0, expanded.stdout)
+            self.assertIn('Reusing verified component: json', expanded.stdout)
+            self.assertNotIn('json.hpp', expanded.stdout)
+            self.assertEqual(header.stat().st_mtime_ns, header_timestamp)
+            other_timestamp = other.stat().st_mtime_ns
+            initial_backups = set(work.glob('prefix-backup-*'))
+            self.assertEqual(len(initial_backups), 1)
+            self.assertTrue((header.parent / 'obsolete.hpp').is_file())
             repeated = invoke()
             self.assertEqual(repeated.returncode, 0, repeated.stdout)
             self.assertIn('Reusing verified dependency prefix', repeated.stdout)
+            receipt = work / 'prefix' / cache.STATE
+            receipt_bytes = receipt.read_bytes()
+            recorded = cache.read_state(work / 'prefix')['context']
+            environment = {**os.environ, 'CMAKE_GENERATOR': 'Ninja'}
+            for variable, key in [('CC', 'c'), ('CXX', 'cxx')]:
+                command = [recorded[key]['path'], *recorded[key]['arguments']]
+                environment[variable] = subprocess.list2cmdline(command) if os.name == 'nt' else shlex.join(command)
+            canonical = invoke(environment=environment)
+            self.assertEqual(canonical.returncode, 0, canonical.stdout)
+            self.assertIn('Reusing verified dependency prefix', canonical.stdout)
+            self.assertEqual(receipt.read_bytes(), receipt_bytes)
+            self.assertEqual(set(work.glob('prefix-backup-*')), initial_backups)
             specs['dependencies']['json']['version'] = '1.0'
             records['json']['requested'] = '2.0'
             archive('2.0')
             upgraded = invoke('--version', 'json=2.0')
             self.assertEqual(upgraded.returncode, 0, upgraded.stdout)
+            self.assertIn('Reusing verified component: doctest', upgraded.stdout)
+            self.assertNotIn('doctest.h', upgraded.stdout)
+            self.assertEqual(other.read_text(), 'untouched test header')
+            self.assertEqual(other.stat().st_mtime_ns, other_timestamp)
+            self.assertFalse((header.parent / 'obsolete.hpp').exists())
             self.assertEqual(header.read_text(), '2.0')
-            backup, = work.glob('prefix-backup-*')
+            backup, = set(work.glob('prefix-backup-*')) - initial_backups
             self.assertEqual((backup / 'include/nlohmann/json.hpp').read_text(), '1.0')
             snapshot = file.read_bytes()
             verified = invoke('--verify-prefix')
             self.assertEqual(verified.returncode, 0, verified.stdout)
             self.assertEqual(file.read_bytes(), snapshot)
+            runtime = invoke('--only', 'json', '--profile', 'runtime', '--verify-prefix')
+            self.assertEqual(runtime.returncode, 0, runtime.stdout)
+            self.assertFalse(list((work / 'runs').glob('*/reused')))
             modified = json.loads(snapshot)
             modified['dependencies']['json']['version'] = '9.0'
             file.write_text(json.dumps(modified))
@@ -522,7 +716,9 @@ class BuilderIntegrationTests(unittest.TestCase):
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn('fixture build failure', failed.stdout)
             self.assertEqual(header.read_text(), '2.0')
-            self.assertEqual(cache.read_state(work / 'prefix')['dependencies'][0]['version'], '2.0')
+            restored = cache.read_state(work / 'prefix')
+            self.assertEqual(next(record['version'] for record in restored['dependencies'] if record['name'] == 'json'), '2.0')
+            self.assertEqual(other.read_text(), 'untouched test header')
 
 
 if __name__ == '__main__':

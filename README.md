@@ -23,42 +23,48 @@
 
 - **C++23 响应式 MVVM**：基于 Aria 框架，支持协程异步、响应式状态与 ViewModel
 - **跨平台引擎**：CSS3/XPath 选择器、JS 运行时桥接、Gumbo HTML5 解析
-- **自包含第三方依赖**：Mira/OpenSSL/libcurl 等由脚本按依赖文件版本取源码编译，零系统依赖
+- **按平台精简依赖**：锁定源码与校验缓存；Windows 使用系统 Schannel，不构建 OpenSSL；macOS 使用系统钥匙串验证证书
 - **扩展 ViewModel 层**：SearchViewModel、BookshelfViewModel、ReaderViewModel、SourceViewModel
 - **Engine Adapters**：engine_reader_adapter、engine_source_adapter，将 engine.h 的私有依赖隔离在 .cpp 内
 - **C++ Web Server**：Mira（自研 C++23 协程网络库）+ Aria ViewModel，39 条 REST 路由，SSE 推送，零 Python 依赖
 
 ## 构建
 
-需要 CMake 3.21+、支持 C++23 的编译器和 Python 3.10+。从仓库根目录执行：
+当前稳定工具链基线（2026-10-02）：GCC **16.2.0**、LLVM Clang **23.1.2**、Xcode **27.0** / AppleClang **21.0**、Visual Studio 2026 stable / MSVC Build Tools **14.51.36247**。统一 C++23；配置时拒绝旧编译器，CI 不保留旧版兼容任务。
+
+需要 CMake 3.21+、支持 C++23 的编译器、Git 和 Python 3.10+。统一入口负责取依赖、配置、并行编译和打包：
 
 ```bash
-python3 tools/ci/build_ariaread_deps.py     # 按依赖文件取依赖（首次发现最新稳定版，只写 build/deps）
-python3 tools/ci/fetch_aria.py             # 取回并验证锁定的 Aria 提交
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+# macOS / Linux
+python3 tools/build.py
+
+# Windows：普通 PowerShell 即可，自动查找 Visual Studio C++ x64 工具链
+python tools/build.py
+
+# Windows：明确选择已经安装的 MSYS2 UCRT64 / MinGW 工具链
+python tools/build.py --toolchain mingw
+
+# 开发验收：补齐测试依赖，构建并运行全部测试
+python3 tools/build.py --test
 ```
+
+Windows 默认只需 Visual Studio C++ 工具链、Windows SDK、CMake、Git、Python；**不要求安装 MSYS2、Perl 或 OpenSSL**。两套编译器是可选方案，无须同时安装。MSVC/MinGW 的构建目录与依赖前缀分开，下载缓存共享。默认 TLS 后端是 Schannel；需对比旧后端时传 `--tls-backend openssl`，届时才需要 Perl 和相应 make 工具。
+
+macOS 使用 Xcode Command Line Tools；OpenSSL 构建仍需系统 Perl/make。curl 通过 Apple SecTrust 使用系统钥匙串，不依赖 Homebrew 的 CA 文件。Linux 还需要 Perl/make 和系统 CA 证书。运行 Web 回归需要 Node.js 18+。
+
+默认只构建运行时，跳过 doctest；`--test` 补齐测试。普通重跑复用已验证依赖，`--offline` 使用精确锁定的本地源码缓存，`--jobs N` 限制并行数。`--build-dir` / `ARIAREAD_BUILD_DIR` 自定义构建目录，`--deps-prefix` / `ARIAREAD_DEPS_PREFIX` 自定义依赖前缀。
 
 ## 运行与分发
 
-构建和分发统一使用 `build/bin/`，服务构建目标会自动同步前端资源：
+| 入口 | 默认运行目录 |
+|---|---|
+| macOS / Linux | `build/bin/` |
+| Windows MSVC | `build/windows-msvc-release/bin/`（多配置生成器为 `bin/Release/`） |
+| Windows MinGW | `build/windows-mingw-release/bin/` |
 
-```bash
-cmake --build build --target ariaread_web_server
-./build/bin/ariaread_web_server
+完成后入口打印实际可执行文件路径。运行目录包含服务程序、Aria 动态库、`web/` 和 `licenses/`，可以整体复制；开发时可用 `--web-root bindings/web/ariaread/web` 指定源码资源。
 
-# 原一键打包命令仍可用，产物也在 build/bin
-bash scripts/build_web_release.sh
-```
-
-`build/bin/` 包含 `ariaread_web_server`、Aria 动态库和 `web/`，可整体复制到其他目录运行。默认读取程序旁的 `web/`；开发时可用 `--web-root bindings/web/ariaread/web` 显式指定源码资源。
-
-Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/ariaread_web_server.exe`；多配置生成器使用 `build/bin/Release/`。Windows 固定依赖前缀仅提供 Release 库，脚本只接受 `-Config Release`。`ARIAREAD_BUILD_DIR` 可指定其他构建目录。
-
-Windows 非标准工具链位置可通过 `MSYS2_ROOT`、`ARIAREAD_VS_ROOT`、`ARIAREAD_WINDOWS_KITS_ROOT` 指定。`scripts/build_msvc.bat` 是专用 MSVC 入口，同样会校验 Aria 锁定提交。
-
-项目不再使用 `release/` 目录；启动与分发均使用上述构建产物。
+原 `bash scripts/build_web_release.sh`、`scripts/build_web_release.ps1`、`scripts/build_msvc.bat` 保留为统一入口的兼容包装。Windows 只支持 Release，提前拒绝不匹配的 Debug CRT；空 CMake build type 自动选择 Release。`--clean` 仅清理当前应用构建，不删除下载缓存或依赖前缀。
 
 ## 项目结构
 
@@ -75,6 +81,7 @@ AriaRead/
 │   ├── infra/              # 基础设施（HTTP/JS/DB）
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Mira HTTP/1.1 + REST API）
+├── tools/build.py          # 跨平台统一构建入口
 ├── tools/ci/
 │   ├── build_ariaread_deps.py  # 第三方依赖唯一来源：版本锁 + SHA256（见下）
 │   └── fetch_aria.py           # Aria 依赖文件指定的完整提交取回脚本 -> build/deps/aria
@@ -96,7 +103,7 @@ QuickJS / Gumbo / doctest / sqlite_modern_cpp）统一保存在 `dependencies.js
 本地联调也可在 CMake 配置时显式指定 `-DARIA_DIR=/path/to/Aria`。
 
 ```bash
-python3 tools/ci/build_ariaread_deps.py            # 首次构建（约 10 分钟，主要是 OpenSSL）
+python3 tools/ci/build_ariaread_deps.py            # 开发 SDK（含测试）；Windows 默认不构建 OpenSSL
 python3 tools/ci/fetch_aria.py                     # 取回 Aria（依赖文件指定的完整提交，无 submodule）
 cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release      # 自动探测 build/deps/prefix
 cmake --build build
@@ -113,12 +120,16 @@ python3 tools/ci/build_ariaread_deps.py --only zlib,json          # 部分依赖
 ```
 
 安装缓存绑定依赖文件、构建配方/补丁、编译器、Release 配置和每个安装文件的内容。
-版本或配置变化会保留 `prefix-backup-*` 并从干净前缀重建；失败时恢复旧前缀，
+按组件记录来源、配方、补丁及安装文件归属。局部更新只重建变更组件及受影响的静态消费者；
+编译器/ABI 变化才重建整个前缀。旧格式缓存首次迁移需重建一次，随后复用；
+更新保留 `prefix-backup-*`，失败时恢复旧前缀，
 保留 `prefix-failed-*` 供排查。已安装文件或 Git 缓存有本地修改时拒绝覆盖。
 `--offline` 不发现新版本；离线重建需要依赖文件中的归档/Git 提交已缓存。
-部分安装不能用于完整项目配置，补齐后才通过 CMake 的离线校验。
+`--profile runtime` 不需要 doctest；默认 `tests` 包含它。`--only` 局部安装仍需补齐选定 profile，才通过 CMake 的离线校验。
 QuickJS、Gumbo、sqlite_modern_cpp 的本地补丁仅应用到已审核版本；上游新版本需要先适配配方，
-脚本会明确报错，避免旧补丁静默套到新源码。Windows 支持 MSVC/nmake 和 MinGW。
+脚本会明确报错，避免旧补丁静默套到新源码。Windows 支持 MSVC 和 MinGW；只有显式选择 OpenSSL 后端才需要 nmake/make。
+
+详见 [依赖精简与 Mira 分工](docs/build-architecture.md)。CI 缓存锁定源码与安装前缀，不缓存庞大的编译中间目录；恢复后仍逐文件验证。
 
 ## 测试
 
@@ -130,9 +141,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-主工程 configure 必须显式 `-DCMAKE_BUILD_TYPE=Release`：deps（Mira/OpenSSL/libcurl）
-按 Release /MD 构建，空 build type 会编出 /MDd 目标，链接 `ariaread_web_server` 时
-LNK2038 运行库失配。
+默认使用 Release；Windows 配置阶段会拒绝不受支持的配置，避免链接时才出现 CRT 失配。推荐 `python3 tools/build.py --test`，同时管理测试依赖和 CMake 选项。
 
 CTest 会注册引擎、可用的 ViewModel 测试和本地依赖获取安全回归，并在找到 Node.js 18+、Python 3.10+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DARIAREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
 

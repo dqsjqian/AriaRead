@@ -5,9 +5,11 @@
 
 #include "ariaread/engine.h"
 #include "ariaread/engine_impl.h"
+#include "ariaread/http_client.h"
 
-#include <curl/curl.h>
+#include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace ariaread::web {
 
@@ -98,35 +100,22 @@ json bookshelf_detail_to_json(const ariaread::BookshelfDetail& d) {
 }
 
 std::string httpDownload(const std::string& url, int timeoutSec) {
-    std::string result;
-    CURL* curl = curl_easy_init();
-    if (!curl) throw std::runtime_error("Failed to initialize curl");
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "AriaRead/1.0");
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
-        [](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
-            auto* buf = static_cast<std::string*>(userdata);
-            buf->append(ptr, size * nmemb);
-            return size * nmemb;
-        });
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &result);
-
-    CURLcode res = curl_easy_perform(curl);
-    long httpCode = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK)
-        throw std::runtime_error("Download failed: " + std::string(curl_easy_strerror(res)));
-    if (httpCode >= 400)
-        throw std::runtime_error("HTTP error " + std::to_string(httpCode));
-    return result;
+    auto client = createDefaultHttpClient();
+    if (!client) throw std::runtime_error("Failed to initialize HTTP client");
+    if (timeoutSec < 0) throw std::invalid_argument("Download timeout must not be negative");
+    HttpRequest request;
+    request.url = url;
+    request.headers["User-Agent"] = "AriaRead/1.0";
+    request.timeoutMs = timeoutSec > std::numeric_limits<int>::max() / 1000
+                            ? std::numeric_limits<int>::max() : timeoutSec * 1000;
+    // Share redirects, TLS verification, decompression and the 32 MiB decoded
+    // response limit with book/RSS requests.
+    auto response = client(request);
+    if (!response.error.empty())
+        throw std::runtime_error("Download failed: " + response.error);
+    if (response.statusCode >= 400)
+        throw std::runtime_error("HTTP error " + std::to_string(response.statusCode));
+    return std::move(response.body);
 }
 
 }  // namespace ariaread::web

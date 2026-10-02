@@ -16,28 +16,14 @@
 #include <cstdlib>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #ifdef ARIAREAD_HAS_CURL
 #include <curl/curl.h>
 #endif
 
-// 平台相关头文件，用于 CA 证书路径探测
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#include <sys/stat.h>
-#elif defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <wincrypt.h>
-#pragma comment(lib, "crypt32.lib")
-#else
+// Linux/Unix 的 OpenSSL 后端需要探测证书文件；Windows/macOS 使用原生信任。
+#if !defined(__APPLE__) && !defined(_WIN32)
 #include <sys/stat.h>
 #endif
 
@@ -99,36 +85,17 @@ size_t writeHeaderCallback(char* buffer, size_t size, size_t nitems, void* userd
     return n;
 }
 
-// 探测系统 CA 证书 bundle 路径（OpenSSL 不像 SecureTransport/Schannel 那样自动使用系统证书链）
+// 显式 CA 文件优先于系统信任。不要缓存环境变量，嵌入方可以为后续请求
+// 更新其信任配置；libcurl 会复制 CURLOPT_CAINFO 的字符串。
 std::string findCaBundlePath() {
-    // 1. 优先使用环境变量
-    if (const char* env = std::getenv("CURL_CA_BUNDLE")) {
+    if (const char* env = std::getenv("SSL_CERT_FILE"); env && *env) {
         return env;
     }
-    if (const char* env = std::getenv("SSL_CERT_FILE")) {
+    if (const char* env = std::getenv("CURL_CA_BUNDLE"); env && *env) {
         return env;
     }
 
-#ifdef __APPLE__
-    // macOS: Homebrew 安装的 CA 证书
-    static const char* macPaths[] = {
-        "/etc/ssl/cert.pem",                                    // macOS 系统自带
-        "/opt/homebrew/etc/openssl@3/cert.pem",                 // Homebrew ARM
-        "/usr/local/etc/openssl@3/cert.pem",                    // Homebrew x86
-        "/opt/homebrew/share/ca-certificates/cacert.pem",       // Homebrew CA
-        "/usr/local/share/ca-certificates/cacert.pem",          // Homebrew CA x86
-    };
-    struct stat st;
-    for (const auto* p : macPaths) {
-        if (::stat(p, &st) == 0 && S_ISREG(st.st_mode)) {
-            return p;
-        }
-    }
-#elif defined(_WIN32)
-    // Windows: 不需要 CA bundle，curl + OpenSSL 可以通过 CURLOPT_SSL_OPTIONS
-    // 设置 CURLSSLOPT_NATIVE_CA 来使用 Windows 证书存储
-    return "";  // 特殊标记：使用 Windows 原生证书存储
-#else
+#if !defined(__APPLE__) && !defined(_WIN32)
     // Linux / 其他 Unix
     static const char* linuxPaths[] = {
         "/etc/ssl/certs/ca-certificates.crt",     // Debian/Ubuntu
@@ -145,25 +112,24 @@ std::string findCaBundlePath() {
     }
 #endif
 
-    return "";  // 未找到，curl 会尝试使用编译时默认路径
+    return "";
 }
 
 // 配置 SSL 证书验证
 void configureSslCerts(CURL* curl) {
-    static std::string cachedCaBundle;
-    static std::once_flag caOnce;
-    std::call_once(caOnce, []() {
-        cachedCaBundle = findCaBundlePath();
-    });
-
-#ifdef _WIN32
-    // Windows: 使用原生证书存储（curl 7.71.0+ 支持）
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#else
-    if (!cachedCaBundle.empty()) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, cachedCaBundle.c_str());
-    }
+    const auto caBundle = findCaBundlePath();
+    if (!caBundle.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, caBundle.c_str());
+        curl_easy_setopt(curl, CURLOPT_CAPATH, nullptr);
+        // 自定义 CA 是完整信任集合，不能另外接受系统 CA。
+        curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, 0L);
+    } else {
+#if defined(_WIN32) || defined(__APPLE__)
+        // Windows 默认 Schannel；显式 OpenSSL 后端也支持 Windows CA。
+        // macOS 的 pinned curl 启用 Apple SecTrust，不再依赖 Homebrew CA 路径。
+        curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, static_cast<long>(CURLSSLOPT_NATIVE_CA));
 #endif
+    }
     // 始终启用证书验证
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);

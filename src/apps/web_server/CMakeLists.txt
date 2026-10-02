@@ -34,19 +34,9 @@ target_link_libraries(ariaread_web_server
         Mira::http    # HTTP/1.1（传递 Mira::core）
         Mira::transport  # TCP 监听与连接
         nlohmann_json::nlohmann_json  # JSON 序列化
-        CURL::libcurl     # json_helpers.cpp 直接使用 curl 头文件与 API
         sqlite3           # sqlite_modern_cpp.h → sqlite3.h 的传递包含；引擎 PRIVATE
                           # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
 )
-
-# 静态 OpenSSL（Mira TLS 传递）在 Windows 上会拉到证书库后端
-# winstore_store，它需要系统的 crypt32；MinGW 静态链接不会自动补系统库。
-if(MINGW)
-    # OpenSSL's exported interface places crypt32 *before* libcrypto.a,
-    # which GNU ld (left-to-right) cannot use for libcrypto's own
-    # CertOpenSystemStoreW references. Append it after the archives.
-    target_link_options(ariaread_web_server PRIVATE -lcrypt32)
-endif()
 
 # sqlite_modern_cpp 是本项目的直接依赖（header-only）。
 target_include_directories(ariaread_web_server

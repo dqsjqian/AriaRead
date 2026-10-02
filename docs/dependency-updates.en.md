@@ -70,7 +70,7 @@ Select third-party library versions through the file or `build_ariaread_deps.py 
 
 AriaRead CMake always verifies the root `dependencies.json` against the installed prefix offline; it does not select versions again. A valid CLI-selected result is therefore accepted, while a subsequent builder invocation follows the selection precedence above.
 
-The prefix binds resolved sources, recipes/patches, compiler, ABI environment and installed file contents. Changed inputs build into a clean prefix while preserving `prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*`. Local changes in installed files or Git caches are protected. QuickJS, Gumbo and sqlite_modern_cpp patches are restricted to reviewed upstream versions. Windows recipes target x64 Release, with generator-specific handling for Visual Studio, Ninja, Ninja Multi-Config and NMake.
+The prefix binds resolved sources, recipes/patches, compiler, ABI environment and installed file contents. Changed components and their static consumers are rebuilt; unchanged components are copied from the verified prefix, preserving `prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*`. Local changes in installed files or Git caches are protected. QuickJS, Gumbo and sqlite_modern_cpp patches are restricted to reviewed upstream versions. Windows recipes target x64 Release, with generator-specific handling for Visual Studio, Ninja, Ninja Multi-Config and NMake.
 
 The updater/resolver also accepts `--file PATH`, `--output PATH` and `--cache-dir PATH`. Without `--output`, it atomically updates the input file. An output path writes a separate complete experimental file:
 
@@ -84,3 +84,11 @@ An experimental file does not change CMake's root input. Review and transfer des
 ## Failure and rollback
 
 Failed resolution or checksum verification does not save a partial set of new results. Fix version, network or API-limit errors without disabling checks. If a new version is incompatible, preserve local work and restore **the single `dependencies.json` file** from a verified Git revision, then repeat fetch/build/tests. Restoring metadata alone does not restore binaries. Never rewrite a checksum to accept unexpected content; retained installations and failed build directories are available for diagnosis.
+
+## Unified builds and platform profiles
+
+Prefer `python tools/build.py`; add `--test` to build and run the test suite. The low-level dependency builder defaults to `--profile tests`; `--profile runtime` omits doctest and pairs with CMake `-DARIAREAD_BUILD_TESTS=OFF`.
+
+Windows auto-selects Schannel and omits OpenSSL. Explicit `--tls-backend openssl` requires the previous Perl/make prerequisites and CMake `-DARIAREAD_TLS_BACKEND=openssl`. macOS/Linux keep OpenSSL; macOS uses Apple SecTrust for certificate verification. MSVC and MinGW use separate binary prefixes with shared source downloads.
+
+Component receipts preserve unchanged libraries across selective updates; static consumers of changed dependencies are rebuilt. Compiler/ABI changes invalidate the complete prefix. Old-format caches need one migration rebuild. Installation rollback and content checks still apply.

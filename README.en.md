@@ -23,22 +23,27 @@ One C++ core drives two web shapes side by side:
 
 - **C++23 reactive MVVM** — built on the Aria framework: coroutine async, reactive state, ViewModels
 - **Cross-platform engine** — CSS3/XPath selectors, a JS runtime bridge, Gumbo HTML5 parsing
-- **Self-contained third-party deps** — nlohmann/json, OpenSSL, and libcurl all build from source; zero system dependencies
+- **Platform-aware dependencies** — locked sources and verified component caches; Windows uses Schannel without building OpenSSL, macOS verifies certificates with Apple SecTrust
 - **Extended ViewModel layer** — SearchViewModel, BookshelfViewModel, ReaderViewModel, SourceViewModel
 - **Engine adapters** — engine_reader_adapter / engine_source_adapter keep engine.h's private dependencies isolated inside .cpp files
 - **C++ web server** — Mira (in-house C++23 coroutine networking library) + Aria ViewModels: 39 REST routes, SSE push, zero Python
 
 ## Build
 
-Requires CMake 3.21+, a C++23 compiler, and Python 3.10+. Run from the repository root:
+Stable toolchain baseline (2026-10-02): GCC **16.2.0**, LLVM Clang **23.1.2**, Xcode **27.0** / AppleClang **21.0**, Visual Studio 2026 stable / MSVC Build Tools **14.51.36247**. C++23 throughout; configuration rejects older compilers and CI no longer retains legacy compatibility jobs.
+
+Requires CMake 3.21+, a C++23 compiler, Git and Python 3.10+. One entry point fetches dependencies, configures, builds and stages the runtime:
 
 ```bash
-python3 tools/ci/build_ariaread_deps.py
-python3 tools/ci/fetch_aria.py
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+python3 tools/build.py                       # macOS / Linux
+python tools/build.py                        # Windows: auto-discovered MSVC x64
+python tools/build.py --toolchain mingw      # Windows: explicit MSYS2 UCRT64 / MinGW
+python3 tools/build.py --test                # add test dependencies, build and run tests
 ```
+
+Windows needs Visual Studio C++ tools/SDK, CMake, Git and Python. The default Schannel backend needs no MSYS2, Perl or OpenSSL build. MSVC and MinGW are alternatives, with isolated build/prefix directories and shared source downloads. `--tls-backend openssl` opts into the previous backend and its Perl/make prerequisites.
+
+macOS uses Xcode Command Line Tools and system Perl/make for OpenSSL; Apple SecTrust uses the system keychain. Linux also needs Perl/make and system CA certificates. Node.js 18+ enables Web regressions. Runtime builds skip doctest; `--test` adds it. `--offline`, `--jobs N`, `--build-dir` and `--deps-prefix` control cached builds.
 
 Third-party dependencies use one `dependencies.json` file: source fields and optional
 `version` requirements sit beside generated `resolved` versions, immutable commits and archive SHA256 values. Missing lock
@@ -53,7 +58,7 @@ python3 tools/ci/build_ariaread_deps.py --only zlib,json
 ```
 
 The installation cache verifies the lock, recipes/patches, compiler, Release configuration
-and installed file contents. A changed identity rebuilds a clean prefix, preserving
+and installed file contents. Per-component identities rebuild only changed libraries and their affected static consumers. Compiler/ABI changes rebuild the complete prefix; old-format caches need one migration rebuild. Updates preserve
 `prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*` for
 inspection. Locally modified installed files or Git caches are never overwritten.
 Offline builds require exact locked archives/commits already cached. Partial builds
@@ -72,23 +77,17 @@ it is published, use `python3 tools/ci/fetch_aria.py --source /path/to/Aria`
 
 ## Running and distributing
 
-Builds and distributions use the same `build/bin/` directory. Building the server also synchronizes its Web assets:
+The entry point prints the actual executable path. Default runtime directories:
 
-```bash
-cmake --build build --target ariaread_web_server
-./build/bin/ariaread_web_server
+- macOS / Linux: `build/bin/`.
+- Windows MSVC: `build/windows-msvc-release/bin/`, or `bin/Release/` with a multi-config generator.
+- Windows MinGW: `build/windows-mingw-release/bin/`.
 
-# The existing packaging command writes to the same directory
-bash scripts/build_web_release.sh
-```
+Copy the directory as a unit, including Aria libraries, `web/` and `licenses/`. Assets load beside the executable; use `--web-root bindings/web/ariaread/web` for source-tree assets. `ARIAREAD_BUILD_DIR` and `ARIAREAD_DEPS_PREFIX` remain supported.
 
-`build/bin/` contains `ariaread_web_server`, the Aria libraries, and `web/`. Copy this directory as a unit to run elsewhere. Assets are loaded beside the executable by default; use `--web-root bindings/web/ariaread/web` explicitly for source-tree assets during development.
+The existing `scripts/build_web_release.sh`, `.ps1`, and `scripts/build_msvc.bat` delegate to the same entry point. Windows supports Release only and rejects incompatible configurations early. `--clean` cleans application output while preserving downloaded and compiled dependencies. CI caches verified prefixes and sources, excluding intermediate build trees.
 
-On Windows, use `scripts/build_web_release.ps1` and run `build/bin/ariaread_web_server.exe`; multi-config generators use `build/bin/Release/`. The pinned Windows dependency prefix provides Release libraries only, so the script accepts only `-Config Release`. `ARIAREAD_BUILD_DIR` selects another build directory.
-
-Windows toolchain overrides: `MSYS2_ROOT`, `ARIAREAD_VS_ROOT`, and `ARIAREAD_WINDOWS_KITS_ROOT`. The optional `scripts/build_msvc.bat` entry point uses MSVC and verifies the same pinned Aria checkout.
-
-The project no longer uses a `release/` directory; run and distribute the build output above.
+See [dependency responsibilities and Mira boundaries](docs/build-architecture.md).
 
 ## Project layout
 
@@ -105,6 +104,7 @@ AriaRead/
 │   ├── infra/              # infrastructure (HTTP/JS/DB)
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Mira HTTP/1.1 + REST API)
+├── tools/build.py          # unified cross-platform build
 ├── tools/ci/
 │   ├── build_ariaread_deps.py  # sole dependency source: version lock + SHA256
 │   └── fetch_aria.py           # fetches Aria at a pinned commit -> build/deps/aria
@@ -122,9 +122,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The main configure must pass `-DCMAKE_BUILD_TYPE=Release` explicitly: the deps
-(Mira/OpenSSL/libcurl) are built with /MD, so an empty build type produces /MDd
-objects and linking `ariaread_web_server` fails with LNK2038 runtime-library mismatch.
+An empty single-config build type defaults to Release. Windows rejects unsupported configurations before reaching CRT-mismatch linker errors. Prefer `python3 tools/build.py --test` to manage the test SDK and configuration together.
 
 CTest registers engine tests, available ViewModel tests, and local dependency-fetch safety regressions. It also registers the relevant debug regressions when Node.js 18+, Python 3.10+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
 
