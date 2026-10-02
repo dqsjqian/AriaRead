@@ -34,7 +34,17 @@ if "%VSDIR%"=="" (echo [error] Visual Studio installation not found; set ARIAREA
 set "KITSDIR=%ARIAREAD_WINDOWS_KITS_ROOT%"
 if not defined KITSDIR set "KITSDIR=%WindowsSdkDir%"
 if not defined KITSDIR set "KITSDIR=%ProgramFiles(x86)%\Windows Kits\10"
-if not exist "%KITSDIR%" (echo [error] Windows Kits directory not found & exit /b 1)
+rem The default kits path only covers a Program Files install. A standalone
+rem SDK can live on any other drive (for example D:\Windows Kits\10), so probe
+rem the other fixed drives before giving up. ARIAREAD_WINDOWS_KITS_ROOT stays
+rem the explicit override and is still checked first.
+if not exist "%KITSDIR%" (
+    set "KITSDIR="
+    for %%D in (D E F G) do (
+        if not defined KITSDIR if exist "%%D:\Windows Kits\10" set "KITSDIR=%%D:\Windows Kits\10"
+    )
+)
+if not exist "%KITSDIR%" (echo [error] Windows Kits directory not found & set ARIAREAD_WINDOWS_KITS_ROOT & exit /b 1)
 
 rem Highest SDK version directory under Include\ (dir /b sorts by name).
 set "SDKVER="
@@ -53,6 +63,13 @@ rem Configure). Set ARIAREAD_PERL_DIR to override; otherwise probe the usual
 rem locations, native MSYS2 ucrt64 first.
 set "PERLDIR="
 if defined ARIAREAD_PERL_DIR if exist "%ARIAREAD_PERL_DIR%\perl.exe" set "PERLDIR=%ARIAREAD_PERL_DIR%"
+rem A self-contained MSYS2 can live on any fixed drive (for example
+rem D:\worksoft\msys64), so probe the usual layouts on the other drives too.
+for %%D in (D E F G) do for %%P in (
+  "%%D:\msys64\ucrt64\bin"
+  "%%D:\msys2\ucrt64\bin"
+  "%%D:\worksoft\msys64\ucrt64\bin"
+) do if not defined PERLDIR if exist "%%~P\perl.exe" set "PERLDIR=%%~P"
 for %%P in (
   "%MSYS2_ROOT%\ucrt64\bin"
   "C:\msys64\ucrt64\bin"

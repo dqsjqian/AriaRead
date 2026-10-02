@@ -20,6 +20,12 @@ $BUILD_DIR = if ($env:ARIAREAD_BUILD_DIR) { $env:ARIAREAD_BUILD_DIR } else { Joi
 $mingwCandidates = @()
 if ($env:MSYS2_ROOT) { $mingwCandidates += (Join-Path $env:MSYS2_ROOT "ucrt64\bin") }
 $mingwCandidates += @("C:\msys64\ucrt64\bin", "C:\msys64\mingw64\bin", "C:\msys2\mingw64\bin")
+# A self-contained MSYS2 can live on any fixed drive (for example
+# D:\worksoft\msys64). Without one of these, PATH keeps no gcc and the pinned
+# dependency build falls through to "Compiler is unavailable: gcc".
+$mingwCandidates += @("D", "E", "F", "G") | ForEach-Object {
+    @("$($_):\msys64\ucrt64\bin", "$($_):\msys2\ucrt64\bin", "$($_):\worksoft\msys64\ucrt64\bin")
+}
 foreach ($candidate in $mingwCandidates) {
     if (Test-Path $candidate -PathType Container) {
         $env:PATH = "$candidate;$env:PATH"
@@ -49,6 +55,16 @@ if (-not $clOnPath) {
         $kitsRoot = if ($env:ARIAREAD_WINDOWS_KITS_ROOT) { $env:ARIAREAD_WINDOWS_KITS_ROOT }
                     elseif ($env:WindowsSdkDir) { $env:WindowsSdkDir }
                     else { Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10" }
+        # A standalone SDK can sit on any fixed drive (for example
+        # D:\Windows Kits\10), so probe the others when the Program Files
+        # default is absent. The explicit override is still checked first.
+        if (-not (Test-Path (Join-Path $kitsRoot "Include"))) {
+            $kitsRoot = @("D", "E", "F", "G") |
+                ForEach-Object { "$($_):\Windows Kits\10" } |
+                Where-Object { Test-Path (Join-Path $_ "Include") } |
+                Select-Object -First 1
+            if (-not $kitsRoot) { continue }
+        }
         $sdkDir = Get-ChildItem (Join-Path $kitsRoot "Include") -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '^\d+\.' } | Sort-Object Name -Descending | Select-Object -First 1
         if (-not $msvcDir -or -not $sdkDir) { continue }
