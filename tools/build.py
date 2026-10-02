@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 """Build AriaRead with one toolchain from dependencies through runtime packaging.
 
-Windows defaults to MSVC x64. MinGW is an explicit, isolated alternative.
-Existing shell/PowerShell entry points delegate here. Python 3.10+ only;
-no Python packages are needed.
+Windows defaults to MSVC x64 (stable 14.51 toolset; a live developer prompt
+that selects a preview toolset is rejected). MinGW is an explicit, isolated
+alternative. Python 3.10+ only; no Python packages are needed.
+
+Run from any shell:
+
+    python tools/build.py                    # deps + configure + build the server
+    python tools/build.py --test             # ... plus tests, then run CTest
+    python tools/build.py --toolchain mingw  # Windows: explicit MinGW build
+    python tools/build.py --clean            # rebuild the app, keep dependencies
+    python tools/build.py --clean-only       # clean app targets, keep everything
+    python tools/build.py --configure-only   # deps + configure, no compile
+    python tools/build.py --skip-cmake       # refresh assets beside an existing binary
+
+Other knobs: --config (Release/Debug/...), --generator, --jobs, --tls-backend
+(openssl/schannel), --offline, --require-web-tests, --build-dir, --deps-prefix.
+Environment overrides: ARIAREAD_BUILD_DIR, ARIAREAD_DEPS_PREFIX,
+ARIAREAD_BUILD_JOBS, ARIAREAD_VS_ROOT, ARIAREAD_WINDOWS_KITS_ROOT, MSYS2_ROOT.
 """
 from __future__ import annotations
 
 import argparse
+import ctypes
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import re
 import shlex
@@ -363,6 +380,32 @@ def prepare_environment(args, toolchain: str, cache: dict[str, str], source_env=
     return env, (cc, cargs), (cxx, cxxargs)
 
 
+@contextmanager
+def utf8_console():
+    """Decode CTest's UTF-8 output correctly on Chinese Windows consoles.
+
+    CTest writes test names and logs as UTF-8, but a console on the legacy
+    code page (936 on Chinese systems) renders them as mojibake. Switch the
+    console output code page to UTF-8 for the CTest run and restore it
+    afterwards, so the compiler's own localized diagnostics stay readable
+    during the build phase. No-op when stdout is not a console: redirected
+    files and pipes already carry the raw UTF-8 bytes.
+    """
+    if os.name != "nt":
+        yield
+        return
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    previous = kernel32.GetConsoleOutputCP()
+    active = bool(previous)
+    if active:
+        kernel32.SetConsoleOutputCP(65001)
+    try:
+        yield
+    finally:
+        if active:
+            kernel32.SetConsoleOutputCP(previous)
+
+
 def run(command, env, *, quiet=False):
     command = list(map(str, command))
     print("+ " + (subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)), flush=True)
@@ -457,8 +500,9 @@ def main(argv=None):
             command.append("--clean-first")
         run(command, env)
         if args.test:
-            run(["ctest", "--test-dir", build, "-C", args.config, "--output-on-failure",
-                 "--no-tests=error", "--timeout", "120", "--parallel", args.jobs], env)
+            with utf8_console():
+                run(["ctest", "--test-dir", build, "-C", args.config, "--output-on-failure",
+                     "--no-tests=error", "--timeout", "120", "--parallel", args.jobs], env)
         folder, binary = runtime_path(build, args.config, windows)
     run([binary, "--help"], env, quiet=True)
     print(f"\nReady: {folder}\nRun: \"{binary}\"\n"
