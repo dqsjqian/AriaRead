@@ -27,7 +27,7 @@ python3 tools/build.py --clean
 python3 tools/build.py --skip-cmake
 ```
 
-可用 `--jobs` 控制并行度、`--build-dir` 和 `--deps-prefix` 覆盖路径。若通过 `CC/CXX` 选用其他桌面编译器，最低要求为 **LLVM Clang 23.1.2** 或 **GCC 16.2**。切换编译器或 CMake 生成器时使用新的构建目录；脚本会拒绝混用已有 CMake 缓存。同一编译器的参数也会同步给依赖构建：未设置 `CC/CXX` 时恢复缓存参数，显式设置裸编译器路径时清除旧参数。`scripts/build_web_release.sh` 保留为兼容入口，转发同一组参数。
+可用 `--jobs` 控制并行度、`--build-dir` 和 `--deps-prefix` 覆盖路径。若通过 `CC/CXX` 选用其他桌面编译器，最低要求为 **LLVM Clang 23.1.2** 或 **GCC 16.2**。切换编译器或 CMake 生成器时使用新的构建目录；脚本会拒绝混用已有 CMake 缓存。同一编译器的参数也会同步给依赖构建：未设置 `CC/CXX` 时恢复缓存参数，显式设置裸编译器路径时清除旧参数。
 
 默认运行 `build/bin/ariaread_web_server`；多配置生成器的具体路径以构建输出为准。分发时保留整个运行目录，包括动态库、`web/` 和 `licenses/`。完整选项见 `python3 tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
 

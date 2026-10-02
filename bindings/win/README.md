@@ -32,7 +32,7 @@ python tools/build.py --clean-only
 
 显式安装路径优先；未指定时也会探测 D/E/F/G 盘常见布局，包括 `worksoft/VS2026`、`Windows Kits/10`、`msys64`、`msys2` 和 `worksoft/msys64`。受限环境阻止 `vswhere` 时会保留诊断并继续探测。只有显式选择 OpenSSL 才会额外查找原生 Perl，优先使用 `ARIAREAD_PERL_DIR` 或已有 `PATH`，随后检查 Strawberry Perl 与 MSYS2 的常见路径。
 
-Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。`scripts/build_web_release.ps1` 是同一 Python 入口的 PowerShell 薄包装。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
+Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
 
 ## 原生界面接入
 

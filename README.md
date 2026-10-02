@@ -64,7 +64,7 @@ macOS 使用 Xcode Command Line Tools；OpenSSL 构建仍需系统 Perl/make。c
 
 完成后入口打印实际可执行文件路径。运行目录包含服务程序、Aria 动态库、`web/` 和 `licenses/`，可以整体复制；开发时可用 `--web-root bindings/web/ariaread/web` 指定源码资源。
 
-原 `bash scripts/build_web_release.sh`、`scripts/build_web_release.ps1` 保留为统一入口的兼容包装。Windows 只支持 Release，提前拒绝不匹配的 Debug CRT；空 CMake build type 自动选择 Release。`--clean` 仅清理当前应用构建，不删除下载缓存或依赖前缀。
+`tools/build.py` 是全平台唯一构建入口。Windows 只支持 Release，提前拒绝不匹配的 Debug CRT；空 CMake build type 自动选择 Release。`--clean` 仅清理当前应用构建，不删除下载缓存或依赖前缀。
 
 ## 项目结构
 
