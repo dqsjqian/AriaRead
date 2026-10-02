@@ -1,5 +1,13 @@
 #!/usr/bin/env pwsh
 # Build and distribute one runtime directory: build/bin (or bin/<config>).
+#
+# This is the single Windows entry point. It replaces the former
+# scripts\build_msvc.bat: MSVC is detected here, the environment is assembled
+# without vcvarsall.bat (restricted environments may block reg.exe), and the
+# Ninja generator is used instead of "Visual Studio 18 2026" because MSBuild
+# throws MSB6001 when the host shell chain injects duplicate "Path"/"PATH"
+# environment keys. A MinGW gcc toolchain is used when no MSVC compiler is
+# found.
 param(
     [switch]$Clean,
     [switch]$SkipCMake,
@@ -48,6 +56,13 @@ if (-not $clOnPath) {
         if ($detected) { $vsRoots += $detected }
     }
     $vsRoots += @("C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio")
+    # A self-contained Visual Studio can live on any fixed drive (for example
+    # D:\worksoft\VS2026). vswhere normally reports it, but it is skipped when
+    # the environment blocks it, so keep a probe as a last resort.
+    $vsRoots += @("D", "E", "F", "G") | ForEach-Object {
+        @("$($_):\Microsoft Visual Studio", "$($_):\Program Files\Microsoft Visual Studio",
+          "$($_):\worksoft\VS2026", "$($_):\Program Files\Microsoft Visual Studio\2022")
+    }
     foreach ($vsRoot in $vsRoots) {
         if (-not (Test-Path $vsRoot)) { continue }
         $msvcDir = Get-ChildItem (Join-Path $vsRoot "VC\Tools\MSVC") -Directory -ErrorAction SilentlyContinue |
@@ -71,7 +86,12 @@ if (-not $clOnPath) {
         $vctools = $msvcDir.FullName
         $sdkver = $sdkDir.Name
         $ninja = Join-Path $vsRoot "Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
-        $env:PATH = "$vctools\bin\Hostx64\x64;$kitsRoot\bin\$sdkver\x64;$ninja;C:\Program Files\CMake\bin;$env:PATH"
+        # Common7\IDE and Common7\Tools carry the helper executables CMake and
+        # Ninja invoke; the MSVC compiler and SDK directories come first so an
+        # older toolchain elsewhere on PATH cannot win.
+        $cmakeBin = (Get-Command cmake -ErrorAction SilentlyContinue).Source
+        if (-not $cmakeBin) { $cmakeBin = "C:\Program Files\CMake\bin\cmake.exe" }
+        $env:PATH = "$vctools\bin\Hostx64\x64;$kitsRoot\bin\$sdkver\x64;$ninja;$(Split-Path $vsRoot -Parent)\Common7\IDE;$vsRoot\Common7\IDE;$vsRoot\Common7\Tools;$(Split-Path $cmakeBin -Parent);$env:PATH"
         $env:INCLUDE = "$vctools\include;$kitsRoot\Include\$sdkver\ucrt;$kitsRoot\Include\$sdkver\um;$kitsRoot\Include\$sdkver\shared;$kitsRoot\Include\$sdkver\winrt;$kitsRoot\Include\$sdkver\cppwinrt"
         $env:LIB = "$vctools\lib\x64;$kitsRoot\Lib\$sdkver\ucrt\x64;$kitsRoot\Lib\$sdkver\um\x64"
         $env:WindowsSdkDir = "$kitsRoot\"

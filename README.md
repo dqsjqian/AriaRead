@@ -56,7 +56,7 @@ bash scripts/build_web_release.sh
 
 Windows 使用 `scripts/build_web_release.ps1`，运行 `build/bin/ariaread_web_server.exe`；多配置生成器使用 `build/bin/Release/`。Windows 固定依赖前缀仅提供 Release 库，脚本只接受 `-Config Release`。`ARIAREAD_BUILD_DIR` 可指定其他构建目录。
 
-Windows 非标准工具链位置可通过 `MSYS2_ROOT`、`ARIAREAD_VS_ROOT`、`ARIAREAD_WINDOWS_KITS_ROOT` 指定。`scripts/build_msvc.bat` 是专用 MSVC 入口，同样会校验 Aria 锁定提交。
+Windows 非标准工具链位置可通过 `MSYS2_ROOT`、`ARIAREAD_VS_ROOT`、`ARIAREAD_WINDOWS_KITS_ROOT` 指定。`scripts/build_web_release.ps1` 是 Windows 唯一构建入口：优先使用 MSVC，找不到 MSVC 编译器时自动回退 MinGW，同样会校验 Aria 锁定提交。
 
 项目不再使用 `release/` 目录；启动与分发均使用上述构建产物。
 
