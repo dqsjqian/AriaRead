@@ -113,10 +113,17 @@ if(WIN32)
 else()
     file(GLOB ARIAREAD_ARIA_RUNTIME "${ARIAREAD_DEPS_PREFIX}/lib/libaria*")
 endif()
+# Multi-config generators (Visual Studio) put executables in
+# <prefix>/bin/<CONFIG>; single-config ones in <prefix>/bin.
+if(CMAKE_CONFIGURATION_TYPES)
+    set(ARIAREAD_ARIA_RUNTIME_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>")
+else()
+    set(ARIAREAD_ARIA_RUNTIME_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endif()
 if(ARIAREAD_ARIA_RUNTIME)
     add_custom_command(TARGET ariaread POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            ${ARIAREAD_ARIA_RUNTIME} "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+            ${ARIAREAD_ARIA_RUNTIME} "${ARIAREAD_ARIA_RUNTIME_DIR}")
 endif()
 # MinGW: the shared aria DLLs depend on the compiler runtime DLLs. Test
 # executables discover their doctest cases at POST_BUILD time and must be
@@ -130,7 +137,7 @@ if(MINGW)
         if(mingw_dll_result EQUAL 0 AND EXISTS "${mingw_dll_path}")
             add_custom_command(TARGET ariaread POST_BUILD
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                    "${mingw_dll_path}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+                    "${mingw_dll_path}" "${ARIAREAD_ARIA_RUNTIME_DIR}")
         endif()
     endforeach()
 endif()
