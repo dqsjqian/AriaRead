@@ -218,7 +218,9 @@ class IdentityTests(GitFixture):
         self.assertNotEqual(sources.identity(self.work), before)
         (self.work / 'untracked.txt').unlink()
         self.assertEqual(sources.identity(self.work), before)
-        (self.work / '中文 注释.txt').write_text('非 ASCII 输入')
+        # Non-ASCII paths AND contents: always explicit UTF-8 (the Windows
+        # runner's default codec cannot encode these bytes).
+        (self.work / '中文 注释.txt').write_text('非 ASCII 输入', encoding='utf-8')
         after = sources.identity(self.work)
         self.assertNotEqual(before, after)
         (self.work / '中文 注释.txt').unlink()

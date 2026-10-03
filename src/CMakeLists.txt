@@ -118,3 +118,19 @@ if(ARIAREAD_ARIA_RUNTIME)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             ${ARIAREAD_ARIA_RUNTIME} "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 endif()
+# MinGW: the shared aria DLLs depend on the compiler runtime DLLs. Test
+# executables discover their doctest cases at POST_BUILD time and must be
+# able to start before any asset sync runs.
+if(MINGW)
+    foreach(mingw_dll libgcc_s_seh-1.dll libgcc_s_dw2-1.dll libgcc_s_sjlj-1.dll
+                      libstdc++-6.dll libwinpthread-1.dll)
+        execute_process(COMMAND "${CMAKE_CXX_COMPILER}" "-print-file-name=${mingw_dll}"
+                        OUTPUT_VARIABLE mingw_dll_path OUTPUT_STRIP_TRAILING_WHITESPACE
+                        RESULT_VARIABLE mingw_dll_result)
+        if(mingw_dll_result EQUAL 0 AND EXISTS "${mingw_dll_path}")
+            add_custom_command(TARGET ariaread POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                    "${mingw_dll_path}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+        endif()
+    endforeach()
+endif()
