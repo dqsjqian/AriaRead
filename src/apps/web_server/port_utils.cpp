@@ -12,7 +12,9 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#if defined(_MSC_VER)
 #pragma comment(lib, "ws2_32.lib")
+#endif
 #else
 #include <unistd.h>
 #include <sys/socket.h>

@@ -42,13 +42,8 @@ if(TARGET nlohmann_json::nlohmann_json)
     target_link_libraries(ariaread_vm PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
-# database.h 经 sqlite_modern_cpp.h 还传递依赖 sqlite3.h；引擎中同样是
-# PRIVATE 链接。Ninja/Makefile 生成器下路径恰好经目录级 include 泄漏可见，
-# VS 生成器严格执行 PRIVATE 边界不传播 —— 显式补齐，两个生成器行为对齐。
-if(TARGET sqlite3)
-    target_link_libraries(ariaread_vm PRIVATE sqlite3)
-endif()
-
+# sqlite_modern_cpp.h is a header dependency; its include directory is supplied
+# above. The SQLite archive is linked once through ariaread's static-link interface.
 # 链接引擎 + Aria 三层（core/async 为 header-only 模板，binding 为共享库）
 target_link_libraries(ariaread_vm
     PUBLIC

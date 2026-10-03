@@ -37,7 +37,6 @@ target_link_libraries(ariaread-tests
     PRIVATE ariaread
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE doctest::doctest
-    PRIVATE ${ARIAREAD_SQLITE_TARGET}
 )
 
 # 注册测试
@@ -93,7 +92,6 @@ if(TARGET ariaread_vm)
             ariaread_vm
             doctest::doctest
             nlohmann_json::nlohmann_json
-            ${ARIAREAD_SQLITE_TARGET}   # sqlite_modern_cpp.h → sqlite3.h 传递包含；VS 生成器下 PRIVATE 不传播
     )
 
     if(NOT MSVC)

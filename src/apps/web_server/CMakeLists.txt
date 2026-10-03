@@ -34,8 +34,7 @@ target_link_libraries(ariaread_web_server
         Mira::http    # HTTP/1.1（传递 Mira::core）
         Mira::transport  # TCP 监听与连接
         nlohmann_json::nlohmann_json  # JSON 序列化
-        sqlite3           # sqlite_modern_cpp.h → sqlite3.h 的传递包含；引擎 PRIVATE
-                          # 链接在 VS 生成器下不传播，与 viewmodels 同模式显式补齐
+        # SQLite is linked through ariaread's static-link interface.
 )
 
 # sqlite_modern_cpp 是本项目的直接依赖（header-only）。
@@ -91,10 +90,4 @@ endif()
 # 抑制 sqlite_modern_cpp 的弃用警告
 if(NOT MSVC)
     target_compile_options(ariaread_web_server PRIVATE -Wno-deprecated-declarations)
-endif()
-
-# Apple ld "ignoring duplicate libraries" 警告：
-# aria::http → aria::abi + aria::core → aria::abi 菱形依赖，Aria 上游问题，此处无害。
-if(APPLE)
-    target_link_options(ariaread_web_server PRIVATE -Wl,-w)
 endif()
