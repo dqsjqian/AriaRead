@@ -175,9 +175,9 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                         int parsedFields = 0;
 #if defined(_MSC_VER)
                         parsedFields = sscanf_s(dateStr.c_str(), "%*3s, %d %3s %d %d:%d:%d %7s",
-                                                &day, monthStr, sizeof(monthStr),
+                                                &day, monthStr, static_cast<unsigned>(sizeof(monthStr)),
                                                 &year, &hour, &min, &sec, tz,
-                                                sizeof(tz));
+                                                static_cast<unsigned>(sizeof(tz)));
 #else
                         parsedFields = std::sscanf(dateStr.c_str(), "%*3s, %d %3s %d %d:%d:%d %7s",
                                                    &day, monthStr, &year, &hour, &min, &sec, tz);
