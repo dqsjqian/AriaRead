@@ -144,6 +144,23 @@ class WorkspaceAdoptionTests(GitFixture):
         sources.ensure(self.deps, second, lambda dest: self.clone_into(dest, self.third), explicit=True)
         self.assertEqual(git('rev-parse', 'HEAD', cwd=path), self.third)
 
+    def test_remove_retry_clears_windows_read_only_attributes(self):
+        root = self.root / 'readonly rollback'
+        root.mkdir()
+        readonly = root / 'git-object'
+
+        def simulated_rmtree(path, *, onerror):
+            readonly.write_text('fixture object')
+            error = PermissionError('simulated Windows read-only attribute')
+            onerror(os.unlink, str(readonly), (PermissionError, error, None))
+            path.rmdir()
+
+        with patch.object(sources.os, 'name', 'nt'), \
+                patch.object(sources.shutil, 'rmtree', side_effect=simulated_rmtree) as remove:
+            sources.remove_retry(root)
+        remove.assert_called_once()
+        self.assertFalse(root.exists())
+
     def test_explicit_update_refuses_local_work(self):
         first = dependency(kind='git', revision=self.second)
         path = sources.ensure(self.deps, first, lambda dest: self.clone_into(dest, self.second))

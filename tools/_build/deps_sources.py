@@ -18,6 +18,7 @@ import json
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -238,9 +239,23 @@ def remove_retry(path):
     to prevent. Retry briefly, then fail loudly.
     """
     import time
+
+    def clear_readonly(function, name, exc_info):
+        error = exc_info[1]
+        if os.name != 'nt' or not isinstance(error, PermissionError):
+            raise error
+        # Git object files and extracted build artifacts can carry the Windows
+        # read-only attribute. A delay does not clear it; make the failed path
+        # writable, then retry the exact filesystem operation.
+        os.chmod(name, stat.S_IREAD | stat.S_IWRITE)
+        function(name)
+
     for attempt in range(4):
         try:
-            shutil.rmtree(path)
+            if os.name == 'nt':
+                shutil.rmtree(path, onerror=clear_readonly)
+            else:
+                shutil.rmtree(path)
             return
         except FileNotFoundError:
             return

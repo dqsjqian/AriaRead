@@ -1085,12 +1085,17 @@ class OfflineTransactionTests(unittest.TestCase):
                 'sys.stdout.buffer.write(("\\n".join(lines) + "\\n").encode("utf-8"))\n',
                 encoding='utf-8')
             ctest_file = root / 'CTestTestfile.cmake'
+            runner_script = root / 'discovery-runner.cmake'
+            runner_script.write_text(
+                'cmake_minimum_required(VERSION 3.21)\n'
+                f'include([==[{discovery_script.as_posix()}]==])\n',
+                encoding='utf-8')
             command = ['cmake', '--trace-expand', '--trace-format=json-v1',
                        '--trace-source=' + str(discovery_script),
                        '-DTEST_EXECUTOR=' + sys.executable, '-DTEST_EXECUTABLE=' + str(executable),
                        '-DTEST_WORKING_DIR=' + str(root), '-DTEST_ADD_LABELS=TRUE',
                        '-DTEST_LIST=discovered_tests', '-DCTEST_FILE=' + str(ctest_file),
-                       '-P', str(discovery_script)]
+                       '-P', str(runner_script)]
             environment = {**os.environ, 'PYTHONIOENCODING': 'cp1252'}
             discovered = subprocess.run(command, env=environment, encoding='utf-8', capture_output=True)
             self.assertEqual(discovered.returncode, 0, discovered.stdout + discovered.stderr)
@@ -1112,8 +1117,14 @@ class OfflineTransactionTests(unittest.TestCase):
             # Byte-level acceptance first: the generated script itself must
             # carry the Chinese suite label as a bracket argument.
             generated = ctest_file.read_text(encoding='utf-8')
-            self.assertIn('LABELS [==[' + label + ']==]', generated,
-                          'generated script missing the Chinese label; script:\n' + generated)
+            self.assertIn(
+                'LABELS [==[' + label + ']==]', generated,
+                'generated script missing the Chinese label; calls='
+                + repr([call.get('args') for call in calls])
+                + '\nlabel trace='
+                + repr([line for line in discovered.stderr.splitlines()
+                        if 'add_labels' in line or 'TEST_ADD_LABELS' in line])
+                + '\nscript:\n' + generated)
             for test in tests:
                 properties = {entry['name']: entry['value'] for entry in test['properties']}
                 if 'LABELS' in properties:
