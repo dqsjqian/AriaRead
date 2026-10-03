@@ -45,35 +45,23 @@ Windows needs Visual Studio C++ tools/SDK, CMake, Git and Python. The default Sc
 
 macOS uses Xcode Command Line Tools and system Perl/make for OpenSSL; Apple SecTrust uses the system keychain. Linux also needs Perl/make and system CA certificates. Node.js 18+ enables Web regressions. Runtime builds skip doctest; `--test` adds it. `--offline`, `--jobs N`, `--build-dir` and `--deps-prefix` control cached builds.
 
-Third-party dependencies use one `dependencies.json` file: source fields and optional
-`version` requirements sit beside generated `resolved` versions, immutable commits and archive SHA256 values. Missing lock
-entries select the latest stable release. Normal builds reuse the lock, and explicit
-versions take priority:
+Dependency sources live in `deps/<name>/`, without version or commit IDs in directory names. `dependencies.json` selects the initial sources. Existing Git checkouts may be pulled, switched or edited by the user. Builds use their actual contents, record the actual revision and content fingerprint, and rebuild changed libraries and affected consumers.
 
 ```bash
-python3 tools/ci/build_ariaread_deps.py --update
-python3 tools/ci/build_ariaread_deps.py --version zlib=1.3.2
-python3 tools/ci/build_ariaread_deps.py --offline
-python3 tools/ci/build_ariaread_deps.py --only zlib,json
+python tools/build.py deps                           # prepare runtime dependencies only
+python tools/build.py deps --profile tests           # include test dependencies
+python tools/build.py deps-check --profile tests     # read-only source/install validation
+python tools/build.py deps-update --only curl        # update records, not source directories
+python tools/build.py deps-update --only zlib --version zlib=1.3.2
+python tools/build.py --offline --test
+python tools/build.py test-tools                     # offline build-tool regressions
 ```
 
-The installation cache verifies the lock, recipes/patches, compiler, Release configuration
-and installed file contents. Per-component identities rebuild only changed libraries and their affected static consumers. Compiler/ABI changes rebuild the complete prefix; old-format caches need one migration rebuild. Updates preserve
-`prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*` for
-inspection. Locally modified installed files or Git caches are never overwritten.
-Offline builds require exact locked archives/commits already cached. Partial builds
-include prerequisite dependencies; complete the installation before configuring the
-application. CMake verifies it offline. For custom installations, pass `--prefix <path>`
-to the builder and `-DARIAREAD_DEPS_PREFIX=<path>` to CMake.
-QuickJS, Gumbo and sqlite_modern_cpp patches are limited to reviewed upstream versions;
-a new unsupported version fails with an explicit recipe-update requirement.
+Run the normal build after updating records. Unmodified old sources are backed up before replacement; local changes are retained and reported instead of silently overwritten. Patches apply to build snapshots, leaving editable source trees intact. Archive-based dependencies are editable directories, not Git repositories; select another upstream release with `deps-update`.
 
-The Aria fetcher verifies the actual Git HEAD and worktree on every run, refuses
-to overwrite local edits, and retains the previous checkout in
-`build/deps/aria-backup-*` after an update. To consume the pinned commit before
-it is published, use `python3 tools/ci/fetch_aria.py --source /path/to/Aria`
-(or set `ARIA_SOURCE`). For source development, configure CMake with
-`-DARIA_DIR=/path/to/Aria`.
+`--source-dir`, `--deps-prefix` and `--build-dir` independently select sources, installed libraries and application outputs. MSVC and MinGW share sources but isolate binaries. CMake validates existing sources and installations offline. aria is treated exactly like every other dependency: fetched into `deps/aria` from `dependencies.json`, installed into the prefix alongside the rest, and consumed with `find_package(aria)`; upstream's shared-module (singleton ABI) design is preserved while every other library installs statically.
+
+Receipts verify actual source contents, recipes, patches, compiler/ABI and installed files. Unchanged components from successful installations are reused; failures restore the previous prefix. Reruns reuse downloads but do not promise resumption of uncommitted compilation. Modified installed binaries remain protected even though source edits are accepted.
 
 ## Running and distributing
 
@@ -105,9 +93,9 @@ AriaRead/
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Mira HTTP/1.1 + REST API)
 ├── tools/build.py          # unified cross-platform build
-├── tools/ci/
-│   ├── build_ariaread_deps.py  # sole dependency source: version lock + SHA256
-│   └── fetch_aria.py           # fetches Aria at a pinned commit -> build/deps/aria
+├── tools/_build/           # internal modules, patches and build-tool tests
+├── deps/                   # editable sources: aria/, Mira/, curl/, zlib/, ...
+├── build/                  # application output, installed libraries and caches
 ├── bindings/web/ariaread/web/  # frontend static assets
 └── tests/                  # unit tests
 ```
@@ -117,9 +105,7 @@ AriaRead/
 Configure, build, and run the tests from the repository root:
 
 ```bash
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+python tools/build.py --test --require-web-tests
 ```
 
 An empty single-config build type defaults to Release. Windows rejects unsupported configurations before reaching CRT-mismatch linker errors. Prefer `python3 tools/build.py --test` to manage the test SDK and configuration together.
@@ -140,7 +126,7 @@ HTTP tests use local mock sources and an in-memory database to cover console val
 ## Release checklist
 
 - [x] All sources compile from source (no prebuilt binaries)
-- [x] No git submodules; all dependencies pinned and fetched by tools/ci scripts
+- [x] No git submodules; initial sources selected by dependencies.json and prepared by tools/build.py
 - [x] MIT LICENSE
 - [x] README.md (Chinese) + README.en.md (English)
 

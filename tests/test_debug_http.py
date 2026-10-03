@@ -491,32 +491,49 @@ class DebugHttpTests(unittest.TestCase):
             owner_thread.join(timeout=5)
         self.addCleanup(stop_owner)
 
-        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'ariaread-test-port-owner')
-        log = tempfile.TemporaryFile(mode='w+b')
-        self.addCleanup(log.close)
-        contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
-        self.addCleanup(stop_process, contender)
-        try:
-            contender.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.fail('Server did not reject the occupied port within 5 seconds')
-        self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
-        self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
-        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'ariaread-test-port-owner')
-        log = tempfile.TemporaryFile(mode='w+b')
-        self.addCleanup(log.close)
-        contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
-        self.addCleanup(stop_process, contender)
-        try:
-            contender.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.fail('Server did not reject the occupied port within 5 seconds')
-        self.assertNotEqual(contender.returncode, 0, 'Server should fail on an occupied port')
-        self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
-        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=2)[1],
-                         'ariaread-test-port-owner')
+        marker = 'ariaread-test-port-owner'
+        self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=5)[1], marker)
+        expected_error = f'Failed to start HTTP server on 127.0.0.1:{occupied_port}'
+        # Process creation, library loading and engine initialization can queue
+        # behind other CTest jobs. Once bind refusal is reported, only allow a
+        # short shutdown window; a hung/crashing process is still a test failure.
+        startup_timeout = 20
+        shutdown_timeout = 5
+        log_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(log_temp.cleanup)
+        for attempt in range(2):
+            log_path = Path(log_temp.name) / f'contender-{attempt}.log'
+            with self.subTest(attempt=attempt + 1), log_path.open('wb') as log:
+                contender = subprocess.Popen(self.server_command(occupied_port), stdout=log, stderr=log)
+                started = time.monotonic()
+                deadline = started + startup_timeout
+                refusal_seen = False
+                try:
+                    while contender.poll() is None:
+                        # A separate handle must not move the child's write offset.
+                        output = log_path.read_text(encoding='utf-8', errors='replace')
+                        if not refusal_seen and expected_error in output:
+                            refusal_seen = True
+                            deadline = time.monotonic() + shutdown_timeout
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            stage = ('reported bind refusal but did not exit' if refusal_seen else
+                                     'did not report bind refusal during startup')
+                            self.fail(f'Server {stage} after {time.monotonic() - started:.1f}s; '
+                                      f'port owner alive={owner_thread.is_alive()}; output:\n{output[-4000:]}')
+                        try:
+                            contender.wait(timeout=min(0.1, remaining))
+                        except subprocess.TimeoutExpired:
+                            pass
+                    output = log_path.read_text(encoding='utf-8', errors='replace')
+                    self.assertEqual(contender.returncode, 1,
+                                     f'Server must reject an occupied port without crashing; output:\n{output[-4000:]}')
+                    self.assertIn(expected_error, output,
+                                  'Server failed for a reason other than the occupied port')
+                    self.assertTrue(owner_thread.is_alive(), 'Server killed the existing port owner')
+                    self.assertEqual(http_request(occupied_port, 'GET', '/', timeout=5)[1], marker)
+                finally:
+                    stop_process(contender)
 
 
 if __name__ == '__main__':

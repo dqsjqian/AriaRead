@@ -54,7 +54,7 @@ else()
 endif()
 # ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Mira) fully replaces Python/Flask
 # ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
-# 一个来源（tools/ci/build_ariaread_deps.py 的锁定版本前缀），不再有"系统库 vs
+# 一个来源（tools/build.py 管理的依赖前缀），不再有"系统库 vs
 # vendored"的开关。
 
 # ──────────────────────────────────────────────
@@ -74,52 +74,53 @@ configure_file(
 )
 
 # ──────────────────────────────────────────────
-# 第三方依赖：唯一来源是 tools/ci/build_ariaread_deps.py 构建的前缀
+# 第三方依赖：唯一来源是 tools/build.py 构建的前缀
 #
 # 与 Mira 一致的依赖哲学：
-#   * 依赖由显式脚本取（依赖文件 + SHA256 + 许可证留档），只写仓库 build/；
+#   * 初次来源由依赖文件 + SHA256 固定，源码平铺 deps/，产物放 build/；
 #   * CMake 侧只 find_package，配置时不联网、不 FetchContent、不 add_subdirectory
 #     第三方源码；
 #   * 没有前缀就直接失败并提示先跑脚本——不再维护 vendored third_party 回退。
-#
-# Aria（兄弟项目，四库源码联动）同样去 submodule 化：由 tools/ci/fetch_aria.py
-# 以依赖文件指定的完整提交取到 build/deps/aria，CMake 只 add_subdirectory 已取回的
-# 源码树，配置期同样不联网。
+#     aria 也一样：由 tools/build.py 与其他依赖一起装进前缀。
 # ──────────────────────────────────────────────
 set(ARIAREAD_DEPS_PREFIX "" CACHE PATH
-    "tools/ci/build_ariaread_deps.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
+    "tools/build.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
+set(ARIAREAD_DEPENDENCIES_FILE "${CMAKE_SOURCE_DIR}/dependencies.json" CACHE FILEPATH
+    "Dependency declarations and initial source selections")
+set(ARIAREAD_DEPS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps" CACHE PATH
+    "Editable dependency source workspace")
 if(NOT ARIAREAD_DEPS_PREFIX
         AND EXISTS "${CMAKE_SOURCE_DIR}/build/deps/prefix/share/ariaread-deps/manifest.json")
     set(ARIAREAD_DEPS_PREFIX "${CMAKE_SOURCE_DIR}/build/deps/prefix")
 endif()
 if(NOT ARIAREAD_DEPS_PREFIX)
     message(FATAL_ERROR
-        "未找到依赖前缀。请先执行：python3 tools/ci/build_ariaread_deps.py\n"
+        "未找到依赖前缀。请先执行：python tools/build.py deps --profile tests\n"
         "再用 -DARIAREAD_DEPS_PREFIX=<prefix> 配置（留空会自动探测 build/deps/prefix）。")
 endif()
 if(NOT EXISTS "${ARIAREAD_DEPS_PREFIX}/share/ariaread-deps/manifest.json")
     message(FATAL_ERROR
         "ARIAREAD_DEPS_PREFIX 缺少 manifest.json，不像依赖前缀：${ARIAREAD_DEPS_PREFIX}")
 endif()
-# Offline validation prevents an old installation from claiming a new lock/version.
+# Offline validation also detects edits/pulls made after the last dependency build.
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 execute_process(
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/ci/build_ariaread_deps.py"
-        --verify-prefix --prefix "${ARIAREAD_DEPS_PREFIX}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/build.py" deps-check
+        --prefix "${ARIAREAD_DEPS_PREFIX}"
         --profile "${_ariaread_deps_profile}" --tls-backend "${ARIAREAD_TLS_BACKEND}"
-        --file "${CMAKE_SOURCE_DIR}/dependencies.json"
+        --file "${ARIAREAD_DEPENDENCIES_FILE}" --source-dir "${ARIAREAD_DEPS_SOURCE_DIR}"
         --c-compiler "${CMAKE_C_COMPILER}" --cxx-compiler "${CMAKE_CXX_COMPILER}"
         "--c-compiler-arg1=${CMAKE_C_COMPILER_ARG1}" "--cxx-compiler-arg1=${CMAKE_CXX_COMPILER_ARG1}"
         --toolchain-file "${CMAKE_TOOLCHAIN_FILE}" --cmake-platform "${CMAKE_GENERATOR_PLATFORM}"
     RESULT_VARIABLE _ariaread_deps_result OUTPUT_VARIABLE _ariaread_deps_output
-    ERROR_VARIABLE _ariaread_deps_error)
+    ERROR_VARIABLE _ariaread_deps_error ENCODING UTF-8)
 if(NOT "${_ariaread_deps_result}" STREQUAL "0")
     message(FATAL_ERROR "Dependency prefix validation failed:\n${_ariaread_deps_output}${_ariaread_deps_error}")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/dependencies.json")
+    "${ARIAREAD_DEPENDENCIES_FILE}")
 list(PREPEND CMAKE_PREFIX_PATH "${ARIAREAD_DEPS_PREFIX}")
-message(STATUS "Using pinned dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
+message(STATUS "Using verified dependency prefix: ${ARIAREAD_DEPS_PREFIX}")
 
 # 前缀里同时有静态库和动态库时优先静态：产物是"拷走就能跑"的目录，
 # 不希望运行时再去 @rpath 找 dylib（zlib 的 CMake 两种都编）。
@@ -159,35 +160,14 @@ set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 
 
 # ──────────────────────────────────────────────
-# Aria（C++23 响应式 MVVM 框架，依赖文件指定的完整提交源码接入）
+# Aria（C++23 响应式 MVVM 框架）
 # 用于在 C++ 层承载响应式状态/协程异步/ViewModel，供各端 UI 复用同一业务逻辑。
-# 由 tools/ci/fetch_aria.py 取到 build/deps/aria（无 git submodule、无 vendored
-# 源码），配置前先跑一次脚本。
+# 与其他依赖完全一致：tools/build.py 从 dependencies.json 取到 deps/aria，
+# 装进依赖前缀，这里只 find_package。上游 ARIA_BUILD_SHARED=ON 保留其
+# 单例 ABI 设计（前缀里是共享库，其余依赖均为静态）。
 # ──────────────────────────────────────────────
-set(ARIA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria" CACHE PATH
-    "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
-if(NOT EXISTS "${ARIA_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR
-        "Aria not found at ${ARIA_DIR}.\n"
-        "Run once before configuring:\n"
-        "  python tools/ci/fetch_aria.py\n"
-        "(no git submodules -- Aria uses the full commit recorded in dependencies.json resolved metadata)")
-endif()
-message(STATUS "Using Aria source at ${ARIA_DIR}")
-# 关闭 Aria 自带的测试/示例/基准，避免：
-#   1. doctest target 与 AriaRead 测试重名冲突
-#   2. 编译大量无关的 examples/benchmark 拖慢构建
-set(ARIA_BUILD_TESTS     OFF CACHE BOOL "" FORCE)
-set(ARIA_BUILD_EXAMPLES  OFF CACHE BOOL "" FORCE)
-set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
-# runtime/binding 编为共享库（符合 Aria 单例 ABI 设计）；
-# AriaRead 静态库照常链接其导出符号。
-set(ARIA_BUILD_SHARED    ON  CACHE BOOL "" FORCE)
-# 不再启用 Aria 的 HTTP adapter：Web Server 的 HTTP 层已换成 Mira，
-# Aria 在这里只提供响应式/协程/ViewModel（core + async + binding）。
-set(ARIA_BUILD_HTTP        OFF CACHE BOOL "" FORCE)
-set(ARIA_HTTP_ENABLE_TLS   OFF CACHE BOOL "" FORCE)
-add_subdirectory("${ARIA_DIR}" aria)
+find_package(aria REQUIRED CONFIG)
+message(STATUS "Using aria ${aria_VERSION} (installed dependency)")
 
 # ──────────────────────────────────────────────
 # 核心库
@@ -217,8 +197,7 @@ include(GNUInstallDirs)
 
 # Reuse the selected prefix/source in packaging scripts, including --skip-cmake.
 file(WRITE "${CMAKE_BINARY_DIR}/AriaReadRuntimePaths.cmake"
-    "set(ARIAREAD_DEPS_PREFIX [==[${ARIAREAD_DEPS_PREFIX}]==])\n"
-    "set(ARIA_DIR [==[${ARIA_DIR}]==])\n")
+    "set(ARIAREAD_DEPS_PREFIX [==[${ARIAREAD_DEPS_PREFIX}]==])\n")
 set(ARIAREAD_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(ARIAREAD_LICENSE_OUTPUT "${CMAKE_BINARY_DIR}/license-bundle")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/StageLicenses.cmake")

@@ -212,6 +212,11 @@ int main(int argc, char** argv) {
     if (listening_port <= 0) {
         std::cerr << "Failed to start HTTP server on " << host << ":" << port
                   << ". The address may be unavailable or already in use.\n";
+        // A failed bind (or readiness timeout) still leaves a joinable thread.
+        // Cancel a late-starting accept loop before joining; returning directly
+        // would call std::terminate instead of reporting a normal startup error.
+        svr.stop();
+        http_thread.join();
         return 1;
     }
 

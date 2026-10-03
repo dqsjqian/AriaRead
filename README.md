@@ -52,7 +52,7 @@ Windows 默认只需 Visual Studio C++ 工具链、Windows SDK、CMake、Git、P
 
 macOS 使用 Xcode Command Line Tools；OpenSSL 构建仍需系统 Perl/make。curl 通过 Apple SecTrust 使用系统钥匙串，不依赖 Homebrew 的 CA 文件。Linux 还需要 Perl/make 和系统 CA 证书。运行 Web 回归需要 Node.js 18+。
 
-默认只构建运行时，跳过 doctest；`--test` 补齐测试。普通重跑复用已验证依赖，`--offline` 使用精确锁定的本地源码缓存，`--jobs N` 限制并行数。`--build-dir` / `ARIAREAD_BUILD_DIR` 自定义构建目录，`--deps-prefix` / `ARIAREAD_DEPS_PREFIX` 自定义依赖前缀。
+默认只构建运行时，跳过 doctest；`--test` 补齐测试。普通重跑复用已验证依赖，`--offline` 使用已有源码和下载缓存，`--jobs N` 限制并行数。`--build-dir` / `ARIAREAD_BUILD_DIR` 自定义构建目录，`--deps-prefix` / `ARIAREAD_DEPS_PREFIX` 自定义依赖前缀。
 
 ## 运行与分发
 
@@ -82,63 +82,41 @@ AriaRead/
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Mira HTTP/1.1 + REST API）
 ├── tools/build.py          # 跨平台统一构建入口
-├── tools/ci/
-│   ├── build_ariaread_deps.py  # 第三方依赖唯一来源：版本锁 + SHA256（见下）
-│   └── fetch_aria.py           # Aria 依赖文件指定的完整提交取回脚本 -> build/deps/aria
+├── tools/_build/           # 内部实现、补丁、构建工具测试
+├── deps/                   # 可编辑源码：aria/、Mira/、curl/、zlib/……
+├── build/                  # 应用产物、依赖安装前缀、归档和编译缓存
 ├── bindings/web/ariaread/web/  # 前端静态资源
 └── tests/                  # 单元测试
 ```
 
-## 依赖：一条路，不由 CMake 联网
+## 依赖：平铺源码，统一入口
 
-所有第三方库（Mira / OpenSSL / libcurl / zlib / nlohmann_json / SQLite3 /
-QuickJS / Gumbo / doctest / sqlite_modern_cpp）统一保存在 `dependencies.json`：
-来源字段与可选 `version` 表示要求，自动生成的 `resolved` 记录实际版本、不可变提交和归档 SHA256。首次解析选最新稳定版，
-后续普通构建复用锁；显式版本优先。归档校验、编译产物和许可证只写进 `build/deps/`。CMake 只做 `find_package`，
-配置时不联网、没有 vendored 回退分支。Aria（兄弟框架）同理：由
-`tools/ci/fetch_aria.py` 以依赖文件指定的完整提交取到 `build/deps/aria`，无 submodule。
-脚本每次检查实际 Git HEAD 和工作树，拒绝覆盖本地修改；更新成功后将旧目录保留为
-`build/deps/aria-backup-*`。尚未发布的同一提交可用
-`python3 tools/ci/fetch_aria.py --source /path/to/Aria`（或 `ARIA_SOURCE` 环境变量）取回。
-本地联调也可在 CMake 配置时显式指定 `-DARIA_DIR=/path/to/Aria`。
+`dependencies.json` 保存初次获取的来源、版本和 SHA256；源码平铺在 `deps/<name>/`，目录名不含版本或提交号。已有源码允许自己 `git pull`、切换分支或编辑，普通构建使用实际内容；记录实际 Git HEAD 和内容指纹，变更会使该组件及其消费者重编。不会把手动更新的源码伪报为锁定版本。
 
 ```bash
-python3 tools/ci/build_ariaread_deps.py            # 开发 SDK（含测试）；Windows 默认不构建 OpenSSL
-python3 tools/ci/fetch_aria.py                     # 取回 Aria（依赖文件指定的完整提交，无 submodule）
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release      # 自动探测 build/deps/prefix
-cmake --build build
-ctest --test-dir build --output-on-failure
+python tools/build.py deps                              # 只准备运行时依赖
+python tools/build.py deps --profile tests              # 补齐测试依赖
+python tools/build.py deps-check --profile tests        # 只读检查源码与安装结果
+python tools/build.py deps-update --only curl           # 更新版本记录，不立即替换源码
+python tools/build.py deps-update --only zlib --version zlib=1.3.2
+python tools/build.py --offline --test                   # 从已有来源离线构建并验收
+python tools/build.py test-tools                        # 构建工具自身的离线回归
 ```
 
-自定义安装位置用脚本 `--prefix <prefix>`，再传 `-DARIAREAD_DEPS_PREFIX=<prefix>` 给 CMake。
+依赖更新后运行普通构建。没有手动改动的旧源码可备份后替换；有本地改动则保留并明确报错，待用户处理。第三方补丁在编译快照上应用，不改 `deps/` 中的源码。不是每个上游目录都是 Git 仓库：归档发布的库可直接编辑，要换版本用 `deps-update`。
 
-```bash
-python3 tools/ci/build_ariaread_deps.py --update                 # 主动更新最新稳定版并重建
-python3 tools/ci/build_ariaread_deps.py --version zlib=1.3.2      # 显式版本优先
-python3 tools/ci/build_ariaread_deps.py --offline                # 精确锁定的离线缓存
-python3 tools/ci/build_ariaread_deps.py --only zlib,json          # 部分依赖及所需前置依赖
-```
+`--source-dir`、`--deps-prefix`、`--build-dir` 分别选择源码、安装库和应用产物目录；默认 `deps/` 不提交 Git。MSVC 与 MinGW 共用源码，二进制分开。CMake 配置期只验证现有安装及实际源码，不下载依赖。aria 与其他依赖完全一致：从 `dependencies.json` 取到 `deps/aria`，与其他库一起装进前缀，CMake 侧 `find_package(aria)`；上游保留其共享库（单例 ABI）形态，其余依赖均为静态库。
 
-安装缓存绑定依赖文件、构建配方/补丁、编译器、Release 配置和每个安装文件的内容。
-按组件记录来源、配方、补丁及安装文件归属。局部更新只重建变更组件及受影响的静态消费者；
-编译器/ABI 变化才重建整个前缀。旧格式缓存首次迁移需重建一次，随后复用；
-更新保留 `prefix-backup-*`，失败时恢复旧前缀，
-保留 `prefix-failed-*` 供排查。已安装文件或 Git 缓存有本地修改时拒绝覆盖。
-`--offline` 不发现新版本；离线重建需要依赖文件中的归档/Git 提交已缓存。
-`--profile runtime` 不需要 doctest；默认 `tests` 包含它。`--only` 局部安装仍需补齐选定 profile，才通过 CMake 的离线校验。
-QuickJS、Gumbo、sqlite_modern_cpp 的本地补丁仅应用到已审核版本；上游新版本需要先适配配方，
-脚本会明确报错，避免旧补丁静默套到新源码。Windows 支持 MSVC 和 MinGW；只有显式选择 OpenSSL 后端才需要 nmake/make。
+缓存按实际源码、配方、补丁、编译器/ABI 和安装文件哈希校验。成功安装的未变组件可以复用；失败回滚旧前缀。用户修改源码和用户修改已安装的二进制是两回事，后者仍会触发保护。中断重跑复用下载，不保证未提交编译工作的断点续建。
 
-详见 [依赖精简与 Mira 分工](docs/build-architecture.md)。CI 缓存锁定源码与安装前缀，不缓存庞大的编译中间目录；恢复后仍逐文件验证。
+详见[依赖指南](docs/dependencies.md)和[构建与目录设计约定](docs/build-architecture.md)。所有平台、CI 和维护流程使用 `tools/build.py`，`tools/_build/` 是内部实现，不是第二套用户入口。
 
 ## 测试
 
 从仓库根目录配置、构建并运行测试：
 
 ```bash
-cmake -S . -B build -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-ctest --test-dir build --output-on-failure
+python tools/build.py --test --require-web-tests
 ```
 
 默认使用 Release；Windows 配置阶段会拒绝不受支持的配置，避免链接时才出现 CRT 失配。推荐 `python3 tools/build.py --test`，同时管理测试依赖和 CMake 选项。

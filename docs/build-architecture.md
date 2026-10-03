@@ -43,4 +43,37 @@
 
 GitHub Actions 缓存源码归档、Git checkout 和安装前缀；键包含实际编译器/SDK 环境，恢复后由构建器再次校验。不会把可达数 GB 的 `runs/` 编译中间目录加入缓存。跨机器缓存只在路径、平台、编译器与 ABI 校验均匹配时复用，不宣称是任意平台通用 SDK。
 
-`--offline` 仅使用本地已有的精确锁定源码；缓存缺失时明确失败。`--profile runtime` 与 `--profile tests` 是底层依赖构建选项，应用入口根据 `--test` 自动选择。升级、回退及显式版本选择继续使用[依赖指南](dependencies.md)。
+`--offline` 使用已有源码工作区或精确来源缓存，缺失时明确失败。`deps --profile runtime` 与 `deps --profile tests` 控制依赖集合，应用入口根据 `--test` 自动选择。升级、回退及显式版本选择继续使用[依赖指南](dependencies.md)。
+
+## 缓存目录与恢复边界
+
+源码平铺在仓库根目录 `deps/<name>/`。版本选择属于 `dependencies.json` 的元数据，不属于目录名。Git 来源允许用户自行 `pull`、切分支和编辑；归档来源同样可以编辑。普通构建采纳实际源码，不自动 reset，也不会因为 HEAD 与初次锁不同就拒绝构建。当前 HEAD 和内容指纹进入安装记录；源码变化使本组件及受影响消费者失效。锁选择变更后，未修改过的目录自动置换为新版本（旧目录备份进 `deps/.ariaread-sources/backups/`），有本地修改的目录保留并警告"新选择未应用"；显式更新（`--version` / `deps-update`）遇到本地修改则明确失败，不静默跳过。
+
+`deps/.ariaread-sources/` 保存工作区管理信息；`build/deps/cache/` 保存经 SHA256 验证的归档，`build/deps/runs/` 保存隔离的编译快照。补丁仅修改快照。安装前缀为 `build/deps/prefix/`，Windows 为 `build/deps/windows-msvc/prefix/` 或 `windows-mingw/prefix/`。迁移旧 Git/Aria 缓存时保留原目录，避免破坏尚在使用旧路径的构建。
+
+当前复用的是此前成功安装、且文件校验通过的组件。普通失败或可捕获的中断会恢复旧前缀；本次尚未提交的编译工作不会断点续建。强制终止、断电可能留下 `prefix.install-lock` 和未完成安装，需要确认没有仍在写入的进程，并核对备份和安装收据后恢复，不能仅按锁文件年龄或 PID 删除。
+
+后续恢复设计应同时引入进程退出自动释放的操作系统锁和持久事务记录。缓存清理应先提供预览，保护活跃事务、最近可回滚备份、失败诊断和离线重建所需来源；当前不会自动清除 `runs/`、`prefix-backup-*` 或 `prefix-failed-*`。以上是待实现能力，并非现有断点恢复或垃圾回收保证。
+
+macOS CI 使用提供正式 Xcode 27.0 的 [`xcode-27` 镜像](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)，并显式选择 `27.0`。镜像目前处于 public preview，编译器仍使用正式版；`macos-26` 镜像中的 Xcode 26.x 不满足本项目基线。
+
+## 供其他项目参考的构建约定
+
+唯一用户入口是 `python tools/build.py`，不要求用户在多个 shell 脚本之间选择。省略命令等价于 `build`，已有 `--test`、`--clean` 等选项继续有效。内部实现是 `tools/_build/` 下的两个纯库模块——`deps_build.py`（锁解析、配方、编译安装、组件缓存与验证）和 `deps_sources.py`（`deps/<name>/` 工作区的身份、备份与快照）——无 argparse、无 `__main__`，只能经入口调用；统一入口不等于把所有实现粘成一个大文件。
+
+| 命令 | 职责 |
+|---|---|
+| `build`（默认） | 准备依赖、配置、编译、整理运行目录；`--test` 追加完整验收 |
+| `deps` | 只准备依赖工作区和安装前缀 |
+| `deps-check` | 只读验证源码与已安装组件是否匹配 |
+| `deps-update` | 原子更新版本记录，后续构建应用选择 |
+| `test-tools` | 离线运行构建工具、来源、迁移和缓存回归 |
+| `cache-key` | 输出 CI 缓存标识，不能替代恢复后的内容校验 |
+
+CMake 在配置期调用同一入口的 `deps-check`（带编译器桥接参数）完成只读校验，不访问网络，也不自建另一套版本选择逻辑。CI 调用与用户相同的入口，显式选择工具链，并通过 `--require-web-tests` 阻止静默漏测。
+
+目录各自只有一个职责：`deps/` 是用户可编辑源码，`build/` 是机器生成内容，运行目录 `bin/` 是分发单位。`--source-dir`、`--deps-prefix`、`--build-dir` 分别覆盖这三类开发路径。应用清理不能删除源码、下载缓存或依赖前缀；跨工具链不能复用同一 CMake cache 或二进制前缀。
+
+输出协议为 UTF-8：Python 父子进程和重定向日志统一编码；Windows 命令期间切换控制台编码，失败也恢复原设置；MSVC 诊断使用英文以避免本地代码页歧义。doctest 的测试名发现和 suite 标签发现都显式 `ENCODING UTF-8`，并以真实 CMake 模块、中文输出和生成的 CTest 用例验证，不能只检查终端外观。
+
+推广前必须在 Read 的 Windows MSVC、Windows MinGW、Linux GCC、macOS Xcode 四个实际环境完成构建和测试。源码编辑导致失效、干净迁移、离线复用、失败回滚和中文失败诊断均属于构建接口的验收内容；在 Read 未通过前，不批量复制到其他仓库。

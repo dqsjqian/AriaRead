@@ -10,8 +10,8 @@
 
 if(NOT TARGET Mira::http)
     message(FATAL_ERROR "ariaread_web_server 需要 Mira："
-        "先执行 python3 tools/ci/build_ariaread_deps.py，再用 "
-        "-DCMAKE_PREFIX_PATH=<prefix> 配置")
+        "先执行 python tools/build.py deps，再配置（prefix 留空自动探测 "
+        "build/deps/prefix）")
 endif()
 
 add_executable(ariaread_web_server
@@ -72,7 +72,6 @@ add_custom_target(ariaread_web_assets
         "-DARIAREAD_OUTPUT_DIR=${ARIAREAD_WEB_OUTPUT_DIR}"
         "-DARIAREAD_MINGW=${MINGW}"
         "-DARIAREAD_DEPS_PREFIX=${ARIAREAD_DEPS_PREFIX}"
-        "-DARIA_DIR=${ARIA_DIR}"
         "-DARIAREAD_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
         -P "${CMAKE_SOURCE_DIR}/cmake/SyncWebRuntime.cmake"
     COMMENT "Syncing Web runtime in ${ARIAREAD_WEB_OUTPUT_DIR}"

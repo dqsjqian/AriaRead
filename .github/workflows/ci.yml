@@ -27,10 +27,8 @@ jobs:
           persist-credentials: false
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
-      - name: Verify selection, rollback and cache contracts
-        run: python -m unittest discover -s tools/ci -p 'test_*.py'
-      - name: Verify build entrypoints
-        run: python tools/test_build.py
+      - name: Verify build, source and cache contracts
+        run: python tools/build.py test-tools
 
   vs2026:
     name: Build and regressions (VS2026 MSVC)
@@ -52,16 +50,15 @@ jobs:
           node-version: '22'
       - name: Identify compiler and SDK
         id: toolchain
-        run: python tools/ci/build_cache_key.py >> $env:GITHUB_OUTPUT
+        run: python tools/build.py cache-key >> $env:GITHUB_OUTPUT
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
-            build/deps/git
-            build/deps/aria
+            deps
             build/deps/resolver
             build/deps/windows-msvc/prefix
-          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-msvc-${{ steps.toolchain.outputs.key }}-
       # The default Schannel backend needs neither OpenSSL nor Perl/MSYS2.
       - name: Build, package and run all regressions
@@ -104,16 +101,15 @@ jobs:
             mingw-w64-ucrt-x86_64-nodejs
       - name: Identify compiler and SDK
         id: toolchain
-        run: python tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+        run: python tools/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
-            build/deps/git
-            build/deps/aria
+            deps
             build/deps/resolver
             build/deps/windows-mingw/prefix
-          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-mingw-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
@@ -152,16 +148,15 @@ jobs:
           persist-credentials: false
       - name: Identify compiler and SDK
         id: toolchain
-        run: python3 tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+        run: python3 tools/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
-            build/deps/git
-            build/deps/aria
+            deps
             build/deps/resolver
             build/deps/prefix
-          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
@@ -186,7 +181,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-26]
+        # macos-26 currently stops at Xcode 26.6. This image includes the
+        # stable Xcode 27.0; keep setup-xcode pinned rather than using a beta.
+        os: [xcode-27]
     defaults:
       run:
         shell: bash
@@ -208,16 +205,15 @@ jobs:
         run: brew install ninja
       - name: Identify compiler and SDK
         id: toolchain
-        run: python3 tools/ci/build_cache_key.py >> "$GITHUB_OUTPUT"
+        run: python3 tools/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
-            build/deps/git
-            build/deps/aria
+            deps
             build/deps/resolver
             build/deps/prefix
-          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/ci/*.py', 'tools/ci/patches/**') }}
+          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:

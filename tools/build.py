@@ -13,19 +13,38 @@ Run from any shell:
     python tools/build.py --clean            # rebuild the app, keep dependencies
     python tools/build.py --clean-only       # clean app targets, keep everything
     python tools/build.py --configure-only   # deps + configure, no compile
-    python tools/build.py --skip-cmake       # refresh assets beside an existing binary
+    python tools/build.py --skip-cmake        # refresh assets beside an existing binary
+    python tools/build.py deps               # prepare sources and install dependencies
+    python tools/build.py deps-check         # verify installed sources and libraries
+    python tools/build.py deps-update        # refresh dependency records; next build updates sources
+    python tools/build.py deps-update --only aria --version aria=3.1.1
+    python tools/build.py cache-key          # machine output: key=... (for CI)
+    python tools/build.py test-tools          # run the offline build/dependency regression suites
 
 Other knobs: --config (Release/Debug/...), --generator, --jobs, --tls-backend
-(openssl/schannel), --offline, --require-web-tests, --build-dir, --deps-prefix.
+(openssl/schannel), --offline, --require-web-tests, --build-dir, --deps-prefix,
+--source-dir (defaults to deps/), --file, --profile, --version NAME=VERSION.
 Environment overrides: ARIAREAD_BUILD_DIR, ARIAREAD_DEPS_PREFIX,
 ARIAREAD_BUILD_JOBS, ARIAREAD_VS_ROOT, ARIAREAD_WINDOWS_KITS_ROOT, MSYS2_ROOT.
+
+Layout: deps/<name>/ holds editable dependency sources (deps/aria, deps/curl,
+...). dependencies.json only selects what a missing directory starts from; the
+directory's actual contents, including local edits, pulls and branch switches,
+are what gets built, and editing them rebuilds that library and its consumers.
+deps-update changes dependency records only. The next build replaces an
+untouched source directory with the new selection (keeping a backup), and
+keeps a changed one with a warning that the selection was NOT applied.
+build/deps/ holds downloads (cache/), patched build snapshots (runs/) and the
+installed libraries (prefix/, or windows-msvc|windows-mingw/prefix/).
+Implementation modules, patches and tool regressions live in tools/_build/.
 
 This module is the reference implementation for build entry points across the
 Aria ecosystem; other projects copy this pattern. The invariants that make it
 work, in the order a copier is most likely to break them:
 
-1.  One entry point per repository. Compatibility wrappers may forward
-    arguments but never carry build logic of their own.
+1.  One entry point per repository. tools/_build/*.py are libraries without
+    argparse or __main__; nothing else is executable and no dependency has a
+    private script.
 2.  Windows build directories and dependency prefixes are per toolchain
     (windows-msvc-release, windows-mingw-release). MSVC and MinGW must never
     share a CMake cache or an installed prefix, even when both compilers are
@@ -39,13 +58,17 @@ work, in the order a copier is most likely to break them:
 5.  Every failure names the override that would fix it. A build that cannot
     start should not require reading the source to learn which variable to
     set.
-6.  Dependency installs are resumable: locked versions with SHA256
-    verification, a per-dependency completed set, and a cache identity that
-    fingerprints the selected compiler and its flags. Interrupted runs
-    continue; toolchain changes rebuild.
-7.  On CJK Windows consoles the CTest run switches the console output code
-    page to UTF-8 so Chinese test names render correctly, restoring the
-    previous page afterwards (see utf8_console).
+6.  Dependency installs reuse verified components from previously successful
+    installs. A component's identity covers its actual source contents, recipe,
+    patches, compiler and flags, plus the identities of the libraries it links;
+    stale binaries are never relabelled as new sources. Failed installs roll
+    back the previous prefix. Reruns reuse downloads and finished components,
+    but an interrupted component compiles again; a forced termination may
+    leave an install lock that needs inspection.
+7.  Every command uses UTF-8 for Python output and child processes. Windows
+    console output is UTF-8 for the whole command and restored even on failure.
+    MSVC diagnostics use English (VSLANG=1033) to avoid localized byte encodings;
+    native child output is streamed unchanged rather than decoded lossily.
 
 The dependency strategy (what is kept, dropped, and which TLS backend serves
 which platform) lives in docs/build-architecture.md.
@@ -65,6 +88,9 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools/_build"))
+
+import deps_build as deps  # noqa: E402  (build dependencies: lock, sources, install)
 
 
 def positive_jobs(value: str) -> int:
@@ -79,6 +105,8 @@ def positive_jobs(value: str) -> int:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", nargs="?", default="build",
+                        choices=("build", "deps", "deps-check", "deps-update", "cache-key", "test-tools"))
     parser.add_argument("--toolchain", choices=("auto", "msvc", "mingw"), default="auto",
                         help="Windows: auto means MSVC; MinGW must be selected explicitly")
     parser.add_argument("--config", choices=("Release", "Debug", "RelWithDebInfo", "MinSizeRel"),
@@ -86,6 +114,16 @@ def parse_args(argv=None):
     parser.add_argument("--generator", help="CMake generator; Windows defaults to Ninja")
     parser.add_argument("--build-dir", type=Path, default=os.environ.get("ARIAREAD_BUILD_DIR"))
     parser.add_argument("--deps-prefix", type=Path, default=os.environ.get("ARIAREAD_DEPS_PREFIX"))
+    parser.add_argument("--source-dir", type=Path, default=ROOT / "deps",
+                        help="Dependency source directory (default: <repository>/deps)")
+    parser.add_argument("--file", type=Path, default=ROOT / "dependencies.json",
+                        help="Dependency declarations and locked selections")
+    parser.add_argument("--profile", choices=("runtime", "tests"),
+                        help="Dependency set; defaults to runtime, or tests with --test")
+    parser.add_argument("--only", action="append", default=[], metavar="NAME",
+                        help="deps/deps-check/deps-update: select dependencies; repeat or use commas")
+    parser.add_argument("--version", action="append", default=[], metavar="NAME=VERSION",
+                        help="build/deps/deps-update: select an explicit version; repeat for different names")
     parser.add_argument("--jobs", type=positive_jobs,
                         default=os.environ.get("ARIAREAD_BUILD_JOBS", str(min(os.cpu_count() or 1, 8))))
     parser.add_argument("--tls-backend", choices=("auto", "openssl", "schannel"), default="auto")
@@ -94,17 +132,53 @@ def parse_args(argv=None):
     parser.add_argument("--require-web-tests", action="store_true",
                         help="With --test, fail if Node.js or other web-test prerequisites are missing")
     parser.add_argument("--clean", action="store_true", help="Clean application objects before rebuilding; keep dependencies")
+    # CMake configure-time bridge flags for deps-check. CMake knows the exact
+    # compilers it selected; a plain user run discovers them like a build would.
+    parser.add_argument("--prefix", type=Path, help="deps-check: installed dependency prefix to verify")
+    parser.add_argument("--c-compiler", help="deps-check: compiler CMake configured with")
+    parser.add_argument("--cxx-compiler", help="deps-check: compiler CMake configured with")
+    parser.add_argument("--c-compiler-arg1", default="", help="deps-check: C compiler pre-command arguments")
+    parser.add_argument("--cxx-compiler-arg1", default="", help="deps-check: C++ compiler pre-command arguments")
+    parser.add_argument("--toolchain-file", default=None, help="deps-check: CMAKE_TOOLCHAIN_FILE in use")
+    parser.add_argument("--cmake-platform", default="", help="deps-check: CMAKE_GENERATOR_PLATFORM in use")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--skip-cmake", action="store_true", help="Refresh assets/licenses in an existing runtime")
     mode.add_argument("--configure-only", action="store_true", help="Prepare dependencies and configure without building")
     mode.add_argument("--clean-only", action="store_true", help="Clean existing application targets; keep dependencies")
     args = parser.parse_args(argv)
+    bridge = (args.prefix, args.c_compiler, args.cxx_compiler, args.toolchain_file, args.cmake_platform)
+    if args.command != "deps-check" and any(bridge):
+        parser.error("The prefix/compiler bridge flags require the deps-check command")
     if args.clean and (args.skip_cmake or args.configure_only or args.clean_only):
         parser.error("--clean requires a build")
     if args.test and (args.skip_cmake or args.clean_only):
         parser.error("--test requires a build or --configure-only")
     if args.require_web_tests and not args.test:
         parser.error("--require-web-tests requires --test")
+    if args.command != "build" and (args.clean or args.skip_cmake or args.configure_only
+                                    or args.clean_only or args.require_web_tests):
+        parser.error("Application build options require the build command")
+    if args.test and args.command not in ("build", "deps"):
+        parser.error("--test requires build or deps")
+    if args.test and args.profile == "runtime":
+        parser.error("--test requires the tests dependency profile")
+    if args.only and args.command not in ("deps", "deps-check", "deps-update"):
+        parser.error("--only requires deps, deps-check or deps-update")
+    if args.version and args.command not in ("build", "deps", "deps-update"):
+        parser.error("--version requires build, deps or deps-update")
+    args.only = list(dict.fromkeys(name.strip() for names in args.only for name in names.split(",")))
+    if "" in args.only:
+        parser.error("--only requires a dependency name")
+    versions = {}
+    for override in args.version:
+        name, separator, version = override.partition("=")
+        if not separator or not name or not version or name in versions:
+            parser.error("Use each --version NAME=VERSION override at most once")
+        if args.only and name not in args.only:
+            parser.error(f"--version {name} must also be selected by --only")
+        versions[name] = version
+    args.versions = versions
+    args.profile = args.profile or ("tests" if args.test else "runtime")
     return args
 
 
@@ -412,14 +486,11 @@ def prepare_environment(args, toolchain: str, cache: dict[str, str], source_env=
 
 @contextmanager
 def utf8_console():
-    """Decode CTest's UTF-8 output correctly on Chinese Windows consoles.
+    """Display UTF-8 output correctly on Chinese Windows consoles.
 
-    CTest writes test names and logs as UTF-8, but a console on the legacy
-    code page (936 on Chinese systems) renders them as mojibake. Switch the
-    console output code page to UTF-8 for the CTest run and restore it
-    afterwards, so the compiler's own localized diagnostics stay readable
-    during the build phase. No-op when stdout is not a console: redirected
-    files and pipes already carry the raw UTF-8 bytes.
+    A legacy code page (936 on Chinese systems) renders UTF-8 as mojibake.
+    Restore the original console state on success and failure. Redirected
+    files and pipes carry the child process's original bytes unchanged.
     """
     if os.name != "nt":
         yield
@@ -436,11 +507,33 @@ def utf8_console():
             kernel32.SetConsoleOutputCP(previous)
 
 
-def run(command, env, *, quiet=False):
+def run(command, env, *, quiet=False, announce=True):
     command = list(map(str, command))
-    print("+ " + (subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)), flush=True)
-    subprocess.run(command, cwd=ROOT, env=env, check=True,
+    if announce:
+        print("+ " + (subprocess.list2cmdline(command) if os.name == "nt" else shlex.join(command)), flush=True)
+    # Python is an explicit UTF-8 protocol. Keep native tools' output as bytes;
+    # English MSVC diagnostics avoid decoding a localized legacy code page.
+    child_env = dict(env, PYTHONIOENCODING="utf-8", VSLANG="1033")
+    subprocess.run(command, cwd=ROOT, env=child_env, check=True,
                    stdout=subprocess.DEVNULL if quiet else None)
+
+
+@contextmanager
+def dependency_environment(env):
+    """Share this process with the dependency library the way run(env) would.
+
+    prepare_environment returns the exact child environment; the dependency
+    library reads os.environ, so swap it for the duration of a call and
+    restore the caller's environment afterwards.
+    """
+    saved = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(env)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def compiler_preflight(env, compiler_args):
@@ -466,16 +559,65 @@ def runtime_path(build: Path, config: str, windows: bool) -> tuple[Path, Path]:
     return folder, binary
 
 
-def main(argv=None):
-    args = parse_args(argv)
+def internal_directory() -> Path:
+    """Keep implementation modules private; callers use this entry point."""
+    return ROOT / "tools/_build"
+
+
+def test_tools():
+    """Offline regressions for this entry point and every internal module."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    run([sys.executable, "-m", "unittest", "discover", "-s", internal_directory(),
+         "-t", internal_directory(), "-p", "test_*.py"], env)
+    return 0
+
+
+def dependency_locations(args, prefix: Path) -> tuple[Path, Path, Path]:
+    return (args.file.expanduser().resolve(), ROOT / "build/deps",
+            (args.prefix or prefix).expanduser().resolve())
+
+
+def dispatch(argv=None):
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parse_args(arguments)
+    if args.command == "test-tools":
+        return test_tools()
     windows = sys.platform == "win32"
     toolchain = selected_toolchain(args.toolchain, windows)
+    build, prefix = build_paths(args, toolchain)
+    cache = read_cache(build)
+    source = args.source_dir.expanduser().resolve()
+    lock, work, install_prefix = dependency_locations(args, prefix)
+    if args.command == "cache-key":
+        print("key=" + deps.cache_key(work))
+        return 0
+    if args.command == "deps-update":
+        deps.update_lock(lock, work, only=args.only, versions=args.versions, offline=args.offline)
+        for name, version in sorted(args.versions.items()):
+            print(f"{name}: {version} (the next build updates the source workspace)")
+        print("Run the normal build and tests after reviewing the dependencies.json diff.")
+        return 0
+    if args.command == "deps-check":
+        # CMake passes the exact compilers it configured with; a plain user
+        # run discovers the toolchain the same way a build would.
+        if args.c_compiler or args.cxx_compiler:
+            env = dict(os.environ, PYTHONIOENCODING="utf-8")
+            with dependency_environment(env):
+                deps.verify(lock, work, install_prefix, source, profile=args.profile,
+                            tls_backend=args.tls_backend, only=",".join(args.only),
+                            c=args.c_compiler, cxx=args.cxx_compiler,
+                            c_arg1=args.c_compiler_arg1, cxx_arg1=args.cxx_compiler_arg1,
+                            toolchain=args.toolchain_file or None, cmake_platform=args.cmake_platform)
+            return 0
+        env, _, _ = prepare_environment(args, toolchain, cache)
+        with dependency_environment(env):
+            deps.verify(lock, work, install_prefix, source, profile=args.profile,
+                        tls_backend=args.tls_backend, only=",".join(args.only))
+        return 0
     if windows and args.config != "Release":
         raise ValueError("Windows dependency libraries use the Release CRT; --config Release is required")
     if not windows and args.tls_backend == "schannel":
         raise ValueError("Schannel is only available on Windows")
-    build, prefix = build_paths(args, toolchain)
-    cache = read_cache(build)
     if args.skip_cmake:
         env = dict(os.environ)
         folder, binary = runtime_path(build, args.config, windows)
@@ -508,14 +650,17 @@ def main(argv=None):
                                "CMAKE_OSX_DEPLOYMENT_TARGET", "CMAKE_SYSROOT")):
                 compiler_args.append(f"-D{key}={value}")
         compiler_preflight(env, compiler_args)
-        offline = ["--offline"] if args.offline else []
-        run([sys.executable, ROOT / "tools/ci/fetch_aria.py", *offline], env)
-        run([sys.executable, ROOT / "tools/ci/build_ariaread_deps.py", "--path", ROOT / "build/deps",
-             "--prefix", prefix, "--jobs", args.jobs, "--profile", "tests" if args.test else "runtime",
-             "--tls-backend", args.tls_backend, "--c-compiler", env["CC"],
-             "--cxx-compiler", env["CXX"], *offline], env)
+        with dependency_environment(env):
+            deps.install(lock, work, install_prefix, source, profile=args.profile,
+                         tls_backend=args.tls_backend, only=",".join(args.only),
+                         offline=args.offline, versions=args.versions, jobs=args.jobs)
+        if args.command == "deps":
+            print(f"Dependencies ready: {install_prefix}\nSources: {source}")
+            return 0
         cmake_args = ["cmake", "-S", ROOT, "-B", build, *compiler_args,
-                      f"-DARIAREAD_DEPS_PREFIX={prefix}", f"-DARIAREAD_TLS_BACKEND={args.tls_backend}",
+                      f"-DARIAREAD_DEPS_SOURCE_DIR={source}",
+                      f"-DARIAREAD_DEPENDENCIES_FILE={lock}",
+                      f"-DARIAREAD_DEPS_PREFIX={install_prefix}", f"-DARIAREAD_TLS_BACKEND={args.tls_backend}",
                       f"-DARIAREAD_BUILD_TESTS={'ON' if args.test else 'OFF'}",
                       f"-DARIAREAD_BUILD_WEB_TESTS={'ON' if args.test else 'OFF'}",
                       f"-DARIAREAD_REQUIRE_WEB_TESTS={'ON' if args.require_web_tests else 'OFF'}"]
@@ -530,9 +675,8 @@ def main(argv=None):
             command.append("--clean-first")
         run(command, env)
         if args.test:
-            with utf8_console():
-                run(["ctest", "--test-dir", build, "-C", args.config, "--output-on-failure",
-                     "--no-tests=error", "--timeout", "120", "--parallel", args.jobs], env)
+            run(["ctest", "--test-dir", build, "-C", args.config, "--output-on-failure",
+                 "--no-tests=error", "--timeout", "120", "--parallel", args.jobs], env)
         folder, binary = runtime_path(build, args.config, windows)
     run([binary, "--help"], env, quiet=True)
     print(f"\nReady: {folder}\nRun: \"{binary}\"\n"
@@ -542,9 +686,20 @@ def main(argv=None):
     return 0
 
 
+def main(argv=None, *, report_errors=False):
+    for stream in (sys.stdout, sys.stderr):
+        # StringIO and embedding hosts may not expose reconfigure().
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="strict")
+    with utf8_console():
+        try:
+            return dispatch(argv)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            if not report_errors:
+                raise
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+
+
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except (OSError, ValueError, subprocess.CalledProcessError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        sys.exit(1)
+    sys.exit(main(report_errors=True))

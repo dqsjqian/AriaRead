@@ -2,27 +2,35 @@
 
 Run these commands from the **AriaRead repository root** with Python 3.10+, CMake and the toolchain listed in the [README](../README.en.md). Substitute `python3` when needed. No pip packages are required. Initial discovery and deliberate updates need network access; GitHub requests can use an authenticated `gh` CLI.
 
+Every command goes through the single entry point `python tools/build.py`. Internal modules (`tools/_build/deps_build.py`, `deps_sources.py`) are plain libraries; there is no per-dependency script to run.
+
 ## One dependency file
 
-`dependencies.json` contains both requirements and resolved results. Each dependency has source fields such as `provider`, `repo` and `artifact`, an optional top-level `version` for a persistent version requirement, and a generated `resolved` object containing the actual version, full commit, URL, checksum and request fingerprint. Source declarations are not duplicated inside `resolved`. Do not edit generated checksums or fingerprints.
+`dependencies.json` contains both requirements and resolved results — **aria included, exactly like every other dependency**. Each dependency has source fields such as `provider`, `repo` and `artifact`, an optional top-level `version` for a persistent version requirement, and a generated `resolved` object containing the actual version, full commit, URL, checksum and request fingerprint. Source declarations are not duplicated inside `resolved`. Do not edit generated checksums or fingerprints.
 
 Normal builds reuse valid results. Missing results and deliberate updates select the latest stable release unless explicitly constrained; prereleases and development branches are excluded. Commit this single dependency file when selections change, not downloaded sources or build caches.
 
 Case-sensitive names: `Mira`, `aria`, `curl`, `doctest`, `gumbo`, `json`, `openssl`, `quickjs`, `sqlite3`, `sqlite_modern_cpp`, `zlib`.
 
+## Source workspaces
+
+Every dependency's sources live flat under `deps/<name>/` (`deps/aria`, `deps/curl`, ...) with no version-suffixed directory names. The lock only decides what a **missing** directory starts from; afterwards the directory's actual contents are the build input — `git pull`, branch switches and direct edits are yours, and any change rebuilds that component and its consumers on the next build.
+
+After a lock change, an untouched directory is replaced automatically (the previous one is preserved under `deps/.ariaread-sources/backups/`), while a locally modified directory is kept with a warning that the new selection was NOT applied. An explicit update (`deps-update` or `--version`) fails loudly instead of skipping local work.
+
 ## Select and update
 
 ```bash
-python tools/ci/update_dependencies.py --help
+python tools/build.py deps-update --help
 
 # Update curl only, preserving other selections including Mira
-python tools/ci/update_dependencies.py --only curl
+python tools/build.py deps-update --only curl
 
 # Update selected libraries with explicit versions for this invocation
-python tools/ci/update_dependencies.py --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
+python tools/build.py deps-update --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
 
 # Deliberately update every dependency according to its requirements
-python tools/ci/update_dependencies.py
+python tools/build.py deps-update
 ```
 
 Repeat `--only` to select several libraries and `--version` for different overrides. When using both, select every overridden name. Unknown names, repeated overrides and overrides outside the selection fail explicitly.
@@ -30,65 +38,62 @@ Repeat `--only` to select several libraries and `--version` for different overri
 To keep two libraries fixed while updating a third, add `"version": "3.12.0"` to the existing JSON entry and `"version": "4.0.3"` to the OpenSSL entry, preserving their source fields. Leave curl without a top-level `version`, then run:
 
 ```bash
-python tools/ci/update_dependencies.py --only json --only openssl --only curl
+python tools/build.py deps-update --only json --only openssl --only curl
 ```
 
-The two requirements remain fixed while curl selects its latest stable release. Remove a top-level `version` and update to unpin a library; neither script edits nor deletion of `resolved` are needed.
+Only the unpinned curl re-selects the latest stable release. Remove a top-level `version` and update again to unpin; no script edits and no `resolved` deletions are needed.
 
-Precedence is the current CLI override, an explicit file requirement, then valid existing results. CLI overrides do not rewrite persistent requirements. Later normal resolution keeps a CLI selection unless the file explicitly requests a different version; a builder invocation without the override then restores that explicit requirement.
+Precedence: CLI overrides for this invocation, then the file's explicit `version`, then valid existing results. The CLI never rewrites the persistent requirement — later normal builds keep reusing a CLI-selected result unless the file explicitly demands a different version.
 
-## Build and verify
+## Build and test after updating
 
-The updater atomically saves metadata; it does not compile the application or establish API compatibility. After updating:
+The updater stores results atomically, compiles nothing and cannot promise API compatibility. After a successful update run:
 
 ```bash
-python tools/ci/fetch_aria.py
-python tools/ci/build_ariaread_deps.py --jobs 3
-cmake -S . -B build/flavors/dependency-check -DARIAREAD_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build/flavors/dependency-check --config Release --parallel 3
-ctest --test-dir build/flavors/dependency-check -C Release --output-on-failure --no-tests=error
+python tools/build.py --test
 ```
 
-Use the same build/test configuration and a fresh build directory when changing platforms or compilers. CI uses `-DARIAREAD_REQUIRE_WEB_TESTS=ON` to fail if any Web regression cannot be registered; local builds retain optional behavior. Review `git diff -- dependencies.json` and commit the file after successful tests. Compilers, SDKs and other platform tools are installed separately.
+That single command prepares the source workspaces, installs the prefix, configures, builds and runs CTest. CI adds `--require-web-tests` so missing Node.js prerequisites fail loudly; local builds keep optional web tests.
 
-## Offline operation and local sources
+Review `git diff -- dependencies.json` and commit the file once the build and tests pass. System compilers, SDKs and platform tools such as Qt remain separate installs the updater never touches.
+
+## Offline, partial builds and read-only verification
 
 ```bash
-python tools/ci/dependencies.py resolve --file dependencies.json
-python tools/ci/dependencies.py resolve --file dependencies.json --offline
-python tools/ci/build_ariaread_deps.py --offline
-python tools/ci/build_ariaread_deps.py --only zlib,json
+# One-shot offline build: existing workspaces or exact source caches, loud failure when missing
+python tools/build.py --offline
+
+# Build only selected libraries plus their prerequisites
+python tools/build.py deps --only zlib,json
+
+# Read-only verification that sources match installed components (CMake uses this too)
+python tools/build.py deps-check
 ```
 
-`resolve` preserves valid results and fills missing/mismatched selections. Offline resolution requires matching metadata; rebuilding also needs the exact locked archives or Git checkout cached locally. An identical verified installation can be reused directly. Partial installations include prerequisites but must be completed before configuring the full application. `update --offline` cannot discover new releases.
+Offline metadata resolution does not imply archives are downloaded. Offline rebuilds need exact archives or existing source workspaces; `deps-update --offline` cannot discover new versions. Partial installs cannot configure the full application.
 
-`fetch_aria.py` supports `--file`, `--version`, `--update`, `--offline` and `--source`. A CLI version overrides `ARIA_DEP_ARIA_VERSION`; a CLI source overrides `ARIA_SOURCE`. A local Git source must contain the selected full commit. Dirty checkouts are protected and successful replacements preserve `build/deps/aria-backup-*`. For direct source development, CMake also accepts `-DARIA_DIR=/path/to/Aria`.
+## The installation prefix and experiments
 
-## Installation identity and experiments
+Third-party libraries (aria included) are built by the single entry point. Select versions through the file's top-level `version` or `--version NAME=VERSION`.
 
-Select third-party library versions through the file or `build_ariaread_deps.py --version NAME=VERSION`. Aria's internal `ARIA_DEP_*` CMake options do not select AriaRead's installed libraries.
+CMake validates results and the prefix through the entry point's `deps-check` at configure time; it never goes online or re-implements version selection. Results produced by legitimate CLI overrides are therefore consumable by CMake, and the next build's selection still follows the precedence above.
 
-AriaRead CMake always verifies the root `dependencies.json` against the installed prefix offline; it does not select versions again. A valid CLI-selected result is therefore accepted, while a subsequent builder invocation follows the selection precedence above.
+The prefix binds each component to its resolved selection, recipe and patches, compiler, ABI environment and installed files. A local change rebuilds only that component and its static consumers; a compiler/ABI change invalidates the whole prefix. Updates preserve `prefix-backup-*`; a failed build restores the previous prefix and keeps `prefix-failed-*`. Legacy-format caches rebuild once during migration. Modified installed files are never overwritten. Patches for QuickJS, Gumbo, sqlite_modern_cpp and doctest apply only to reviewed versions; a new version needs an adapted recipe first. Windows recipes target x64 Release with Visual Studio, Ninja, Ninja Multi-Config or NMake generator arguments.
 
-The prefix binds resolved sources, recipes/patches, compiler, ABI environment and installed file contents. Changed components and their static consumers are rebuilt; unchanged components are copied from the verified prefix, preserving `prefix-backup-*`; failure restores the old prefix and retains `prefix-failed-*`. Local changes in installed files or Git caches are protected. QuickJS, Gumbo and sqlite_modern_cpp patches are restricted to reviewed upstream versions. Windows recipes target x64 Release, with generator-specific handling for Visual Studio, Ninja, Ninja Multi-Config and NMake.
-
-The updater/resolver also accepts `--file PATH`, `--output PATH` and `--cache-dir PATH`. Without `--output`, it atomically updates the input file. An output path writes a separate complete experimental file:
+Experiments use `--file` with a separate complete dependency file:
 
 ```bash
-python tools/ci/dependencies.py resolve --file dependencies.json --output build/deps/experiment.json --only json --version json=3.12.0
-python tools/ci/build_ariaread_deps.py --file build/deps/experiment.json --path build/deps-experiment --only json
+python tools/build.py deps --file build/deps/experiment.json --only json
 ```
 
-An experimental file does not change CMake's root input. Review and transfer desired selections to the root file, then build the corresponding prefix. For another install location, use builder `--prefix <path>` and CMake `-DARIAREAD_DEPS_PREFIX=<path>`.
+An experiment file never changes which root file the application's CMake uses. Review and port the selections to the root file before a production build. Custom install locations use `--deps-prefix <path>` plus `-DARIAREAD_DEPS_PREFIX=<path>` for CMake.
 
-## Failure and rollback
+## Failures and rollback
 
-Failed resolution or checksum verification does not save a partial set of new results. Fix version, network or API-limit errors without disabling checks. If a new version is incompatible, preserve local work and restore **the single `dependencies.json` file** from a verified Git revision, then repeat fetch/build/tests. Restoring metadata alone does not restore binaries. Never rewrite a checksum to accept unexpected content; retained installations and failed build directories are available for diagnosis.
+A failed resolution or checksum verification never commits partial results; fix the version, the network or API rate limiting first. Never hand-edit SHA256 values to accept different bytes. If a new version is incompatible, keep your current changes, restore **the single file `dependencies.json`** from a verified Git commit, then run `deps` and `--test`. Restoring metadata does not restore binaries; the preserved old prefix and failed directories remain available for diagnosis.
 
-## Unified builds and platform profiles
+## One entry point and platform profiles
 
-Prefer `python tools/build.py`; add `--test` to build and run the test suite. The low-level dependency builder defaults to `--profile tests`; `--profile runtime` omits doctest and pairs with CMake `-DARIAREAD_BUILD_TESTS=OFF`.
+`python tools/build.py` is the recommended way to build: dependencies, configure, compile and runtime directory in one command. `--test` adds test dependencies and runs CTest. `--profile` selects the dependency set (`--test` implies `tests`, otherwise `runtime`), and CMake receives the matching `-DARIAREAD_BUILD_TESTS`.
 
-Windows auto-selects Schannel and omits OpenSSL. Explicit `--tls-backend openssl` requires the previous Perl/make prerequisites and CMake `-DARIAREAD_TLS_BACKEND=openssl`. macOS/Linux keep OpenSSL; macOS uses Apple SecTrust for certificate verification. MSVC and MinGW use separate binary prefixes with shared source downloads.
-
-Component receipts preserve unchanged libraries across selective updates; static consumers of changed dependencies are rebuilt. Compiler/ABI changes invalidate the complete prefix. Old-format caches need one migration rebuild. Installation rollback and content checks still apply.
+Windows defaults `--tls-backend auto` to Schannel without building OpenSSL; pass `--tls-backend openssl` explicitly to build it, and CMake receives `-DARIAREAD_TLS_BACKEND=openssl`. macOS/Linux keep OpenSSL with Apple SecTrust on macOS. MSVC and MinGW prefixes stay separate while download caches are shared. See [build architecture](build-architecture.md).

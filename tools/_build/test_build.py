@@ -9,11 +9,14 @@ import io
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-import build
+# The public entry point is tools/build.py; this suite lives with its internals.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import build  # noqa: E402
 
 
 class BuildTests(unittest.TestCase):
@@ -42,6 +45,8 @@ class BuildTests(unittest.TestCase):
         self.env = {"PATH": "", "ARIAREAD_VS_ROOT": str(self.vs),
                     "ARIAREAD_WINDOWS_KITS_ROOT": str(self.kits)}
         self.commands = []
+        self.installs = []
+        self.verifies = []
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(build, "ROOT", self.root))
@@ -88,6 +93,16 @@ class BuildTests(unittest.TestCase):
 
     def record(self, command, env, **kwargs):
         self.commands.append((list(map(str, command)), dict(env), kwargs))
+        return None
+
+    def record_install(self, file, work, prefix, source_dir, **options):
+        """The dependency library shares this process; snapshot the environment."""
+        self.installs.append(((str(file), str(work), str(prefix), str(source_dir)), dict(os.environ), options))
+        return prefix
+
+    def record_verify(self, file, work, prefix, source_dir, **options):
+        self.verifies.append(((str(file), str(work), str(prefix), str(source_dir)), dict(os.environ), options))
+        return prefix
 
     def invoke(self, arguments=(), *, platform="win32", env=None, cache=None):
         args = build.parse_args(list(arguments))
@@ -101,14 +116,16 @@ class BuildTests(unittest.TestCase):
         self.touch(binary)
         with patch.object(build.sys, "platform", platform), \
                 patch.dict(os.environ, self.env if env is None else env, clear=True), \
-                patch.object(build, "run", side_effect=self.record):
+                patch.object(build, "run", side_effect=self.record), \
+                patch.object(build.deps, "install", side_effect=self.record_install), \
+                patch.object(build.deps, "verify", side_effect=self.record_verify):
             result = build.main(list(arguments))
         self.assertEqual(result, 0)
         return build_dir, prefix, binary
 
-    def dependency_call(self):
-        return next((command, env) for command, env, _ in self.commands
-                    if any(arg.endswith("build_ariaread_deps.py") for arg in command))
+    def dependency_install(self):
+        _, environment, options = self.installs[0]
+        return environment, options
 
     def configure_call(self):
         return next((command, env) for command, env, _ in self.commands
@@ -139,15 +156,22 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(args.jobs, 3)
 
     def test_plain_msvc_shell_bootstraps_without_msys_or_perl(self):
-        env, (cc, _), (cxx, _) = build.prepare_environment(build.parse_args([]), "msvc", {}, self.env)
+        perl_bin = self.drives[0] / "Strawberry/perl/bin"
+        self.touch(perl_bin / "perl.exe")
+        source = dict(self.env, MSYS2_ROOT=str(self.msys), ARIAREAD_PERL_DIR=str(perl_bin))
+        env, (cc, _), (cxx, _) = build.prepare_environment(build.parse_args([]), "msvc", {}, source)
         self.assertEqual(cc, str(self.vc / "bin/Hostx64/x64/cl.exe"))
         self.assertEqual(cc, cxx)
         self.assertIn(str(self.vc / "include"), env["INCLUDE"])
         self.assertIn(str(self.kits / "Lib/10.0.26100.0/um/x64"), env["LIB"])
         self.assertEqual(env["VSCMD_ARG_TGT_ARCH"], "x64")
         self.assertEqual(env["CMAKE_GENERATOR"], "Ninja")
-        self.assertIn(str(self.ninja_bin), env["PATH"])
-        self.assertNotIn("msys", env["PATH"].lower())
+        # The host's temporary directory can itself live under MSYS2. Check
+        # actual tool directories rather than words in their parent paths.
+        path_entries = {Path(entry) for entry in env["PATH"].split(os.pathsep) if entry}
+        self.assertIn(self.ninja_bin, path_entries)
+        for directory in (self.mingw, self.msys / "mingw64/bin", self.msys / "usr/bin", perl_bin):
+            self.assertNotIn(directory, path_entries)
         self.assertIsNone(self.which("perl", env))
         self.assertEqual(env["CC"], subprocess.list2cmdline([cc]))
 
@@ -316,7 +340,9 @@ class BuildTests(unittest.TestCase):
     def test_visual_studio_generator_works_without_ninja_and_selects_x64(self):
         (self.ninja_bin / "ninja.exe").unlink()
         self.invoke(["--generator", "Visual Studio 18 2026", "--configure-only"])
-        for _, env in (self.dependency_call(), self.configure_call()):
+        install_environment, _ = self.dependency_install()
+        _, configure_environment = self.configure_call()
+        for env in (install_environment, configure_environment):
             self.assertEqual(env["CMAKE_GENERATOR"], "Visual Studio 18 2026")
             self.assertEqual(env["CMAKE_GENERATOR_PLATFORM"], "x64")
             self.assertEqual(env["CMAKE_GENERATOR_TOOLSET"], "version=14.51.36247")
@@ -333,10 +359,10 @@ class BuildTests(unittest.TestCase):
                 [], 0, "x86_64-w64-mingw32\n")) as probe:
             _, prefix, _ = self.invoke(["--toolchain", "mingw"], env=env)
         self.assertEqual(probe.call_args.args[0], [str(self.mingw / "gcc.exe"), "-dumpmachine"])
-        command, selected_env = self.dependency_call()
-        self.assertEqual(command[command.index("--prefix") + 1], str(prefix))
-        self.assertEqual(selected_env["CC"], subprocess.list2cmdline([str(self.mingw / "gcc.exe")]))
-        self.assertNotIn(str(self.vs), selected_env["PATH"])
+        install_environment, options = self.dependency_install()
+        self.assertEqual(Path(self.installs[0][0][2]), prefix)
+        self.assertEqual(install_environment["CC"], subprocess.list2cmdline([str(self.mingw / "gcc.exe")]))
+        self.assertNotIn(str(self.vs), install_environment["PATH"])
 
     def test_mingw_rejects_non_mingw_or_32bit_compiler_and_visual_studio(self):
         env = {"PATH": str(self.mingw)}
@@ -361,15 +387,16 @@ class BuildTests(unittest.TestCase):
         folder, prefix, binary = self.invoke(["--offline", "--jobs", "3", "--tls-backend", "schannel",
                                              "--build-dir", str(self.root / "custom build"),
                                              "--deps-prefix", str(self.root / "custom deps")])
-        dependency, env = self.dependency_call()
-        for option, value in (("--profile", "runtime"), ("--tls-backend", "schannel"),
-                              ("--prefix", str(prefix)), ("--jobs", "3"),
-                              ("--c-compiler", env["CC"]), ("--cxx-compiler", env["CXX"])):
-            self.assertEqual(dependency[dependency.index(option) + 1], value)
-        self.assertIn("--offline", dependency)
-        fetch = next(command for command, _, _ in self.commands
-                     if any(arg.endswith("fetch_aria.py") for arg in command))
-        self.assertIn("--offline", fetch)
+        install_environment, options = self.dependency_install()
+        self.assertEqual(options["profile"], "runtime")
+        self.assertEqual(options["tls_backend"], "schannel")
+        self.assertEqual(Path(self.installs[0][0][2]), prefix)
+        self.assertEqual(options["jobs"], 3)
+        self.assertTrue(options["offline"])
+        self.assertEqual(install_environment["CC"], subprocess.list2cmdline(
+            [str(self.vc / "bin/Hostx64/x64/cl.exe")]))
+        self.assertEqual(install_environment["CXX"], subprocess.list2cmdline(
+            [str(self.vc / "bin/Hostx64/x64/cl.exe")]))
         configure, _ = self.configure_call()
         self.assertIn("-DARIAREAD_BUILD_TESTS=OFF", configure)
         self.assertIn("-DARIAREAD_BUILD_WEB_TESTS=OFF", configure)
@@ -383,8 +410,8 @@ class BuildTests(unittest.TestCase):
 
     def test_test_mode_builds_all_targets_and_runs_strict_bounded_ctest(self):
         folder, _, _ = self.invoke(["--test", "--require-web-tests", "--jobs", "2"])
-        dependency, _ = self.dependency_call()
-        self.assertEqual(dependency[dependency.index("--profile") + 1], "tests")
+        _, options = self.dependency_install()
+        self.assertEqual(options["profile"], "tests")
         configure, _ = self.configure_call()
         for flag in ("BUILD_TESTS", "BUILD_WEB_TESTS", "REQUIRE_WEB_TESTS"):
             self.assertIn("-DARIAREAD_" + flag + "=ON", configure)
@@ -398,9 +425,9 @@ class BuildTests(unittest.TestCase):
         perl = self.root / "Strawberry/perl/bin"
         self.touch(perl / "perl.exe")
         self.invoke(["--tls-backend", "openssl", "--configure-only"], env=dict(self.env, ARIAREAD_PERL_DIR=str(perl)))
-        dependency, env = self.dependency_call()
-        self.assertEqual(dependency[dependency.index("--tls-backend") + 1], "openssl")
-        self.assertEqual(self.which("perl", env), str(perl / "perl.exe"))
+        install_environment, options = self.dependency_install()
+        self.assertEqual(options["tls_backend"], "openssl")
+        self.assertEqual(self.which("perl", install_environment), str(perl / "perl.exe"))
         self.assertIn("-DARIAREAD_TLS_BACKEND=openssl", self.configure_call()[0])
 
     def test_native_compiler_arguments_and_generator_are_shared_with_dependencies(self):
@@ -409,9 +436,9 @@ class BuildTests(unittest.TestCase):
         env = {"PATH": str(self.cmake_bin), "CC": f'"{cc}" -arch arm64',
                "CXX": f'"{cxx}" -arch arm64'}
         self.invoke(["--generator", "Ninja", "--configure-only"], platform="darwin", env=env)
-        dependency, selected_env = self.dependency_call()
-        self.assertEqual(selected_env["CMAKE_GENERATOR"], "Ninja")
-        self.assertIn("-arch arm64", dependency[dependency.index("--c-compiler") + 1])
+        install_environment, _ = self.dependency_install()
+        self.assertEqual(install_environment["CMAKE_GENERATOR"], "Ninja")
+        self.assertIn("-arch arm64", install_environment["CC"])
         self.assertIn("-DCMAKE_C_COMPILER_ARG1=-arch arm64", self.configure_call()[0])
         self.assertIn("-DCMAKE_CXX_COMPILER_ARG1=-arch arm64", self.configure_call()[0])
 
@@ -428,7 +455,7 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(preflight[:2], ["cmake", "-S"])
         self.assertIn("-DARIAREAD_COMPILER_REQUIREMENTS=" +
                       str(self.root / "cmake/CompilerRequirements.cmake"), preflight)
-        self.assertTrue(any(arg.endswith("fetch_aria.py") for arg in self.commands[1][0]))
+        self.assertEqual(len(self.installs), 1)  # dependencies install after the preflight
         for option in (f"-DCMAKE_C_COMPILER={cc}", f"-DCMAKE_CXX_COMPILER={cxx}",
                        "-DCMAKE_C_COMPILER_ARG1=-arch arm64", "-DCMAKE_CXX_COMPILER_ARG1=-arch arm64",
                        "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_FLAGS=-DFROM_CACHE=1",
@@ -448,9 +475,11 @@ class BuildTests(unittest.TestCase):
             raise subprocess.CalledProcessError(1, command, stderr="unsupported compiler")
 
         with patch.object(build.sys, "platform", "win32"), patch.dict(os.environ, self.env, clear=True), \
-                patch.object(build, "run", side_effect=failed_preflight), self.assertRaises(subprocess.CalledProcessError):
+                patch.object(build, "run", side_effect=failed_preflight), \
+                patch.object(build.deps, "install", side_effect=self.record_install), self.assertRaises(subprocess.CalledProcessError):
             build.main(["--configure-only"])
         self.assertEqual(len(self.commands), 1)
+        self.assertEqual(self.installs, [])
         self.assertFalse((self.root / "build/deps").exists())
 
     def test_native_rerun_without_cc_cxx_restores_cached_compiler_arguments(self):
@@ -463,10 +492,11 @@ class BuildTests(unittest.TestCase):
         cache = dict(argument[2:].split("=", 1) for argument in self.configure_call()[0]
                      if argument.startswith("-DCMAKE_"))
         self.commands.clear()
+        self.installs.clear()
         self.invoke(["--configure-only"], platform="darwin", env={"PATH": str(self.cmake_bin)}, cache=cache)
-        dependency, _ = self.dependency_call()
-        for option in ("--c-compiler", "--cxx-compiler"):
-            self.assertIn("-arch arm64", dependency[dependency.index(option) + 1])
+        install_environment, _ = self.dependency_install()
+        self.assertIn("-arch arm64", install_environment["CC"])
+        self.assertIn("-arch arm64", install_environment["CXX"])
         for language in ("C", "CXX"):
             self.assertIn(f"-DCMAKE_{language}_COMPILER_ARG1=-arch arm64", self.configure_call()[0])
 
@@ -479,11 +509,12 @@ class BuildTests(unittest.TestCase):
         cache = dict(argument[2:].split("=", 1) for argument in self.configure_call()[0]
                      if argument.startswith("-DCMAKE_"))
         self.commands.clear()
+        self.installs.clear()
         self.invoke(["--configure-only"], platform="darwin",
                     env=dict(environment, CC=str(cc), CXX=str(cxx)), cache=cache)
-        dependency, _ = self.dependency_call()
-        for option in ("--c-compiler", "--cxx-compiler"):
-            self.assertNotIn("-arch", dependency[dependency.index(option) + 1])
+        install_environment, _ = self.dependency_install()
+        self.assertNotIn("-arch", install_environment["CC"])
+        self.assertNotIn("-arch", install_environment["CXX"])
         for language in ("C", "CXX"):
             self.assertIn(f"-DCMAKE_{language}_COMPILER_ARG1=", self.configure_call()[0])
 
@@ -597,7 +628,8 @@ add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-objec
 
     def test_invalid_option_combinations_and_job_counts_fail_early(self):
         for argv in (["--clean", "--skip-cmake"], ["--test", "--clean-only"],
-                     ["--require-web-tests"], ["--jobs", "0"], ["--jobs", "257"], ["--jobs", "many"]):
+                     ["--require-web-tests"], ["--jobs", "0"], ["--jobs", "257"], ["--jobs", "many"],
+                     ["--prefix", "x"], ["--c-compiler", "x"], ["build", "--cmake-platform", "x"]):
             with self.subTest(argv=argv), self.assertRaises(SystemExit) as result:
                 build.parse_args(argv)
             self.assertEqual(result.exception.code, 2)
@@ -608,13 +640,60 @@ add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-objec
         with self.assertRaisesRegex(ValueError, "only supported on Windows"):
             build.selected_toolchain("msvc", False)
 
+    def test_deps_update_refreshes_the_lock_through_the_library(self):
+        updates = []
+        with patch.object(build.deps, "update_lock",
+                          side_effect=lambda file, work, **options: updates.append(
+                              (str(file), str(work), options))):
+            self.assertEqual(build.main(["deps-update", "--only", "aria", "--version", "aria=3.1.1"]), 0)
+        file, work, options = updates[0]
+        self.assertEqual(Path(file), self.root / "dependencies.json")
+        self.assertEqual(Path(work), self.root / "build/deps")
+        self.assertEqual(options["only"], ["aria"])
+        self.assertEqual(options["versions"], {"aria": "3.1.1"})
+        self.assertEqual(self.commands, [])  # no compiler discovery for a records-only command
+
+    def test_cache_key_prints_the_machine_readable_scope(self):
+        with patch.object(build.deps, "cache_key", return_value="scope-fixture"), \
+                patch.object(build, "run") as shell:
+            self.assertEqual(build.main(["cache-key"]), 0)
+        shell.assert_not_called()  # the key is printed, not a child process's job
+        self.assertEqual(self.commands, [])
+
+    def test_deps_check_uses_cmake_compiler_bridge_without_discovery(self):
+        with patch.dict(os.environ, self.env, clear=True), \
+                patch.object(build, "run") as shell, \
+                patch.object(build.deps, "verify", side_effect=self.record_verify):
+            self.assertEqual(build.main(["deps-check", "--prefix", str(self.root / "prefix"),
+                                         "--c-compiler", str(self.vc / "bin/Hostx64/x64/cl.exe"),
+                                         "--cxx-compiler", str(self.vc / "bin/Hostx64/x64/cl.exe"),
+                                         "--c-compiler-arg1=/DTEST", "--cmake-platform", "x64"]), 0)
+        shell.assert_not_called()  # verification compiles nothing and runs no cmake
+        arguments, environment, options = self.verifies[0]
+        self.assertEqual(Path(arguments[2]), self.root / "prefix")
+        self.assertEqual(options["c"], str(self.vc / "bin/Hostx64/x64/cl.exe"))
+        self.assertEqual(options["c_arg1"], "/DTEST")
+        self.assertEqual(options["cmake_platform"], "x64")
+        self.assertEqual(environment["ARIAREAD_VS_ROOT"], str(self.vs))
+
+    def test_deps_check_for_plain_users_discovers_the_toolchain_first(self):
+        _, prefix, _ = self.invoke(["deps-check"], cache={"CMAKE_GENERATOR": "Ninja"})
+        arguments, environment, options = self.verifies[0]
+        self.assertEqual(Path(arguments[0]), self.root / "dependencies.json")
+        self.assertEqual(Path(arguments[2]), prefix)
+        self.assertEqual(options["profile"], "runtime")
+        self.assertEqual(environment["CMAKE_GENERATOR"], "Ninja")
+        self.assertEqual(environment["CC"], subprocess.list2cmdline(
+            [str(self.vc / "bin/Hostx64/x64/cl.exe")]))
+
     def test_subprocess_failure_stops_before_runtime_success_check(self):
         def failing_run(command, env, **kwargs):
             self.record(command, env, **kwargs)
             if command[0] == "ctest":
                 raise subprocess.CalledProcessError(8, command)
         with patch.object(build.sys, "platform", "win32"), patch.dict(os.environ, self.env, clear=True), \
-                patch.object(build, "run", side_effect=failing_run), self.assertRaises(subprocess.CalledProcessError):
+                patch.object(build, "run", side_effect=failing_run), \
+                patch.object(build.deps, "install", side_effect=self.record_install), self.assertRaises(subprocess.CalledProcessError):
             build.main(["--test"])
         self.assertEqual(self.commands[-1][0][0], "ctest")
         self.assertFalse(any("--help" in command for command, _, _ in self.commands))

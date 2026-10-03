@@ -28,7 +28,8 @@ cmake-build-*/
 *.dll
 *.exe
 
-# 依赖源码与安装前缀统一缓存在 build/deps/
+# 可编辑依赖源码；缓存、编译中间目录和安装前缀在 build/deps/
+/deps/
 
 # CMake 缓存
 CMakeCache.txt

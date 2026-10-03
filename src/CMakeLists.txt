@@ -100,3 +100,21 @@ if(ARIAREAD_BUILD_SHARED)
         target_compile_definitions(ariaread PRIVATE ARIAREAD_EXPORTS)
     endif()
 endif()
+
+# ──────────────────────────────────────────────
+# aria 运行时库进运行目录
+# ──────────────────────────────────────────────
+# aria 是唯一以共享库形态安装的依赖（上游单例 ABI 设计，其余依赖均为静态）。
+# 它的运行时库必须与可执行文件同目录；ariaread 主库被 web server 和全部测试
+# 链接，构建顺序因此先于所有消费者。Unix 的库在 prefix/lib，Windows 的
+# DLL 在 prefix/bin。
+if(WIN32)
+    file(GLOB ARIAREAD_ARIA_RUNTIME "${ARIAREAD_DEPS_PREFIX}/bin/aria*.dll")
+else()
+    file(GLOB ARIAREAD_ARIA_RUNTIME "${ARIAREAD_DEPS_PREFIX}/lib/libaria*")
+endif()
+if(ARIAREAD_ARIA_RUNTIME)
+    add_custom_command(TARGET ariaread POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            ${ARIAREAD_ARIA_RUNTIME} "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endif()
