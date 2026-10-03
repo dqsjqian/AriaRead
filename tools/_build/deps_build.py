@@ -742,7 +742,7 @@ def installation(prefix, identity, expected, metadata):
         raise
     else:
         if backup:
-            shutil.rmtree(backup)
+            sources.remove_retry(backup)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

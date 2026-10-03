@@ -230,6 +230,26 @@ def head(value):
     return value['revision'] or 'archive contents'
 
 
+def remove_retry(path):
+    """Delete a rollback target, tolerating Windows' brief directory locks.
+
+    Antivirus scans and a just-exited git's handles can delay a plain rmtree;
+    silent ignore_errors would leave the very leftovers these deletions exist
+    to prevent. Retry briefly, then fail loudly.
+    """
+    import time
+    for attempt in range(4):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError:
+            if attempt == 3:
+                raise
+            time.sleep(0.1 * (attempt + 1))
+
+
 def replace_directory(source, candidate, state_root, scratch):
     """Swap a fully prepared candidate in; restore the previous tree on failure.
 
@@ -251,7 +271,7 @@ def replace_directory(source, candidate, state_root, scratch):
             backup.rename(source)
         raise
     if backup:
-        shutil.rmtree(backup, ignore_errors=True)
+        remove_retry(backup)
 
 
 def ensure(source_root, dependency, populate, *, explicit=False):

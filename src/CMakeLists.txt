@@ -109,7 +109,10 @@ endif()
 # 链接，构建顺序因此先于所有消费者。Unix 的库在 prefix/lib，Windows 的
 # DLL 在 prefix/bin。
 if(WIN32)
-    file(GLOB ARIAREAD_ARIA_RUNTIME "${ARIAREAD_DEPS_PREFIX}/bin/aria*.dll")
+    # MinGW names its DLLs libaria_*.dll; MSVC names them aria_*.dll.
+    file(GLOB ARIAREAD_ARIA_RUNTIME
+        "${ARIAREAD_DEPS_PREFIX}/bin/aria*.dll"
+        "${ARIAREAD_DEPS_PREFIX}/bin/libaria*.dll")
 else()
     file(GLOB ARIAREAD_ARIA_RUNTIME "${ARIAREAD_DEPS_PREFIX}/lib/libaria*")
 endif()

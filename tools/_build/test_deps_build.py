@@ -1109,10 +1109,20 @@ class OfflineTransactionTests(unittest.TestCase):
             self.assertEqual(listed.returncode, 0, listed.stdout + listed.stderr)
             tests = json.loads(listed.stdout)['tests']
             self.assertEqual([test['name'] for test in tests], cases)
+            # Byte-level acceptance first: the generated script itself must
+            # carry the Chinese suite label as a bracket argument.
+            generated = ctest_file.read_text(encoding='utf-8')
+            self.assertIn('LABELS [==[' + label + ']==]', generated,
+                          'generated script missing the Chinese label; script:\n' + generated)
             for test in tests:
                 properties = {entry['name']: entry['value'] for entry in test['properties']}
-                self.assertEqual(properties['LABELS'], [label])
-                self.assertEqual(test['command'][-1], '--test-case=' + test['name'].replace(',', '\\,'))
+                if 'LABELS' in properties:
+                    self.assertEqual(properties['LABELS'], [label])
+                else:
+                    self.fail('CTest did not report LABELS for ' + repr(test)
+                              + '; generated script:\n' + generated)
+                self.assertEqual(test['command'][-1],
+                                 '--test-case=' + test['name'].replace(',', '\\,'))
             executed = subprocess.run(['ctest', '--output-on-failure'], cwd=root, env=environment,
                                       encoding='utf-8', capture_output=True)
             self.assertEqual(executed.returncode, 0, executed.stdout + executed.stderr)
