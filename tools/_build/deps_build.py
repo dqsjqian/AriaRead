@@ -707,7 +707,12 @@ def platform_node():
 
 @contextlib.contextmanager
 def installation(prefix, identity, expected, metadata):
-    """Build at the final absolute prefix; preserve and restore old installs on failure."""
+    """Build at the final absolute prefix; restore the old install on failure.
+
+    The previous prefix only lives as a rollback target: once the new state is
+    committed it is deleted, so successful builds never accumulate backups.
+    A failed transaction keeps the replacement directory for diagnosis.
+    """
     if prefix.is_symlink():
         raise ValueError(f'Refusing symlink installation prefix: {prefix}')
     previous = read_state(prefix) if prefix.exists() else None
@@ -717,9 +722,8 @@ def installation(prefix, identity, expected, metadata):
         return
     backup = None
     if prefix.exists():
-        backup = prefix.with_name(prefix.name + '-backup-' + uuid.uuid4().hex[:12])
+        backup = prefix.with_name(prefix.name + '-replacing-' + uuid.uuid4().hex[:12])
         prefix.rename(backup)
-        print(f'Preserved previous dependency prefix: {backup}', flush=True)
     try:
         if completed:
             shutil.copytree(backup, prefix, symlinks=True)
@@ -736,6 +740,9 @@ def installation(prefix, identity, expected, metadata):
         if backup:
             backup.rename(prefix)
         raise
+    else:
+        if backup:
+            shutil.rmtree(backup)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1709,7 +1716,9 @@ def prepare_workspace(work, source_dir, dep, offline, explicit=False):
 
 
 def install_component(dep, available, run_root, prefix, jobs, common, expected_source=None):
+    # One flat directory per dependency; a rebuild discards the previous one.
     holder = run_root / dep.name
+    shutil.rmtree(holder, ignore_errors=True)
     holder.mkdir()
     source = holder / 'source'
     actual_source = sources.snapshot(available, source, expected_source)
@@ -1800,42 +1809,43 @@ def install(file, work, prefix, source_dir, *, profile='tests', tls_backend='aut
             return prefix
         runs = work / 'runs'
         runs.mkdir(parents=True, exist_ok=True)
-        run_root = Path(tempfile.mkdtemp(prefix=identity[:12] + '-', dir=runs))
-        # The transaction builds at the final prefix, because some upstream
-        # exports embed it. Stage only unchanged, inventoried component files
-        # before it moves the old prefix, keeping rollback and local-edit guards.
-        staged = run_root / 'reused'
+        # Component files that must survive the prefix swap are staged under
+        # runs/.staged for the duration of the transaction only.
+        staged = runs / '.staged'
+        shutil.rmtree(staged, ignore_errors=True)
         if completed and previous.get('identity') != identity:
+            staged.mkdir()
             for name in sorted(completed):
                 copy_component_files(prefix, staged, previous['components'][name]['files'])
         common = cmake_arguments(prefix, context)
-        with installation(prefix, identity, selected, metadata) as (done, state):
-            if done is None:
-                return prefix
-            records = [record for record in previous.get('dependencies', []) if record['name'] in completed] if previous else []
-            components = {name: previous['components'][name] for name in completed}
-            if staged.exists():
+        try:
+            with installation(prefix, identity, selected, metadata) as (done, state):
+                if done is None:
+                    return prefix
+                records = [record for record in previous.get('dependencies', []) if record['name'] in completed] if previous else []
+                components = {name: previous['components'][name] for name in completed}
+                if staged.exists():
+                    for name in sorted(completed):
+                        copy_component_files(staged, prefix, components[name]['files'])
+                    done.update(completed)
                 for name in sorted(completed):
-                    copy_component_files(staged, prefix, components[name]['files'])
-                done.update(completed)
-            for name in sorted(completed):
-                print(f'Reusing verified component: {name}', flush=True)
-            for dep in dependencies:
-                if dep.name not in selected - done:
-                    continue
-                before = inventory(prefix)
-                records.append(install_component(dep, available[dep.name], run_root, prefix,
-                                                 jobs, common, identities[dep.name]))
-                after = inventory(prefix)
-                changed = [name for name, content in before.items() if after.get(name) != content]
-                if changed:
-                    raise ValueError(f'{dep.name} overwrote another component: {changed}')
-                components[dep.name] = {'identity': component_ids[dep.name],
-                                        'files': sorted(after.keys() - before.keys())}
-                done.add(dep.name)
-            state.update(completed=sorted(done), dependencies=records, components=components)
-        if staged.exists():
-            shutil.rmtree(staged)
+                    print(f'Reusing verified component: {name}', flush=True)
+                for dep in dependencies:
+                    if dep.name not in selected - done:
+                        continue
+                    before = inventory(prefix)
+                    records.append(install_component(dep, available[dep.name], runs, prefix,
+                                                     jobs, common, identities[dep.name]))
+                    after = inventory(prefix)
+                    changed = [name for name, content in before.items() if after.get(name) != content]
+                    if changed:
+                        raise ValueError(f'{dep.name} overwrote another component: {changed}')
+                    components[dep.name] = {'identity': component_ids[dep.name],
+                                            'files': sorted(after.keys() - before.keys())}
+                    done.add(dep.name)
+                state.update(completed=sorted(done), dependencies=records, components=components)
+        finally:
+            shutil.rmtree(staged, ignore_errors=True)
         print(f'Installed dependency prefix from current editable sources: {prefix}')
         return prefix
 

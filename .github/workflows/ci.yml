@@ -56,7 +56,6 @@ jobs:
           path: |
             build/deps/cache
             deps
-            build/deps/resolver
             build/deps/windows-msvc/prefix
           key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-msvc-${{ steps.toolchain.outputs.key }}-
@@ -107,7 +106,6 @@ jobs:
           path: |
             build/deps/cache
             deps
-            build/deps/resolver
             build/deps/windows-mingw/prefix
           key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-mingw-${{ steps.toolchain.outputs.key }}-
@@ -154,7 +152,6 @@ jobs:
           path: |
             build/deps/cache
             deps
-            build/deps/resolver
             build/deps/prefix
           key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-
@@ -211,7 +208,6 @@ jobs:
           path: |
             build/deps/cache
             deps
-            build/deps/resolver
             build/deps/prefix
           key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_build/*.py', 'tools/_build/patches/**') }}
           restore-keys: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-

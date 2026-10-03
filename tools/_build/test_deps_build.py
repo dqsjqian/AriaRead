@@ -355,16 +355,16 @@ class InstallationTests(unittest.TestCase):
             self.assertEqual(state['version'], '1.0')
         self.assertFalse(list(self.root.glob('prefix-backup-*')))
 
-    def test_changed_version_rebuilds_in_empty_prefix_and_preserves_backup(self):
+    def test_changed_version_rebuilds_and_leaves_no_backup(self):
         self.install()
         with deps.installation(self.prefix, 'two', {'library'}, {'lock': 'two'}) as (done, state):
             self.assertFalse((self.prefix / 'library.a').exists())
             (self.prefix / 'library.a').write_text('2.0')
             state['completed'] = ['library']
-        backup, = self.root.glob('prefix-backup-*')
-        self.assertEqual((backup / 'library.a').read_text(), '1.0')
         self.assertEqual((self.prefix / 'library.a').read_text(), '2.0')
         self.assertEqual(deps.read_state(self.prefix)['lock'], 'two')
+        # A committed transaction deletes its rollback target.
+        self.assertEqual(list(self.root.glob('prefix*')), [self.prefix])
 
     def test_failed_upgrade_restores_original_prefix_and_preserves_failure(self):
         self.install()
@@ -394,7 +394,7 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'local modifications'):
             self.install('two', '2.0')
         self.assertEqual((self.prefix / 'library.a').read_text(), 'local edit')
-        self.assertFalse(list(self.root.glob('prefix-backup-*')))
+        self.assertEqual(list(self.root.glob('prefix*')), [self.prefix])
 
     def test_missing_installed_file_is_not_blessed_as_new_version(self):
         self.install()
@@ -410,13 +410,12 @@ class InstallationTests(unittest.TestCase):
             self.install('two')
         self.assertEqual((self.prefix / 'notes.txt').read_text(), 'local notes')
 
-    def test_legacy_artifacts_are_backed_up_and_never_relabelled(self):
+    def test_legacy_artifacts_are_replaced_not_relabelled(self):
         self.prefix.mkdir()
         (self.prefix / 'library.a').write_text('unknown old binary')
         self.install('new', 'new binary')
-        backup, = self.root.glob('prefix-backup-*')
-        self.assertEqual((backup / 'library.a').read_text(), 'unknown old binary')
         self.assertEqual((self.prefix / 'library.a').read_text(), 'new binary')
+        self.assertEqual(list(self.root.glob('prefix*')), [self.prefix])  # no leftovers
 
     def test_stale_sources_are_rejected_before_cmake_can_use_prefix(self):
         self.install()
@@ -866,8 +865,7 @@ class BuilderIntegrationTests(unittest.TestCase):
                                                     deps.sources.identities(source_dir, [dependency]))
                 self.assertEqual(deps.reusable_components(deps.read_state(prefix), current), {'json'})
             self.assertEqual((prefix / 'library.a').read_text(), 'rebuilt')
-            backup, = work.glob('prefix-backup-*')
-            self.assertEqual((backup / 'library.a').read_text(), 'old build')
+            self.assertEqual(list(work.glob('prefix*')), [prefix])  # committed: no backups
 
     def test_windows_compilers_cannot_mix_msvc_and_mingw(self):
         with tempfile.TemporaryDirectory() as temporary, \
@@ -1003,13 +1001,12 @@ class OfflineTransactionTests(unittest.TestCase):
 
         # A repeated full install reuses the whole prefix.
         other_timestamp = other.stat().st_mtime_ns
-        initial_backups = set(self.work.glob('prefix-backup-*'))
-        self.assertEqual(len(initial_backups), 1)
         self.assertTrue((header.parent / 'obsolete.hpp').is_file())
         repeated = self.invoke()
         self.assertIn('Reusing verified dependency prefix', repeated)
         receipt = self.prefix / deps.STATE
         receipt_bytes = receipt.read_bytes()
+        self.assertEqual(list(self.work.glob('prefix*')), [self.prefix])  # committed: no backups
 
         # A canonical CC/CXX spelling is not a rebuild.
         recorded = deps.read_state(self.prefix)['context']
@@ -1020,7 +1017,7 @@ class OfflineTransactionTests(unittest.TestCase):
         canonical = self.invoke(environment=environment)
         self.assertIn('Reusing verified dependency prefix', canonical)
         self.assertEqual(receipt.read_bytes(), receipt_bytes)
-        self.assertEqual(set(self.work.glob('prefix-backup-*')), initial_backups)
+        self.assertEqual(list(self.work.glob('prefix*')), [self.prefix])
 
         # An explicit version replaces only that component.
         self.specs['dependencies']['json']['version'] = '1.0'
@@ -1033,8 +1030,10 @@ class OfflineTransactionTests(unittest.TestCase):
         self.assertEqual(other.stat().st_mtime_ns, other_timestamp)
         self.assertFalse((header.parent / 'obsolete.hpp').exists())
         self.assertEqual(header.read_text(), '2.0')
-        backup, = set(self.work.glob('prefix-backup-*')) - initial_backups
-        self.assertEqual((backup / 'include/nlohmann/json.hpp').read_text(), '1.0')
+        # Component snapshots live in one flat directory per dependency.
+        self.assertTrue((self.work / 'runs' / 'json').is_dir())
+        self.assertFalse(list((self.work / 'runs').glob('*-*')))
+        self.assertEqual(list(self.work.glob('prefix*')), [self.prefix])  # the old prefix was deleted
 
         # Verification is read-only and does not touch the lock.
         snapshot = self.file.read_bytes()
@@ -1042,7 +1041,7 @@ class OfflineTransactionTests(unittest.TestCase):
         self.assertEqual(self.file.read_bytes(), snapshot)
         self.assertIn('Verified dependency prefix',
                       self.invoke(only='json', profile='runtime', verify=True))
-        self.assertFalse(list((self.work / 'runs').glob('*/reused')))
+        self.assertFalse((self.work / 'runs' / '.staged').exists())
 
         # A tampered lock is rejected before CMake can use the prefix.
         modified = json.loads(snapshot)

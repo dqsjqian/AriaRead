@@ -7,8 +7,9 @@ edit files, git pull or switch branches and take responsibility for that.
 
 deps/.ariaread-sources/<name>.json remembers which locked selection created a
 directory and its untouched identity. A later lock change replaces only an
-untouched directory, after moving it to deps/.ariaread-sources/backups/.
-Changed directories are kept and reported; the new selection is NOT applied.
+untouched directory (the previous tree is a rollback target and is deleted
+once the swap succeeds). Changed directories are kept and reported; the new
+selection is NOT applied.
 """
 from __future__ import annotations
 
@@ -230,7 +231,11 @@ def head(value):
 
 
 def replace_directory(source, candidate, state_root, scratch):
-    """Swap a fully prepared candidate in; restore the previous tree on failure."""
+    """Swap a fully prepared candidate in; restore the previous tree on failure.
+
+    The previous tree is a rollback target only: a successful swap deletes it,
+    so workspaces never accumulate backups.
+    """
     backup = None
     if source.exists() or source.is_symlink():
         backups = state_root / 'backups'
@@ -245,7 +250,8 @@ def replace_directory(source, candidate, state_root, scratch):
         if backup:
             backup.rename(source)
         raise
-    return backup
+    if backup:
+        shutil.rmtree(backup, ignore_errors=True)
 
 
 def ensure(source_root, dependency, populate, *, explicit=False):
@@ -305,10 +311,8 @@ def ensure(source_root, dependency, populate, *, explicit=False):
                 pristine = None  # A migrated legacy tree with edits stays user-owned.
             if present and identity(source) != actual:
                 raise ValueError(f'Dependency source changed during update; preserved: {source}')
-            backup = replace_directory(source, candidate, state_root, scratch)
+            replace_directory(source, candidate, state_root, scratch)
             write_record(source_root, dependency.name, request, pristine)
-            if backup:
-                print(f'Preserved previous dependency source: {backup}', flush=True)
         return source
 
 

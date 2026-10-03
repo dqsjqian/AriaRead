@@ -117,14 +117,11 @@ class WorkspaceAdoptionTests(GitFixture):
         first = dependency(kind='git', revision=self.second)
         path = sources.ensure(self.deps, first, lambda dest: self.clone_into(dest, self.second))
         second = dependency(kind='git', revision=self.third)
-        output = io.StringIO()
-        with redirect_stdout(output):
-            sources.ensure(self.deps, second, lambda dest: self.clone_into(dest, self.third))
+        sources.ensure(self.deps, second, lambda dest: self.clone_into(dest, self.third))
         self.assertEqual(git('rev-parse', 'HEAD', cwd=path), self.third)
-        backups = list((self.deps / '.ariaread-sources/backups').glob('library-*'))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual(git('rev-parse', 'HEAD', cwd=backups[0]), self.second)
-        self.assertIn('Preserved previous dependency source', output.getvalue())
+        # A committed swap deletes its rollback target: nothing accumulates.
+        backups = self.deps / '.ariaread-sources/backups'
+        self.assertFalse(backups.exists() and any(backups.iterdir()))
 
     def test_lock_change_with_local_work_keeps_the_workspace_and_warns(self):
         first = dependency(kind='git', revision=self.second)
