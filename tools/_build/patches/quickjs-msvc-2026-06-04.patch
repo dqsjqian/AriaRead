@@ -583,7 +583,7 @@
  }
 --- a/quickjs.h
 +++ b/quickjs.h
-@@ -244,13 +244,45 @@
+@@ -244,13 +244,46 @@
  
  /* avoid uninitialized data by using a 64 bit field even if only 32
     bits are needed because some compilers generate slower code */
@@ -614,7 +614,8 @@
 +    return v;
 +}
 +
-+#if defined(_MSC_VER)
++/* C++ does not support the C99 compound literals used by these macros. */
++#if defined(_MSC_VER) || defined(__cplusplus)
 +#define JS_MKVAL(tag, val) js_mkval_impl(tag, (uint32_t)(val))
 +#define JS_MKPTR(tag, p) js_mkptr_impl(tag, p)
 +#define JS_NAN js_nan_impl()

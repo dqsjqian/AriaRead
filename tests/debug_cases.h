@@ -71,12 +71,12 @@ ariaread::BookSource debugTestSource() {
 
 ariaread::HttpResponse debugScenarioResponse(const ariaread::HttpRequest& request) {
     if (request.url.find("/search") != std::string::npos) {
-        return {200, R"({"books":[{"name":"书籍","url":"https://debug.test/book"}]})", {}, ""};
+        return {200, R"({"books":[{"name":"书籍","url":"https://debug.test/book"}]})", {}, "", {}};
     }
     if (request.url == "https://debug.test/book") {
-        return {200, R"({"chapters":[{"title":"第一章","url":"https://debug.test/chapter","volume":false}]})", {}, ""};
+        return {200, R"({"chapters":[{"title":"第一章","url":"https://debug.test/chapter","volume":false}]})", {}, "", {}};
     }
-    return {200, R"({"text":"这是正文内容。"})", {}, ""};
+    return {200, R"({"text":"这是正文内容。"})", {}, "", {}};
 }
 
 TEST_CASE("SourceDebug - 搜索目录正文及 HTTP 事件") {
@@ -123,7 +123,7 @@ TEST_CASE("SourceDebug - 空搜索结果报告阶段失败") {
     ariaread::web::runSourceDebug(debugTestSource(), "test",
         [&](const std::string& event, const nlohmann::json& data) { events.emplace_back(event, data); return true; },
         [] { return true; },
-        [](const ariaread::HttpRequest&) { return ariaread::HttpResponse{200, R"({"books":[]})", {}, ""}; });
+        [](const ariaread::HttpRequest&) { return ariaread::HttpResponse{200, R"({"books":[]})", {}, "", {}}; });
     REQUIRE(!events.empty());
     CHECK(events.back().first == "debug_error");
     CHECK(events.back().second["stage"] == "debug_search");
@@ -158,7 +158,7 @@ TEST_CASE("SourceDebug - 多项慢规则共享整体时间预算") {
         [] { return true; },
         [&](const ariaread::HttpRequest&) {
             ++requests;
-            return ariaread::HttpResponse{200, responseBody, {}, ""};
+            return ariaread::HttpResponse{200, responseBody, {}, "", {}};
         }, std::chrono::milliseconds(100));
     const auto duration = Clock::now() - started;
     CHECK(duration < std::chrono::seconds(1));
