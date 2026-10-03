@@ -3,11 +3,22 @@
 #include "ariaread/version.h"
 #include <nlohmann/json.hpp>
 #include <cstring>
+#include <cstdlib>
 #include <memory>
 #include <thread>
 
 using namespace ariaread;
 using json = nlohmann::json;
+
+namespace {
+char* duplicateString(const char* value) {
+    const size_t length = std::strlen(value);
+    auto* copy = static_cast<char*>(std::malloc(length + 1));
+    if (!copy) return nullptr;
+    std::memcpy(copy, value, length + 1);
+    return copy;
+}
+} // namespace
 
 // ──────────────────────────────────────────────
 // 辅助：Book → JSON
@@ -147,7 +158,7 @@ int ariaread_engine_source_count(AriaReadEngine engine) {
 // 核心操作
 // ──────────────────────────────────────────────
 char* ariaread_engine_search(AriaReadEngine engine, const char* keyword) {
-    if (!engine || !keyword) return strdup("[]");
+    if (!engine || !keyword) return duplicateString("[]");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto books = e->search(keyword);
@@ -156,11 +167,11 @@ char* ariaread_engine_search(AriaReadEngine engine, const char* keyword) {
     for (const auto& b : books) {
         arr.push_back(json::parse(bookToJson(b)));
     }
-    return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
 char* ariaread_engine_get_catalog(AriaReadEngine engine, const char* bookUrl) {
-    if (!engine || !bookUrl) return strdup("[]");
+    if (!engine || !bookUrl) return duplicateString("[]");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto chapters = e->getCatalog(bookUrl);
@@ -169,15 +180,15 @@ char* ariaread_engine_get_catalog(AriaReadEngine engine, const char* bookUrl) {
     for (const auto& c : chapters) {
         arr.push_back(json::parse(chapterToJson(c)));
     }
-    return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
 char* ariaread_engine_get_content(AriaReadEngine engine, const char* chapterUrl) {
-    if (!engine || !chapterUrl) return strdup("");
+    if (!engine || !chapterUrl) return duplicateString("");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     std::string content = e->getContent(chapterUrl);
-    return strdup(content.c_str());
+    return duplicateString(content.c_str());
 }
 
 char* ariaread_engine_get_catalog_for_source(
@@ -186,7 +197,7 @@ char* ariaread_engine_get_catalog_for_source(
     int sourceIndex,
     const char* sourceName
 ) {
-    if (!engine || !bookUrl) return strdup("[]");
+    if (!engine || !bookUrl) return duplicateString("[]");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto chapters = e->getCatalogForSource(bookUrl, sourceIndex, sourceName ? sourceName : "");
@@ -195,7 +206,7 @@ char* ariaread_engine_get_catalog_for_source(
     for (const auto& c : chapters) {
         arr.push_back(json::parse(chapterToJson(c)));
     }
-    return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
 char* ariaread_engine_get_content_for_source(
@@ -204,11 +215,11 @@ char* ariaread_engine_get_content_for_source(
     int sourceIndex,
     const char* sourceName
 ) {
-    if (!engine || !chapterUrl) return strdup("");
+    if (!engine || !chapterUrl) return duplicateString("");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     std::string content = e->getContentForSource(chapterUrl, sourceIndex, sourceName ? sourceName : "");
-    return strdup(content.c_str());
+    return duplicateString(content.c_str());
 }
 
 int ariaread_engine_clear_all_sources(AriaReadEngine engine) {
@@ -242,14 +253,14 @@ int64_t ariaread_bookshelf_add(AriaReadEngine engine, const char* bookJson) {
     }
 }
 
-int ariaread_bookshelf_remove(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
+int ariaread_bookshelf_remove(AriaReadEngine engine, const char* bookUrl, const char*) {
     if (!engine || !bookUrl) return -1;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->removeFromBookshelf(bookUrl) ? 0 : -1;
 }
 
 char* ariaread_bookshelf_list(AriaReadEngine engine) {
-    if (!engine) return strdup("[]");
+    if (!engine) return duplicateString("[]");
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto items = e->getBookshelf();
     json arr = json::array();
@@ -271,10 +282,10 @@ char* ariaread_bookshelf_list(AriaReadEngine engine) {
         j["updatedAt"] = item.updatedAt;
         arr.push_back(std::move(j));
     }
-    return strdup(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(arr.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
-int ariaread_bookshelf_is_in(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
+int ariaread_bookshelf_is_in(AriaReadEngine engine, const char* bookUrl, const char*) {
     if (!engine || !bookUrl) return 0;
     auto* e = static_cast<BookSourceEngine*>(engine);
     return e->isInBookshelf(bookUrl) ? 1 : 0;
@@ -299,8 +310,8 @@ int ariaread_bookshelf_progress_save(AriaReadEngine engine, const char* progress
     }
 }
 
-char* ariaread_bookshelf_progress_get(AriaReadEngine engine, const char* bookUrl, const char* sourceUrl) {
-    if (!engine || !bookUrl) return strdup("{}");
+char* ariaread_bookshelf_progress_get(AriaReadEngine engine, const char* bookUrl, const char*) {
+    if (!engine || !bookUrl) return duplicateString("{}");
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto progress = e->getReadProgress(bookUrl);
     json j;
@@ -311,7 +322,7 @@ char* ariaread_bookshelf_progress_get(AriaReadEngine engine, const char* bookUrl
     j["pageOffset"] = progress.pageOffset;
     j["readPercent"] = progress.readPercent;
     j["lastReadAt"] = progress.lastReadAt;
-    return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
 int ariaread_bookshelf_change_source(AriaReadEngine engine,
@@ -370,7 +381,7 @@ int ariaread_bookshelf_update_last_chapter(AriaReadEngine engine,
 char* ariaread_bookshelf_download(AriaReadEngine engine,
     const char* bookUrl, const char* sourceUrl,
     int sourceIndex, const char* sourceName) {
-    if (!engine || !bookUrl) return strdup("{\"error\":\"invalid params\"}");
+    if (!engine || !bookUrl) return duplicateString("{\"error\":\"invalid params\"}");
     auto* e = static_cast<BookSourceEngine*>(engine);
     try {
         auto result = e->downloadBook(
@@ -380,11 +391,11 @@ char* ariaread_bookshelf_download(AriaReadEngine engine,
         j["total"] = result.total;
         j["cached"] = result.cached;
         j["failed"] = result.failed;
-        return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+        return duplicateString(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
     } catch (const std::exception& ex) {
         nlohmann::json j;
         j["error"] = ex.what();
-        return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+        return duplicateString(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
     }
 }
 
@@ -405,15 +416,15 @@ int ariaread_bookshelf_check_all_updates(AriaReadEngine engine) {
 // 状态查询
 // ──────────────────────────────────────────────
 char* ariaread_engine_get_source_info(AriaReadEngine engine) {
-    if (!engine) return strdup("{}");
+    if (!engine) return duplicateString("{}");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     std::string info = e->getSourceInfo();
-    return strdup(info.c_str());
+    return duplicateString(info.c_str());
 }
 
 char* ariaread_engine_get_source_list(AriaReadEngine engine) {
-    if (!engine) return strdup("{\"sources\":[],\"validCount\":0,\"totalCount\":0}");
+    if (!engine) return duplicateString("{\"sources\":[],\"validCount\":0,\"totalCount\":0}");
 
     auto* e = static_cast<BookSourceEngine*>(engine);
     auto result = e->getSourceList();
@@ -439,13 +450,13 @@ char* ariaread_engine_get_source_list(AriaReadEngine engine) {
     j["validCount"] = result.validCount;
     j["totalCount"] = result.totalCount;
 
-    return strdup(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
+    return duplicateString(j.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace).c_str());
 }
 
 char* ariaread_engine_export_good_sources(AriaReadEngine engine) {
-    if (!engine) return strdup("[]");
+    if (!engine) return duplicateString("[]");
     auto* e = static_cast<BookSourceEngine*>(engine);
-    return strdup(e->exportGoodSources().c_str());
+    return duplicateString(e->exportGoodSources().c_str());
 }
 
 const char* ariaread_engine_get_last_error(AriaReadEngine engine) {

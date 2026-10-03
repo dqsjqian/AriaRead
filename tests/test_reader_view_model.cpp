@@ -36,7 +36,7 @@ public:
         return chs;
     }
 
-    std::string load_content(const std::string& bookUrl,
+    std::string load_content(const std::string&,
                             const std::string& chapterUrl,
                             int chapterIndex,
                             const std::string&) override {

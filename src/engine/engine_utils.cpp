@@ -1178,7 +1178,11 @@ std::string ensureUtf8(const std::string& data, const std::string& declaredChars
 
     // 标准化编码名
     std::string enc;
-    for (auto& c : charset) enc += std::tolower(static_cast<unsigned char>(c));
+    enc.reserve(charset.size());
+    for (char c : charset) {
+        const auto byte = static_cast<unsigned char>(c);
+        enc.push_back(static_cast<char>(std::tolower(byte)));
+    }
 
     // 常见编码别名映射
     if (enc == "gb2312" || enc == "gb18030" || enc == "gbk" || enc == "gb_2312" || enc == "gbk2312") {

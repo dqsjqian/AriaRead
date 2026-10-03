@@ -39,6 +39,20 @@ inline std::string trimCopy(const std::string& s) {
     return s.substr(l, r - l);
 }
 
+std::string environmentVariable(const char* name) {
+#if defined(_MSC_VER)
+    char* value = nullptr;
+    size_t length = 0;
+    if (_dupenv_s(&value, &length, name) != 0 || !value) return {};
+    std::string result(value);
+    std::free(value);
+    return result;
+#else
+    const char* value = std::getenv(name);
+    return value ? value : "";
+#endif
+}
+
 #ifdef ARIAREAD_HAS_CURL
 struct ResponseBuffer {
     std::string body;
@@ -88,12 +102,10 @@ size_t writeHeaderCallback(char* buffer, size_t size, size_t nitems, void* userd
 // 显式 CA 文件优先于系统信任。不要缓存环境变量，嵌入方可以为后续请求
 // 更新其信任配置；libcurl 会复制 CURLOPT_CAINFO 的字符串。
 std::string findCaBundlePath() {
-    if (const char* env = std::getenv("SSL_CERT_FILE"); env && *env) {
-        return env;
-    }
-    if (const char* env = std::getenv("CURL_CA_BUNDLE"); env && *env) {
-        return env;
-    }
+    const auto sslCertFile = environmentVariable("SSL_CERT_FILE");
+    if (!sslCertFile.empty()) return sslCertFile;
+    const auto curlCaBundle = environmentVariable("CURL_CA_BUNDLE");
+    if (!curlCaBundle.empty()) return curlCaBundle;
 
 #if !defined(__APPLE__) && !defined(_WIN32)
     // Linux / 其他 Unix

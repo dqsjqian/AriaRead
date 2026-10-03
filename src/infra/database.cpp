@@ -434,7 +434,7 @@ bool SourceDatabase::removeSource(const std::string& url) {
     try {
         db << "DELETE FROM book_sources WHERE url = ?;" << url;
         return db.last_insert_rowid() > 0 || true; // DELETE 不返回 affected rows，简化处理
-    } catch (const sqlite::sqlite_exception& e) {
+    } catch (const sqlite::sqlite_exception&) {
         return false;
     }
 }
@@ -839,7 +839,7 @@ void SourceDatabase::addUrlHistory(const std::string& url, int maxCount) {
                   "(SELECT url FROM source_url_history ORDER BY used_at DESC LIMIT ?);"
                << maxCount;
         }
-    } catch (const sqlite::sqlite_exception& e) {
+    } catch (const sqlite::sqlite_exception&) {
         // 非关键功能，静默失败
     }
 }

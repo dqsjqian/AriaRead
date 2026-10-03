@@ -67,6 +67,20 @@ std::atomic<bool> g_running{true};
 
 namespace {
 void on_signal(int) { ariaread::web::g_running.store(false); }
+
+std::string environmentVariable(const char* name) {
+#if defined(_MSC_VER)
+    char* value = nullptr;
+    size_t length = 0;
+    if (_dupenv_s(&value, &length, name) != 0 || !value) return {};
+    std::string result(value);
+    std::free(value);
+    return result;
+#else
+    const char* value = std::getenv(name);
+    return value ? value : "";
+#endif
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -144,12 +158,12 @@ int main(int argc, char** argv) {
     // 数据库路径
     std::string db_path = options.db_path;
     if (db_path.empty()) {
-        const char* home = std::getenv("HOME");
+        std::string home = environmentVariable("HOME");
 #ifdef _WIN32
-        if (!home) home = std::getenv("USERPROFILE");
+        if (home.empty()) home = environmentVariable("USERPROFILE");
 #endif
-        if (home && *home) {
-            std::string dir = std::string(home) + "/.ariaread";
+        if (!home.empty()) {
+            std::string dir = home + "/.ariaread";
 #ifdef _WIN32
             _mkdir(dir.c_str());
 #else

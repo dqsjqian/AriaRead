@@ -304,7 +304,7 @@ ReadProgress BookSourceEngine::getReadProgress(const std::string& bookUrl) {
 // 换源
 // ──────────────────────────────────────────────
 
-void BookSourceEngine::changeBookSource(const std::string& bookUrl, const std::string& oldSourceUrl,
+void BookSourceEngine::changeBookSource(const std::string& bookUrl, const std::string&,
                                          const std::string& newSourceName, const std::string& newSourceUrl,
                                          const std::string& newBookUrl) {
     if (!pImpl->db) {
@@ -324,7 +324,7 @@ void BookSourceEngine::changeBookSource(const std::string& bookUrl, const std::s
 // 追更检查（单本）
 // ──────────────────────────────────────────────
 
-bool BookSourceEngine::checkBookUpdate(const std::string& bookUrl, const std::string& sourceUrl,
+bool BookSourceEngine::checkBookUpdate(const std::string& bookUrl, const std::string&,
                                         int sourceIndex, const std::string& sourceName) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
@@ -373,7 +373,7 @@ bool BookSourceEngine::checkBookUpdate(const std::string& bookUrl, const std::st
 // 更新书架条目的最新章节信息
 // ──────────────────────────────────────────────
 
-void BookSourceEngine::updateBookshelfLastChapter(const std::string& bookUrl, const std::string& sourceUrl,
+void BookSourceEngine::updateBookshelfLastChapter(const std::string& bookUrl, const std::string&,
                                                    const std::string& lastChapter, int totalChapters, bool hasUpdate) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
@@ -489,7 +489,7 @@ bool BookSourceEngine::requestBookRefresh(const std::string& bookUrl,
 // 缓存管理（目录 + 正文）
 // ──────────────────────────────────────────────
 
-void BookSourceEngine::cacheBookCatalog(const std::string& bookUrl, const std::string& sourceUrl,
+void BookSourceEngine::cacheBookCatalog(const std::string& bookUrl, const std::string&,
                                          const std::vector<Chapter>& chapters) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
@@ -506,7 +506,7 @@ void BookSourceEngine::cacheBookCatalog(const std::string& bookUrl, const std::s
     entry.snapshot.fullyCached = entry.snapshot.totalChapters > 0 && entry.snapshot.contentCached >= entry.snapshot.totalChapters;
 }
 
-std::vector<Chapter> BookSourceEngine::getCachedCatalog(const std::string& bookUrl, const std::string& sourceUrl) {
+std::vector<Chapter> BookSourceEngine::getCachedCatalog(const std::string& bookUrl, const std::string&) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
         return {};
@@ -514,13 +514,13 @@ std::vector<Chapter> BookSourceEngine::getCachedCatalog(const std::string& bookU
     return pImpl->db->getCachedCatalog(bookUrl);
 }
 
-int BookSourceEngine::getCachedCatalogCount(const std::string& bookUrl, const std::string& sourceUrl) {
+int BookSourceEngine::getCachedCatalogCount(const std::string& bookUrl, const std::string&) {
     if (!pImpl->db) return 0;
     return pImpl->db->getCachedCatalogCount(bookUrl);
 }
 
 void BookSourceEngine::cacheChapterContent(const std::string& chapterUrl, const std::string& bookUrl,
-                                            const std::string& sourceUrl, const std::string& content) {
+                                            const std::string&, const std::string& content) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
         return;
@@ -550,12 +550,12 @@ std::string BookSourceEngine::getCachedContent(const std::string& bookUrl, int c
     return pImpl->db->getCachedContent(bookUrl, chapterIndex);
 }
 
-int BookSourceEngine::getCachedContentCount(const std::string& bookUrl, const std::string& sourceUrl) {
+int BookSourceEngine::getCachedContentCount(const std::string& bookUrl, const std::string&) {
     if (!pImpl->db) return 0;
     return pImpl->db->getCachedContentCount(bookUrl);
 }
 
-void BookSourceEngine::clearBookCache(const std::string& bookUrl, const std::string& sourceUrl) {
+void BookSourceEngine::clearBookCache(const std::string& bookUrl, const std::string&) {
     if (!pImpl->db) {
         pImpl->lastError = "Database not initialized";
         return;

@@ -6,6 +6,7 @@
 #include "ariaread/parallel.h"
 
 #include <cstring>
+#include <cstdio>
 #include <algorithm>
 #include <regex>
 #include <chrono>
@@ -93,8 +94,13 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                         std::string d = dateStr.substr(0, pos);
                         std::string t = dateStr.substr(pos + 1);
                         int year = 0, month = 0, day = 0, hour = 0, min = 0, sec = 0;
-                        sscanf(d.c_str(), "%d-%d-%d", &year, &month, &day);
-                        sscanf(t.c_str(), "%d:%d:%d", &hour, &min, &sec);
+#if defined(_MSC_VER)
+                        sscanf_s(d.c_str(), "%d-%d-%d", &year, &month, &day);
+                        sscanf_s(t.c_str(), "%d:%d:%d", &hour, &min, &sec);
+#else
+                        std::sscanf(d.c_str(), "%d-%d-%d", &year, &month, &day);
+                        std::sscanf(t.c_str(), "%d:%d:%d", &hour, &min, &sec);
+#endif
                         std::tm tm = {};
                         tm.tm_year = year - 1900;
                         tm.tm_mon = month - 1;
@@ -166,8 +172,17 @@ std::vector<RssArticle> parseRssFeed(const std::string& xmlText, const std::stri
                         int day = 0, year = 0, hour = 0, min = 0, sec = 0;
                         char tz[8] = {};
                         // 格式: Mon, 26 Apr 2026 12:00:00 GMT
-                        if (sscanf(dateStr.c_str(), "%*3s, %d %3s %d %d:%d:%d %7s",
-                                   &day, monthStr, &year, &hour, &min, &sec, tz) >= 6) {
+                        int parsedFields = 0;
+#if defined(_MSC_VER)
+                        parsedFields = sscanf_s(dateStr.c_str(), "%*3s, %d %3s %d %d:%d:%d %7s",
+                                                &day, monthStr, sizeof(monthStr),
+                                                &year, &hour, &min, &sec, tz,
+                                                sizeof(tz));
+#else
+                        parsedFields = std::sscanf(dateStr.c_str(), "%*3s, %d %3s %d %d:%d:%d %7s",
+                                                   &day, monthStr, &year, &hour, &min, &sec, tz);
+#endif
+                        if (parsedFields >= 6) {
                             static const char* months[] = {"Jan","Feb","Mar","Apr","May","Jun",
                                                            "Jul","Aug","Sep","Oct","Nov","Dec"};
                             for (int i = 0; i < 12; ++i) {

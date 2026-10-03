@@ -935,7 +935,7 @@ static bool isCatalogValid(const std::vector<Chapter>& chapters) {
 
 std::vector<Chapter> BookSourceEngine::getCatalogWithCache(
     const std::string& bookUrl,
-    const std::string& sourceUrl,
+    const std::string&,
     int sourceIndex,
     const std::string& sourceName
 ) {
@@ -965,7 +965,7 @@ std::vector<Chapter> BookSourceEngine::getCatalogWithCache(
 // ──────────────────────────────────────────────
 std::vector<Chapter> BookSourceEngine::refreshCatalog(
     const std::string& bookUrl,
-    const std::string& sourceUrl,
+    const std::string&,
     int sourceIndex,
     const std::string& sourceName
 ) {

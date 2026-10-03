@@ -414,7 +414,7 @@ void AnalyzeUrl::analyzeUrl() {
                 }
             }
 
-        } catch (const std::exception& e) {
+        } catch (const std::exception&) {
             // options JSON 解析失败，忽略
         }
     }
@@ -562,7 +562,7 @@ std::string AnalyzeUrl::getAbsoluteURL(const std::string& baseUrl,
     return origin + normalizePath(dir + path) + suffix;
 }
 
-std::string AnalyzeUrl::urlEncode(const std::string& value, const std::string& charset) {
+std::string AnalyzeUrl::urlEncode(const std::string& value, const std::string&) {
     // 简单的 URL 编码实现
     std::string result;
     for (unsigned char c : value) {

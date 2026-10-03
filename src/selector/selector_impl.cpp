@@ -11,11 +11,19 @@
 #include <regex>
 #include <sstream>
 #include <algorithm>
+#include <limits>
 #include <gumbo.h>
 
 namespace ariaread {
 
 using json = nlohmann::json;
+
+namespace {
+int boundedIntSize(size_t size) {
+    const auto limit = static_cast<size_t>(std::numeric_limits<int>::max());
+    return static_cast<int>(std::min(size, limit));
+}
+} // namespace
 
 // ──────────────────────────────────────────────
 // JSONPath 选择器
@@ -73,7 +81,7 @@ std::vector<std::string> JsonPathSelector::selectSingle(const std::string& conte
                     }
 
                     if (current.is_array()) {
-                        int size = current.size();
+                        const int size = boundedIntSize(current.size());
                         if (start < 0) start += size;
                         if (end < 0) end += size;
                         if (start < 0) start = 0;
@@ -323,7 +331,7 @@ std::vector<std::string> JsEvalSelector::select(const std::string& content) {
     return selectSingle(content, code_);
 }
 
-std::vector<std::string> JsEvalSelector::selectSingle(const std::string& content, const std::string& rule) {
+std::vector<std::string> JsEvalSelector::selectSingle(const std::string&, const std::string&) {
     std::vector<std::string> results;
 
     // 这里应该使用 QuickJS 执行 JS 代码
@@ -626,7 +634,7 @@ std::vector<std::string> DefaultJSoupSelector::select(const std::string& content
             case Impl::Step::Type::FilterByIndex: {
                 // 使用 ElementsSingle 进行索引过滤
                 ElementsSingle es;
-                auto indexSet = es.parseAndFilter(step.indexRule, currentNodes.size());
+                auto indexSet = es.parseAndFilter(step.indexRule, boundedIntSize(currentNodes.size()));
                 if (es.getSplit() == '!') {
                     // 排除模式（tag.p!0 去广告、class.item!-1 去尾项等）：
                     // 保留所有"不在 indexSet 中"的节点，顺序不变。

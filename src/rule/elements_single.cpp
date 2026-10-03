@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <sstream>
 #include <regex>
+#include <limits>
+#include <iterator>
 
 namespace ariaread {
 
@@ -12,12 +14,13 @@ std::vector<int> ElementsSingle::parseAndFilter(const std::string& rule, int ele
     findIndexSet(rule);
 
     std::vector<int> indexSet;
-    int lastIndexes = indexDefault_.empty() ? (indexes_.size() - 1) : (indexDefault_.size() - 1);
+    const auto lastIndexes = (indexDefault_.empty() ? std::ssize(indexes_) : std::ssize(indexDefault_)) - 1;
 
     if (indexes_.empty()) {
         // 非 [] 式索引，逆向遍历插入
-        for (int ix = lastIndexes; ix >= 0; --ix) {
-            int it = indexDefault_[ix];
+        for (auto ix = lastIndexes; ix >= 0; --ix) {
+            const auto index = static_cast<size_t>(ix);
+            int it = indexDefault_[index];
             if (it >= 0 && it < elementsSize) {
                 indexSet.push_back(it);
             } else if (it < 0 && elementsSize >= -it) {
@@ -26,10 +29,11 @@ std::vector<int> ElementsSingle::parseAndFilter(const std::string& rule, int ele
         }
     } else {
         // [] 式索引，逆向遍历插入
-        for (int ix = lastIndexes; ix >= 0; --ix) {
-            if (std::holds_alternative<std::tuple<int, int, int>>(indexes_[ix])) {
+        for (auto ix = lastIndexes; ix >= 0; --ix) {
+            const auto index = static_cast<size_t>(ix);
+            if (std::holds_alternative<std::tuple<int, int, int>>(indexes_[index])) {
                 // 区间
-                auto [startX, endX, stepX] = std::get<std::tuple<int, int, int>>(indexes_[ix]);
+                auto [startX, endX, stepX] = std::get<std::tuple<int, int, int>>(indexes_[index]);
 
                 int start = startX;
                 if (start < 0) start += elementsSize;
@@ -65,7 +69,7 @@ std::vector<int> ElementsSingle::parseAndFilter(const std::string& rule, int ele
                 }
             } else {
                 // 单个索引
-                int it = std::get<int>(indexes_[ix]);
+                int it = std::get<int>(indexes_[index]);
                 if (it >= 0 && it < elementsSize) {
                     indexSet.push_back(it);
                 } else if (it < 0 && elementsSize >= -it) {
@@ -93,9 +97,9 @@ void ElementsSingle::findIndexSet(const std::string& rule) {
         rus.clear();
     }
 
-    if (rus.empty()) return;
+    if (rus.empty() || rus.size() > static_cast<size_t>(std::numeric_limits<int>::max())) return;
 
-    int len = rus.size();
+    int len = static_cast<int>(rus.size());
     bool head = (rus.back() == ']');
 
     if (head) {

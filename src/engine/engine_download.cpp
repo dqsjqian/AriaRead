@@ -261,8 +261,20 @@ BookSourceEngine::DownloadResult BookSourceEngine::downloadBook(
                         // 生产默认关闭，不再硬编码写 /tmp（避免无意的磁盘副作用）。
                         bool expected = false;
                         if (debugFileWritten.compare_exchange_strong(expected, true)) {
-                            const char* dumpPath = std::getenv("ARIAREAD_DEBUG_DUMP");
-                            if (dumpPath && *dumpPath) {
+                            std::string dumpPath;
+#if defined(_MSC_VER)
+                            char* envValue = nullptr;
+                            size_t envLength = 0;
+                            if (_dupenv_s(&envValue, &envLength, "ARIAREAD_DEBUG_DUMP") == 0 && envValue) {
+                                dumpPath.assign(envValue, envLength > 0 ? envLength - 1 : 0);
+                                std::free(envValue);
+                            }
+#else
+                            if (const char* envValue = std::getenv("ARIAREAD_DEBUG_DUMP")) {
+                                dumpPath = envValue;
+                            }
+#endif
+                            if (!dumpPath.empty()) {
                                 try {
                                     std::ofstream ofs(dumpPath);
                                     if (ofs.is_open()) {
