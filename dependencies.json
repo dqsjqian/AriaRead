@@ -7,11 +7,11 @@
       "resolved": {
         "request_hash": "c3cedb9c8f1e082d0e43c45619a796a44b77bd4c8a09a40d8451f57146d73f97",
         "requested": "latest",
-        "revision": "9386d89d2a259303a0a2c3b1539a5cb0e3fc0be5",
+        "revision": "f2d8a863e115f4f7cd6d210e5beedaa12ba6ca39",
         "sha256": "",
-        "tag": "v1.0.0",
+        "tag": "v1.1.0",
         "url": "https://github.com/dqsjqian/Mira.git",
-        "version": "1.0.0"
+        "version": "1.1.0"
       },
       "tag_prefix": "v"
     },
