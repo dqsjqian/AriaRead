@@ -104,7 +104,10 @@ jobs:
             mingw-w64-ucrt-x86_64-python-pip
             mingw-w64-ucrt-x86_64-nodejs
       - name: Install aria-deps
-        run: python -m pip install --break-system-packages "git+https://github.com/dqsjqian/AriaDeps.git"
+        run: |
+          python -m pip install --break-system-packages "git+https://github.com/dqsjqian/AriaDeps.git"
+          SYS_PY=$(ls -d /c/hostedtoolcache/windows/Python/*/x64/python.exe 2>/dev/null | head -1)
+          "$SYS_PY" -m pip install --break-system-packages "git+https://github.com/dqsjqian/AriaDeps.git"
       - name: Identify compiler and SDK
         id: toolchain
         run: python tools/build.py cache-key >> "$GITHUB_OUTPUT"
