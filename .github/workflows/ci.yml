@@ -108,8 +108,9 @@ jobs:
       - name: Install aria-deps (system python for CMake)
         shell: pwsh
         run: |
-          $py = Get-ChildItem C:\hostedtoolcache\windows\Python\*\x64\python.exe | Select-Object -First 1 -ExpandProperty FullName
-          & $py -m pip install --break-system-packages "git+https://github.com/dqsjqian/AriaDeps.git"
+          Get-ChildItem C:\hostedtoolcache\windows\Python\*\x64\python.exe | ForEach-Object {
+            & $_.FullName -m pip install --break-system-packages "git+https://github.com/dqsjqian/AriaDeps.git"
+          }
       - name: Identify compiler and SDK
         id: toolchain
         run: python tools/build.py cache-key >> "$GITHUB_OUTPUT"
