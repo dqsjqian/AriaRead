@@ -36,7 +36,7 @@ untouched source directory with the new selection (keeping a backup), and
 keeps a changed one with a warning that the selection was NOT applied.
 build/deps/ holds downloads (cache/), patched build snapshots (runs/) and the
 installed libraries (prefix/, or windows-msvc|windows-mingw/prefix/).
-Implementation modules, patches and tool regressions live in tools/_build/.
+The dependency pipeline lives in the aria-deps package (pip install aria-deps);\nproject-specific recipes live in tools/_recipes/; wrapper regressions in tools/_build/test_build.py.
 
 This module is the reference implementation for build entry points across the
 Aria ecosystem; other projects copy this pattern. The invariants that make it
@@ -88,9 +88,12 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools/_build"))
+sys.path.insert(0, str(ROOT / "tools"))  # _recipes
+# aria_deps is a pip package (pip install -e <aria-deps> for development).
 
-import deps_build as deps  # noqa: E402  (build dependencies: lock, sources, install)
+from aria_deps import deps_build as deps  # noqa: E402  (build dependencies: lock, sources, install)
+from aria_deps import init_project  # noqa: E402
+import _recipes  # noqa: E402  (AriaRead recipes, providers, policy)
 
 
 def positive_jobs(value: str) -> int:
@@ -193,14 +196,18 @@ def selected_toolchain(requested: str, windows: bool) -> str:
 def build_paths(args, toolchain: str, root: Path | None = None) -> tuple[Path, Path]:
     # Keep the existing macOS/Linux cache. Windows compilers must never share
     # a CMake cache or an installed prefix, even when both are on PATH.
+    # On non-Windows, the dependency prefix follows the build directory so
+    # each compiler/build-dir gets isolated snapshots, caches and libraries.
     root = ROOT if root is None else root
     default_build = root / "build"
-    default_prefix = default_build / "deps/prefix"
+    default_prefix = None
     if toolchain in ("msvc", "mingw"):
         default_build /= f"windows-{toolchain}-{args.config.lower()}"
         default_prefix = root / "build/deps" / f"windows-{toolchain}" / "prefix"
-    return ((args.build_dir or default_build).expanduser().resolve(),
-            (args.deps_prefix or default_prefix).expanduser().resolve())
+    build = (args.build_dir or default_build).expanduser().resolve()
+    if default_prefix is None:
+        default_prefix = build / "deps/prefix"
+    return (build, (args.deps_prefix or default_prefix).expanduser().resolve())
 
 
 def read_cache(build: Path) -> dict[str, str]:
@@ -572,8 +579,10 @@ def test_tools():
     return 0
 
 
-def dependency_locations(args, prefix: Path) -> tuple[Path, Path, Path]:
-    return (args.file.expanduser().resolve(), ROOT / "build/deps",
+def dependency_locations(args, build: Path, prefix: Path) -> tuple[Path, Path, Path]:
+    # The dependency work directory follows the build directory: each
+    # compiler/build-dir gets isolated dependency snapshots and caches.
+    return (args.file.expanduser().resolve(), build / "deps",
             (args.prefix or prefix).expanduser().resolve())
 
 
@@ -587,12 +596,14 @@ def dispatch(argv=None):
     build, prefix = build_paths(args, toolchain)
     cache = read_cache(build)
     source = args.source_dir.expanduser().resolve()
-    lock, work, install_prefix = dependency_locations(args, prefix)
+    lock, work, install_prefix = dependency_locations(args, build, prefix)
+    config = _recipes.make_config(patches_dir=ROOT / "tools/_recipes")
+    init_project(config)
     if args.command == "cache-key":
         print("key=" + deps.cache_key(work))
         return 0
     if args.command == "deps-update":
-        deps.update_lock(lock, work, only=args.only, versions=args.versions, offline=args.offline)
+        deps.update_lock(lock, work, config=config, only=args.only, versions=args.versions, offline=args.offline)
         for name, version in sorted(args.versions.items()):
             print(f"{name}: {version} (the next build updates the source workspace)")
         print("Run the normal build and tests after reviewing the dependencies.json diff.")
@@ -603,7 +614,7 @@ def dispatch(argv=None):
         if args.c_compiler or args.cxx_compiler:
             env = dict(os.environ, PYTHONIOENCODING="utf-8")
             with dependency_environment(env):
-                deps.verify(lock, work, install_prefix, source, profile=args.profile,
+                deps.verify(lock, work, install_prefix, source, config=config, profile=args.profile,
                             tls_backend=args.tls_backend, only=",".join(args.only),
                             c=args.c_compiler, cxx=args.cxx_compiler,
                             c_arg1=args.c_compiler_arg1, cxx_arg1=args.cxx_compiler_arg1,
@@ -611,7 +622,7 @@ def dispatch(argv=None):
             return 0
         env, _, _ = prepare_environment(args, toolchain, cache)
         with dependency_environment(env):
-            deps.verify(lock, work, install_prefix, source, profile=args.profile,
+            deps.verify(lock, work, install_prefix, source, config=config, profile=args.profile,
                         tls_backend=args.tls_backend, only=",".join(args.only))
         return 0
     if windows and args.config != "Release":
@@ -651,7 +662,7 @@ def dispatch(argv=None):
                 compiler_args.append(f"-D{key}={value}")
         compiler_preflight(env, compiler_args)
         with dependency_environment(env):
-            deps.install(lock, work, install_prefix, source, profile=args.profile,
+            deps.install(lock, work, install_prefix, source, config=config, profile=args.profile,
                          tls_backend=args.tls_backend, only=",".join(args.only),
                          offline=args.offline, versions=args.versions, jobs=args.jobs)
         if args.command == "deps":
