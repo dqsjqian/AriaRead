@@ -244,15 +244,17 @@ def executable(name: str, env: dict[str, str]) -> str | None:
 def version_directories(parent: Path, required: tuple[str, ...]) -> list[Path]:
     if not parent.is_dir():
         return []
-    candidates = [path for path in parent.iterdir() if path.is_dir()
-                  and re.fullmatch(r"\d+(?:\.\d+)+", path.name)
-                  and all((path / item).exists() for item in required)]
+    # Construct children from basenames: some Windows Python distributions
+    # expose DirEntry.path with a different separator convention from Path.
+    candidates = [parent / name for name in os.listdir(parent)
+                  if re.fullmatch(r"\d+(?:\.\d+)+", name) and (parent / name).is_dir()
+                  and all((parent / name / item).exists() for item in required)]
     return sorted(candidates, key=lambda path: tuple(map(int, path.name.split("."))), reverse=True)
 
 
 def stable_msvc_directory(root: Path) -> Path | None:
     """Honor VS's selected stable toolset, never the largest preview directory."""
-    versions = version_directories(root / "VC/Tools/MSVC", ("bin/Hostx64/x64/cl.exe", "include", "lib/x64"))
+    required = ("bin/Hostx64/x64/cl.exe", "include", "lib/x64")
     default_file = root / "VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt"
     if default_file.is_file():
         version = default_file.read_text(encoding="utf-8-sig").strip()
@@ -261,12 +263,13 @@ def stable_msvc_directory(root: Path) -> Path | None:
                              "toolset from Visual Studio 2026 18.10.3. Update the stable C++ workload; "
                              "preview toolsets are not selected automatically.")
         selected = root / "VC/Tools/MSVC" / version
-        if selected not in versions:
+        if not selected.is_dir() or not all((selected / item).exists() for item in required):
             raise ValueError(f"{default_file} references an incomplete or missing MSVC toolset: {selected}. "
                              "Repair the Visual Studio C++ workload or select another ARIAREAD_VS_ROOT.")
         return selected
     # Older/install-script layouts may omit the selection file. The current
     # stable series is explicit so a side-by-side 14.52 preview cannot win.
+    versions = version_directories(root / "VC/Tools/MSVC", required)
     return next((path for path in versions if re.fullmatch(r"14\.51\.\d+(?:\.\d+)*", path.name)), None)
 
 
