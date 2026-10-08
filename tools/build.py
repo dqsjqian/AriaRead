@@ -580,9 +580,15 @@ def test_tools():
 
 
 def dependency_locations(args, build: Path, prefix: Path) -> tuple[Path, Path, Path]:
-    # The dependency work directory follows the build directory: each
-    # compiler/build-dir gets isolated dependency snapshots and caches.
-    return (args.file.expanduser().resolve(), build / "deps",
+    # The dependency work directory follows the build directory on
+    # macOS/Linux so each compiler/build-dir gets isolated snapshots and
+    # caches. Windows keeps the historical shared work directory
+    # (ROOT/build/deps) with per-toolchain prefixes underneath it.
+    if sys.platform == "win32" and not args.build_dir:
+        work = ROOT / "build/deps"
+    else:
+        work = build / "deps"
+    return (args.file.expanduser().resolve(), work,
             (args.prefix or prefix).expanduser().resolve())
 
 
