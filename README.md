@@ -2,7 +2,7 @@
 
 [依赖更新完整指南](docs/dependencies.md) — 版本固定、选择性更新、离线、回退与提交步骤。
 
-当前版本 **0.2.2** · Aria **3.1.1**
+当前版本 **0.3.1** · Aria **3.1.1**
 
 📖 跨平台阅读引擎，专注于开源中文书源生态。
 
@@ -26,19 +26,21 @@
 - **按平台精简依赖**：锁定源码与校验缓存；Windows 使用系统 Schannel，不构建 OpenSSL；macOS 使用系统钥匙串验证证书
 - **扩展 ViewModel 层**：SearchViewModel、BookshelfViewModel、ReaderViewModel、SourceViewModel
 - **Engine Adapters**：engine_reader_adapter、engine_source_adapter，将 engine.h 的私有依赖隔离在 .cpp 内
-- **C++ Web Server**：Mira（自研 C++23 协程网络库）+ Aria ViewModel，39 条 REST 路由，SSE 推送，零 Python 依赖
+- **C++ Web Server**：Mira（自研 C++23 协程网络库）+ Aria ViewModel，REST 路由，SSE 推送，零 Python 依赖
 
 ## 构建
 
 当前稳定工具链基线（2026-10-02）：GCC **16.2.0**、LLVM Clang **23.1.2**、Xcode **27.0** / AppleClang **21.0**、Visual Studio 2026 stable / MSVC Build Tools **14.51.36247**。统一 C++23；配置时拒绝旧编译器，CI 不保留旧版兼容任务。
 
-需要 CMake 3.21+、支持 C++23 的编译器、Git 和 Python 3.10+。统一入口负责取依赖、配置、并行编译和打包：
+需要 CMake 3.21+、支持 C++23 的编译器、Git 和 Python 3.10+。先用构建所用的 Python 安装 `requirements-build.txt` 中固定的 AriaDeps；建议在虚拟环境中安装。统一入口负责取依赖、配置、并行编译和打包：
 
 ```bash
 # macOS / Linux
+python3 -m pip install -r requirements-build.txt
 python3 tools/build.py
 
 # Windows：普通 PowerShell 即可，自动查找 Visual Studio C++ x64 工具链
+python -m pip install -r requirements-build.txt
 python tools/build.py
 
 # Windows：明确选择已经安装的 MSYS2 UCRT64 / MinGW 工具链
@@ -82,7 +84,9 @@ AriaRead/
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Mira HTTP/1.1 + REST API）
 ├── tools/build.py          # 跨平台统一构建入口
-├── tools/_build/           # 内部实现、补丁、构建工具测试
+├── tools/_build/           # 构建入口回归
+├── tools/_recipes/         # 项目依赖配方与补丁
+├── requirements-build.txt  # 固定的 AriaDeps 构建依赖
 ├── deps/                   # 可编辑源码：aria/、Mira/、curl/、zlib/……
 ├── build/                  # 应用产物、依赖安装前缀、归档和编译缓存
 ├── bindings/web/ariaread/web/  # 前端静态资源

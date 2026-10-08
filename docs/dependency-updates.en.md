@@ -1,8 +1,8 @@
 # Updating dependencies
 
-Run these commands from the **AriaRead repository root** with Python 3.10+, CMake and the toolchain listed in the [README](../README.en.md). Substitute `python3` when needed. No pip packages are required. Initial discovery and deliberate updates need network access; GitHub requests can use an authenticated `gh` CLI.
+Run these commands from the **AriaRead repository root** with Python 3.10+, CMake and the toolchain listed in the [README](../README.en.md). Substitute `python3` when needed. First install the pinned AriaDeps package with that same interpreter: `python -m pip install -r requirements-build.txt`, preferably in a virtual environment. Initial discovery and deliberate updates need network access; GitHub requests can use an authenticated `gh` CLI.
 
-Every command goes through the single entry point `python tools/build.py`. Internal modules (`tools/_build/deps_build.py`, `deps_sources.py`) are plain libraries; there is no per-dependency script to run.
+Every command goes through the single entry point `python tools/build.py`. The shared pipeline comes from the AriaDeps package; project recipes and patches live in `tools/_recipes/`. There is no per-dependency script to run.
 
 ## One dependency file
 

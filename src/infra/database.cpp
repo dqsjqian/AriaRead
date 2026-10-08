@@ -1,5 +1,6 @@
 #include "ariaread/database.h"
 #include "ariaread/engine_impl.h"
+#include <exception>
 #include <unordered_set>
 
 namespace ariaread {
@@ -46,16 +47,17 @@ SourceDatabase& SourceDatabase::operator=(SourceDatabase&&) noexcept = default;
 // ──────────────────────────────────────────────
 void SourceDatabase::initRssSchema() {
     auto& db = *pImpl->db;
+    db << "SAVEPOINT ariaread_rss_schema;";
     try {
         // 检测旧表列数（旧版宽表 38 列，新版精简 14 列）
         int colCount = 0;
         bool hasValidity = false;
-        try {
-            db << "PRAGMA table_info(rss_sources);" >> [&](int, std::string name, std::string, int, std::optional<std::string>, int) {
-                ++colCount;
-                if (name == "validity") hasValidity = true;
-            };
-        } catch (...) {}
+        bool hasLatency = false;
+        db << "PRAGMA table_info(rss_sources);" >> [&](int, std::string name, std::string, int, std::optional<std::string>, int) {
+            ++colCount;
+            if (name == "validity") hasValidity = true;
+            if (name == "latency_ms") hasLatency = true;
+        };
 
         // 旧版宽表（>14 列）需要先迁移数据，不能粗暴 DROP
         if (colCount > 14) {
@@ -77,19 +79,18 @@ void SourceDatabase::initRssSchema() {
                   "  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),"
                   "  updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))"
                   ");";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_group ON rss_sources(source_group);";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_enabled ON rss_sources(enabled);";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_validity ON rss_sources(validity);";
 
             // 迁移核心字段
             db << "INSERT INTO rss_sources "
                   "(source_url, source_name, source_icon, source_group, enabled, "
                   "sort_url, article_style, custom_order, last_update_time, source_json, "
-                  "created_at, updated_at) "
+                  "created_at, updated_at, validity, latency_ms) "
                   "SELECT source_url, source_name, source_icon, source_group, enabled, "
                   "sort_url, article_style, custom_order, last_update_time, source_json, "
-                  "created_at, updated_at "
-                  "FROM rss_sources_old;";
+                  "created_at, updated_at, " +
+                  std::string(hasValidity ? "validity" : "'unknown'") + ", " +
+                  std::string(hasLatency ? "latency_ms" : "-1") +
+                  " FROM rss_sources_old;";
             db << "DROP TABLE rss_sources_old;";
         } else if (colCount == 0) {
             // 表不存在，直接创建
@@ -109,24 +110,35 @@ void SourceDatabase::initRssSchema() {
                   "  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),"
                   "  updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))"
                   ");";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_group ON rss_sources(source_group);";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_enabled ON rss_sources(enabled);";
-            db << "CREATE INDEX IF NOT EXISTS idx_rss_validity ON rss_sources(validity);";
             hasValidity = true;
+            hasLatency = true;
         }
 
-        // 迁移：如果旧表缺少 validity 列，ALTER TABLE 添加
-        if (!hasValidity && colCount > 0 && colCount <= 14) {
-            try {
+        // Add missing fields independently so a partially upgraded legacy
+        // schema remains recoverable. Wide-table replacement already has them.
+        if (colCount > 0 && colCount <= 14) {
+            if (!hasValidity) {
                 db << "ALTER TABLE rss_sources ADD COLUMN validity TEXT NOT NULL DEFAULT 'unknown';";
+            }
+            if (!hasLatency) {
                 db << "ALTER TABLE rss_sources ADD COLUMN latency_ms INTEGER NOT NULL DEFAULT -1;";
-                db << "CREATE INDEX IF NOT EXISTS idx_rss_validity ON rss_sources(validity);";
-                // 从 source_json 同步 __validity / __latencyMs 到新列
-                db << "UPDATE rss_sources SET "
-                      "validity = COALESCE(json_extract(source_json, '$.__validity'), 'unknown'),"
-                      "latency_ms = COALESCE(CAST(json_extract(source_json, '$.__latencyMs') AS INTEGER), -1);";
-            } catch (...) {}
+            }
         }
+        if (!hasValidity) {
+            db << "UPDATE rss_sources SET validity = CASE WHEN json_valid(source_json) "
+                  "THEN COALESCE(json_extract(source_json, '$.__validity'), 'unknown') "
+                  "ELSE 'unknown' END;";
+        }
+        if (!hasLatency) {
+            db << "UPDATE rss_sources SET latency_ms = CASE WHEN json_valid(source_json) "
+                  "THEN COALESCE(CAST(json_extract(source_json, '$.__latencyMs') AS INTEGER), -1) "
+                  "ELSE -1 END;";
+        }
+        // Create indexes after dropping the renamed table: otherwise its old
+        // index names make IF NOT EXISTS silently skip the replacement indexes.
+        db << "CREATE INDEX IF NOT EXISTS idx_rss_group ON rss_sources(source_group);";
+        db << "CREATE INDEX IF NOT EXISTS idx_rss_enabled ON rss_sources(enabled);";
+        db << "CREATE INDEX IF NOT EXISTS idx_rss_validity ON rss_sources(validity);";
 
         db << "CREATE TABLE IF NOT EXISTS rss_articles ("
               "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -142,21 +154,27 @@ void SourceDatabase::initRssSchema() {
               "  UNIQUE(source_url, link)"
               ");";
         // 迁移：旧库 rss_articles 缺少 article_order 列时补充
-        try {
-            bool hasOrder = false;
-            db << "PRAGMA table_info(rss_articles);"
+        bool hasOrder = false;
+        db << "PRAGMA table_info(rss_articles);"
                >> [&](int, std::string name, std::string, int, std::optional<std::string>, int) {
                     if (name == "article_order") hasOrder = true;
                };
-            if (!hasOrder) {
-                db << "ALTER TABLE rss_articles ADD COLUMN article_order INTEGER NOT NULL DEFAULT 0;";
-            }
-        } catch (...) {}
+        if (!hasOrder) {
+            db << "ALTER TABLE rss_articles ADD COLUMN article_order INTEGER NOT NULL DEFAULT 0;";
+        }
         db << "CREATE INDEX IF NOT EXISTS idx_rss_article_source ON rss_articles(source_url);";
         db << "CREATE INDEX IF NOT EXISTS idx_rss_article_date ON rss_articles(pub_date DESC);";
         db << "CREATE INDEX IF NOT EXISTS idx_rss_article_order ON rss_articles(article_order DESC);";
-    } catch (const sqlite::sqlite_exception& e) {
-        throw std::runtime_error("Failed to init RSS schema: " + std::string(e.what()));
+        db << "RELEASE SAVEPOINT ariaread_rss_schema;";
+    } catch (...) {
+        auto failure = std::current_exception();
+        try {
+            db << "ROLLBACK TO SAVEPOINT ariaread_rss_schema;";
+            db << "RELEASE SAVEPOINT ariaread_rss_schema;";
+        } catch (...) {
+            // Closing the failed constructor's connection also rolls back.
+        }
+        std::rethrow_exception(failure);
     }
 }
 
@@ -305,11 +323,6 @@ int SourceDatabase::insertSources(const std::vector<BookSource>& sources) {
     try {
         db << "begin;";
 
-        auto stmt = db << "INSERT OR IGNORE INTO book_sources "
-                          "(url, name, group_name, icon, comment, enabled, enabled_explore, "
-                          "weight, search_url, explore_url, timeout, source_json) "
-                          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-
         for (const auto& s : sources) {
             if (s.url.empty()) continue;
 
@@ -325,7 +338,9 @@ int SourceDatabase::insertSources(const std::vector<BookSource>& sources) {
                    << s.enabled << s.enabledExplore << s.weight
                    << s.searchUrl << s.exploreUrl << s.timeout
                    << jsonStr;
-                ++inserted;
+                int changed = 0;
+                db << "SELECT changes();" >> changed;
+                inserted += changed;
             } catch (const sqlite::sqlite_exception&) {
                 // INSERT OR IGNORE 不会抛约束异常，但以防万一
             } catch (...) {

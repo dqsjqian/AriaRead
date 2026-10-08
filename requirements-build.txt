@@ -1,0 +1,2 @@
+# Install with the same interpreter used for tools/build.py.
+aria-deps @ git+https://github.com/dqsjqian/AriaDeps.git@v0.1.1

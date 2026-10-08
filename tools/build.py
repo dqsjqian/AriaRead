@@ -3,7 +3,8 @@
 
 Windows defaults to MSVC x64 (stable 14.51 toolset; a live developer prompt
 that selects a preview toolset is rejected). MinGW is an explicit, isolated
-alternative. Python 3.10+ only; no Python packages are needed.
+alternative. Python 3.10+ and the pinned package in requirements-build.txt
+are required; install it with this same Python interpreter before building.
 
 Run from any shell:
 
@@ -36,7 +37,8 @@ untouched source directory with the new selection (keeping a backup), and
 keeps a changed one with a warning that the selection was NOT applied.
 build/deps/ holds downloads (cache/), patched build snapshots (runs/) and the
 installed libraries (prefix/, or windows-msvc|windows-mingw/prefix/).
-The dependency pipeline lives in the aria-deps package (pip install aria-deps);\nproject-specific recipes live in tools/_recipes/; wrapper regressions in tools/_build/test_build.py.
+The dependency pipeline lives in the aria-deps package; project-specific
+recipes live in tools/_recipes/ and wrapper regressions in tools/_build/.
 
 This module is the reference implementation for build entry points across the
 Aria ecosystem; other projects copy this pattern. The invariants that make it
@@ -91,8 +93,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))  # _recipes
 # aria_deps is a pip package (pip install -e <aria-deps> for development).
 
-from aria_deps import deps_build as deps  # noqa: E402  (build dependencies: lock, sources, install)
-from aria_deps import init_project  # noqa: E402
+try:
+    from aria_deps import deps_build as deps  # noqa: E402
+    from aria_deps import init_project  # noqa: E402
+except ModuleNotFoundError as error:
+    if error.name != "aria_deps":
+        raise
+    raise SystemExit(
+        "The AriaDeps build package is missing. Install it with this Python: "
+        f'"{sys.executable}" -m pip install -r "{ROOT / "requirements-build.txt"}"'
+    ) from None
 import _recipes  # noqa: E402  (AriaRead recipes, providers, policy)
 
 
@@ -624,12 +634,14 @@ def dispatch(argv=None):
                             tls_backend=args.tls_backend, only=",".join(args.only),
                             c=args.c_compiler, cxx=args.cxx_compiler,
                             c_arg1=args.c_compiler_arg1, cxx_arg1=args.cxx_compiler_arg1,
+                            build_config="Release", cmake_options=(),
                             toolchain=args.toolchain_file or None, cmake_platform=args.cmake_platform)
             return 0
         env, _, _ = prepare_environment(args, toolchain, cache)
         with dependency_environment(env):
             deps.verify(lock, work, install_prefix, source, config=config, profile=args.profile,
-                        tls_backend=args.tls_backend, only=",".join(args.only))
+                        tls_backend=args.tls_backend, only=",".join(args.only),
+                        build_config="Release", cmake_options=())
         return 0
     if windows and args.config != "Release":
         raise ValueError("Windows dependency libraries use the Release CRT; --config Release is required")
@@ -675,6 +687,7 @@ def dispatch(argv=None):
             print(f"Dependencies ready: {install_prefix}\nSources: {source}")
             return 0
         cmake_args = ["cmake", "-S", ROOT, "-B", build, *compiler_args,
+                      f"-DPython3_EXECUTABLE={sys.executable}",
                       f"-DARIAREAD_DEPS_SOURCE_DIR={source}",
                       f"-DARIAREAD_DEPENDENCIES_FILE={lock}",
                       f"-DARIAREAD_DEPS_PREFIX={install_prefix}", f"-DARIAREAD_TLS_BACKEND={args.tls_backend}",

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(AriaRead VERSION 0.3.0 LANGUAGES CXX C)
+project(AriaRead VERSION 0.3.1 LANGUAGES CXX C)
 include(cmake/CompilerRequirements.cmake)
 
 # The installed dependency SDK uses Release. Pick it for ordinary single-config

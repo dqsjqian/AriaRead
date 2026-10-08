@@ -2,7 +2,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.2.2** · Aria **3.1.1**
+Current version **0.3.1** · Aria **3.1.1**
 
 📖 A cross-platform reading engine, focused on the open Chinese book-source ecosystem.
 
@@ -26,15 +26,16 @@ One C++ core drives two web shapes side by side:
 - **Platform-aware dependencies** — locked sources and verified component caches; Windows uses Schannel without building OpenSSL, macOS verifies certificates with Apple SecTrust
 - **Extended ViewModel layer** — SearchViewModel, BookshelfViewModel, ReaderViewModel, SourceViewModel
 - **Engine adapters** — engine_reader_adapter / engine_source_adapter keep engine.h's private dependencies isolated inside .cpp files
-- **C++ web server** — Mira (in-house C++23 coroutine networking library) + Aria ViewModels: 39 REST routes, SSE push, zero Python
+- **C++ web server** — Mira (in-house C++23 coroutine networking library) + Aria ViewModels: REST routes, SSE push, zero Python
 
 ## Build
 
 Stable toolchain baseline (2026-10-02): GCC **16.2.0**, LLVM Clang **23.1.2**, Xcode **27.0** / AppleClang **21.0**, Visual Studio 2026 stable / MSVC Build Tools **14.51.36247**. C++23 throughout; configuration rejects older compilers and CI no longer retains legacy compatibility jobs.
 
-Requires CMake 3.21+, a C++23 compiler, Git and Python 3.10+. One entry point fetches dependencies, configures, builds and stages the runtime:
+Requires CMake 3.21+, a C++23 compiler, Git and Python 3.10+. Install the pinned AriaDeps dependency with the same interpreter used for the build, preferably in a virtual environment. One entry point fetches dependencies, configures, builds and stages the runtime:
 
 ```bash
+python3 -m pip install -r requirements-build.txt  # use python on Windows
 python3 tools/build.py                       # macOS / Linux
 python tools/build.py                        # Windows: auto-discovered MSVC x64
 python tools/build.py --toolchain mingw      # Windows: explicit MSYS2 UCRT64 / MinGW
@@ -93,7 +94,9 @@ AriaRead/
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Mira HTTP/1.1 + REST API)
 ├── tools/build.py          # unified cross-platform build
-├── tools/_build/           # internal modules, patches and build-tool tests
+├── tools/_build/           # build-entry regressions
+├── tools/_recipes/         # project dependency recipes and patches
+├── requirements-build.txt  # pinned AriaDeps build dependency
 ├── deps/                   # editable sources: aria/, Mira/, curl/, zlib/, ...
 ├── build/                  # application output, installed libraries and caches
 ├── bindings/web/ariaread/web/  # frontend static assets

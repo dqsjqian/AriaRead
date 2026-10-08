@@ -59,7 +59,7 @@ macOS CI 使用提供正式 Xcode 27.0 的 [`xcode-27` 镜像](https://github.co
 
 ## 供其他项目参考的构建约定
 
-唯一用户入口是 `python tools/build.py`，不要求用户在多个 shell 脚本之间选择。省略命令等价于 `build`，已有 `--test`、`--clean` 等选项继续有效。内部实现是 `tools/_build/` 下的两个纯库模块——`deps_build.py`（锁解析、配方、编译安装、组件缓存与验证）和 `deps_sources.py`（`deps/<name>/` 工作区的身份、备份与快照）——无 argparse、无 `__main__`，只能经入口调用；统一入口不等于把所有实现粘成一个大文件。
+唯一用户入口是 `python tools/build.py`，不要求用户在多个 shell 脚本之间选择。省略命令等价于 `build`，已有 `--test`、`--clean` 等选项继续有效。通用流水线来自 `requirements-build.txt` 固定的 AriaDeps 包，负责锁解析、源码工作区、组件缓存、事务安装与校验；`tools/_recipes/` 保存 Read 专用配方和补丁，`tools/_build/` 保留构建入口回归。构建入口显式将当前 Python 路径传给 CMake，保证配置期校验使用已安装同一包的解释器。
 
 | 命令 | 职责 |
 |---|---|

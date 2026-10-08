@@ -131,6 +131,11 @@ class BuildTests(unittest.TestCase):
         return next((command, env) for command, env, _ in self.commands
                     if command[:3] == ["cmake", "-S", str(self.root)])
 
+    def test_cmake_uses_the_interpreter_that_loaded_build_dependencies(self):
+        self.invoke()
+        command, _ = self.configure_call()
+        self.assertIn(f"-DPython3_EXECUTABLE={sys.executable}", command)
+
     def test_windows_defaults_to_msvc_with_separate_mingw_build_and_prefix(self):
         args = build.parse_args([])
         self.assertEqual(build.selected_toolchain("auto", True), "msvc")

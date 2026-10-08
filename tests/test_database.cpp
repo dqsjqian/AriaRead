@@ -63,9 +63,15 @@ TEST_CASE("SourceDatabase - 书源插入和查询") {
     }
 
     SUBCASE("重复插入不增加记录数") {
-        db.insertSources(sources);
-        db.insertSources(sources);  // INSERT OR IGNORE，不会新增记录
+        CHECK(db.insertSources(sources) == 2);
+        CHECK(db.insertSources(sources) == 0);  // INSERT OR IGNORE，不会新增记录
         CHECK(db.getSourceCount() == 2);  // 仍然只有 2 条
+    }
+
+    SUBCASE("混合重复和新书源返回实际插入数") {
+        CHECK(db.insertSources({sources.front()}) == 1);
+        CHECK(db.insertSources(sources) == 1);
+        CHECK(db.getSourceCount() == 2);
     }
 
     SUBCASE("sourceExists") {
@@ -82,6 +88,125 @@ TEST_CASE("SourceDatabase - 书源插入和查询") {
     }
 
     removeTempDb(dbPath);
+}
+
+TEST_CASE("SourceDatabase - RSS wide migration preserves data and indexes") {
+    const auto path = makeTempDbPath("_rss_wide");
+    { SourceDatabase initial(path); }
+    {
+        sqlite::database raw(path);
+        raw << "ALTER TABLE rss_sources ADD COLUMN legacy_extra TEXT;";
+        raw << "INSERT INTO rss_sources(source_url, source_name, source_group, validity, latency_ms, source_json) "
+               "VALUES ('https://example.invalid/feed', 'Retained', 'group', 'good', 37, '{}');";
+        raw << "INSERT INTO rss_articles(source_url, title, link) "
+               "VALUES ('https://example.invalid/feed', 'Retained article', 'https://example.invalid/article');";
+    }
+    // Reopening twice also verifies that migration is idempotent.
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        { SourceDatabase migrated(path); }
+        sqlite::database raw(path);
+        int columns = 0;
+        raw << "SELECT count(*) FROM pragma_table_info('rss_sources');" >> columns;
+        CHECK(columns == 14);
+        int records = 0;
+        raw << "SELECT count(*) FROM rss_sources WHERE source_name='Retained' AND validity='good' AND latency_ms=37;" >> records;
+        CHECK(records == 1);
+        int indexes = 0;
+        raw << "SELECT count(*) FROM sqlite_master WHERE type='index' AND tbl_name='rss_sources' "
+               "AND name IN ('idx_rss_group', 'idx_rss_enabled', 'idx_rss_validity');" >> indexes;
+        CHECK(indexes == 3);
+        raw << "SELECT count(*) FROM rss_articles WHERE title='Retained article';" >> records;
+        CHECK(records == 1);
+    }
+    removeTempDb(path);
+}
+
+TEST_CASE("SourceDatabase - failed RSS migration restores original schema and rows") {
+    const auto path = makeTempDbPath("_rss_rollback");
+    { SourceDatabase initial(path); }
+    {
+        sqlite::database raw(path);
+        raw << "ALTER TABLE rss_sources ADD COLUMN legacy_extra TEXT;";
+        raw << "INSERT INTO rss_sources(source_url, legacy_extra) VALUES ('https://example.invalid/feed', 'keep');";
+        // Force a late failure, after the wide source table was replaced.
+        raw << "DROP TABLE rss_articles;";
+        raw << "CREATE TABLE rss_articles(id INTEGER);";
+    }
+    CHECK_THROWS(static_cast<void>(SourceDatabase{path}));
+    {
+        sqlite::database raw(path);
+        int records = 0;
+        raw << "SELECT count(*) FROM rss_sources WHERE legacy_extra='keep';" >> records;
+        CHECK(records == 1);
+        raw << "SELECT count(*) FROM sqlite_master WHERE name='rss_sources_old';" >> records;
+        CHECK(records == 0);
+        raw << "SELECT count(*) FROM sqlite_master WHERE name='idx_rss_group' AND tbl_name='rss_sources';" >> records;
+        CHECK(records == 1);
+        // Repair the deliberately broken fixture; the next open can migrate.
+        raw << "DROP TABLE rss_articles;";
+    }
+    CHECK_NOTHROW(static_cast<void>(SourceDatabase{path}));
+    removeTempDb(path);
+}
+
+TEST_CASE("SourceDatabase - partial RSS schema repairs missing latency independently") {
+    const auto path = makeTempDbPath("_rss_partial");
+    { SourceDatabase initial(path); }
+    {
+        sqlite::database raw(path);
+        raw << "ALTER TABLE rss_sources DROP COLUMN latency_ms;";
+        raw << "INSERT INTO rss_sources(source_url, validity, source_json) "
+               "VALUES ('https://example.invalid/valid', 'good', '{\"__latencyMs\":23}'), "
+               "('https://example.invalid/malformed', 'poor', 'not JSON');";
+    }
+    { SourceDatabase migrated(path); }
+    {
+        sqlite::database raw(path);
+        int records = 0;
+        raw << "SELECT count(*) FROM rss_sources WHERE validity='good' AND latency_ms=23;" >> records;
+        CHECK(records == 1);
+        raw << "SELECT count(*) FROM rss_sources WHERE validity='poor' AND latency_ms=-1;" >> records;
+        CHECK(records == 1);
+    }
+    removeTempDb(path);
+}
+
+TEST_CASE("SourceDatabase - legacy RSS JSON restores missing status fields") {
+    bool wide = false;
+    SUBCASE("narrow table without either status field") {}
+    SUBCASE("wide table without either status field") { wide = true; }
+    const auto path = makeTempDbPath("_rss_json_upgrade");
+    { SourceDatabase initial(path); }
+    {
+        sqlite::database raw(path);
+        raw << "DROP INDEX idx_rss_validity;";
+        raw << "ALTER TABLE rss_sources DROP COLUMN validity;";
+        raw << "ALTER TABLE rss_sources DROP COLUMN latency_ms;";
+        if (wide) {
+            raw << "ALTER TABLE rss_sources ADD COLUMN legacy_a TEXT;";
+            raw << "ALTER TABLE rss_sources ADD COLUMN legacy_b TEXT;";
+            raw << "ALTER TABLE rss_sources ADD COLUMN legacy_c TEXT;";
+        }
+        raw << "DROP INDEX idx_rss_article_order;";
+        raw << "ALTER TABLE rss_articles DROP COLUMN article_order;";
+        raw << "INSERT INTO rss_sources(source_url, source_json) VALUES "
+               "('https://example.invalid/valid', '{\"__validity\":\"good\",\"__latencyMs\":42}'), "
+               "('https://example.invalid/malformed', 'not JSON');";
+    }
+    { SourceDatabase migrated(path); }
+    {
+        sqlite::database raw(path);
+        int records = 0;
+        raw << "SELECT count(*) FROM rss_sources WHERE validity='good' AND latency_ms=42;" >> records;
+        CHECK(records == 1);
+        raw << "SELECT count(*) FROM rss_sources WHERE validity='unknown' AND latency_ms=-1;" >> records;
+        CHECK(records == 1);
+        raw << "SELECT count(*) FROM pragma_table_info('rss_articles') WHERE name='article_order';" >> records;
+        CHECK(records == 1);
+        raw << "SELECT count(*) FROM sqlite_master WHERE tbl_name='rss_sources' AND name='idx_rss_validity';" >> records;
+        CHECK(records == 1);
+    }
+    removeTempDb(path);
 }
 
 // ──────────────────────────────────────────────

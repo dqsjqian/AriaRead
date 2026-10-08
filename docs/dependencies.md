@@ -1,8 +1,8 @@
 # 依赖更新使用指南
 
-从 **AriaRead 仓库根目录**执行。需要 Python 3.10+、CMake 和 [README](../README.md) 所列工具链；macOS/Linux 可把 `python` 换成 `python3`。只用 Python 标准库，无需 pip。首次解析和主动更新需要联网，GitHub API 可使用已登录的 `gh`。
+从 **AriaRead 仓库根目录**执行。需要 Python 3.10+、CMake 和 [README](../README.md) 所列工具链；macOS/Linux 可把 `python` 换成 `python3`。先用同一解释器执行 `python -m pip install -r requirements-build.txt` 安装固定的 AriaDeps，建议使用虚拟环境。首次解析和主动更新需要联网，GitHub API 可使用已登录的 `gh`。
 
-所有命令走统一入口 `python tools/build.py`。内部实现（`tools/_build/deps_build.py`、`deps_sources.py`）是纯库模块，没有单独可执行的依赖脚本。
+所有命令走统一入口 `python tools/build.py`。通用依赖流水线来自 AriaDeps 包，项目配方和补丁在 `tools/_recipes/`；没有单独可执行的依赖脚本。
 
 ## 只维护一个依赖文件
 
