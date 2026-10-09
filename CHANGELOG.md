@@ -2,6 +2,7 @@
 
 ## 0.3.1
 
+- Select the published Aria 3.2.0 and Mira 1.1.1 dependencies.
 - Pin the shared AriaDeps build package and use the same Python interpreter for
   dependency preparation and CMake verification on all platforms.
 - Restore valid workflow cache expressions and verify platform recipe and
