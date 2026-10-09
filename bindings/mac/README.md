@@ -3,7 +3,7 @@
 目前没有独立的原生应用壳，可运行的应用入口是 Web 服务。准备 **Xcode 27.0** 或对应 Command Line Tools（**Apple Clang 21+**）、Git、Python 3.10+ 和 CMake 3.21+，从仓库根目录运行：
 
 ```bash
-python3 tools/build.py
+python3 scripts/build.py
 ```
 
 默认只构建运行 Web 服务需要的依赖与目标，测试框架通过 `--test` 按需启用。macOS 的 HTTPS 使用 libcurl + OpenSSL；首次构建仍需获取并编译锁定的第三方依赖，后续构建会验证并复用缓存。应用保持使用 `build`，依赖安装目录保持使用 `build/deps/prefix`。
@@ -12,24 +12,24 @@ python3 tools/build.py
 
 ```bash
 # 构建全部测试目标并执行 CTest
-python3 tools/build.py --test
+python3 scripts/build.py --test
 
 # 同时要求 Web 测试依赖（包括 Node.js）齐全
-python3 tools/build.py --test --require-web-tests
+python3 scripts/build.py --test --require-web-tests
 
 # 已具备所需源码、归档或安装缓存时离线构建
-python3 tools/build.py --offline
+python3 scripts/build.py --offline
 
 # 清理并重建应用；依赖安装、下载和源码缓存保留
-python3 tools/build.py --clean
+python3 scripts/build.py --clean
 
 # 仅更新已有运行目录的资源与许可证
-python3 tools/build.py --skip-cmake
+python3 scripts/build.py --skip-cmake
 ```
 
 可用 `--jobs` 控制并行度、`--build-dir` 和 `--deps-prefix` 覆盖路径。若通过 `CC/CXX` 选用其他桌面编译器，最低要求为 **LLVM Clang 23.1.2** 或 **GCC 16.2**。切换编译器或 CMake 生成器时使用新的构建目录；脚本会拒绝混用已有 CMake 缓存。同一编译器的参数也会同步给依赖构建：未设置 `CC/CXX` 时恢复缓存参数，显式设置裸编译器路径时清除旧参数。
 
-默认运行 `build/bin/ariaread_web_server`；多配置生成器的具体路径以构建输出为准。分发时保留整个运行目录，包括动态库、`web/` 和 `licenses/`。完整选项见 `python3 tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
+默认运行 `build/bin/ariaread_web_server`；多配置生成器的具体路径以构建输出为准。分发时保留整个运行目录，包括动态库、`web/` 和 `licenses/`。完整选项见 `python3 scripts/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
 
 ## 原生界面接入
 

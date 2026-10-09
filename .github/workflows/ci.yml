@@ -30,7 +30,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: Verify build, source and cache contracts
-        run: python tools/build.py test-tools
+        run: python scripts/build.py test-tools
 
   vs2026:
     name: Build and regressions (VS2026 MSVC)
@@ -54,20 +54,20 @@ jobs:
           node-version: '22'
       - name: Identify compiler and SDK
         id: toolchain
-        run: python tools/build.py cache-key >> $env:GITHUB_OUTPUT
+        run: python scripts/build.py cache-key >> $env:GITHUB_OUTPUT
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
             deps
             build/deps/windows-msvc/prefix
-          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-msvc-${{ steps.toolchain.outputs.key }}-
       # The default Schannel backend needs neither OpenSSL nor Perl/MSYS2.
       - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python tools/build.py --toolchain msvc --generator "Visual Studio 18 2026" --build-dir build/ci-vs2026 --test --require-web-tests --jobs 3
+        run: python scripts/build.py --toolchain msvc --generator "Visual Studio 18 2026" --build-dir build/ci-vs2026 --test --require-web-tests --jobs 3
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -107,19 +107,19 @@ jobs:
         run: python -m pip install --break-system-packages -r requirements-build.txt
       - name: Identify compiler and SDK
         id: toolchain
-        run: python tools/build.py cache-key >> "$GITHUB_OUTPUT"
+        run: python scripts/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
             deps
             build/deps/windows-mingw/prefix
-          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-mingw-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python tools/build.py --toolchain mingw --generator Ninja --build-dir build/ci-win --test --require-web-tests --jobs 3
+        run: python scripts/build.py --toolchain mingw --generator Ninja --build-dir build/ci-win --test --require-web-tests --jobs 3
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -155,19 +155,19 @@ jobs:
         run: python3 -m pip install --break-system-packages -r requirements-build.txt
       - name: Identify compiler and SDK
         id: toolchain
-        run: python3 tools/build.py cache-key >> "$GITHUB_OUTPUT"
+        run: python3 scripts/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
             deps
             build/deps/prefix
-          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 tools/build.py --generator Ninja --build-dir build/ci-gcc16 --test --require-web-tests --jobs 3
+        run: python3 scripts/build.py --generator Ninja --build-dir build/ci-gcc16 --test --require-web-tests --jobs 3
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -213,19 +213,19 @@ jobs:
         run: brew install ninja
       - name: Identify compiler and SDK
         id: toolchain
-        run: python3 tools/build.py cache-key >> "$GITHUB_OUTPUT"
+        run: python3 scripts/build.py cache-key >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
         with:
           path: |
             build/deps/cache
             deps
             build/deps/prefix
-          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'tools/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 tools/build.py --generator Ninja --build-dir build/ci --test --require-web-tests --jobs 3
+        run: python3 scripts/build.py --generator Ninja --build-dir build/ci --test --require-web-tests --jobs 3
       - name: Upload diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
