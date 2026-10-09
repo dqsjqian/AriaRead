@@ -204,19 +204,16 @@ def selected_toolchain(requested: str, windows: bool) -> str:
 
 
 def build_paths(args, toolchain: str, root: Path | None = None) -> tuple[Path, Path]:
-    # Keep the existing macOS/Linux cache. Windows compilers must never share
-    # a CMake cache or an installed prefix, even when both are on PATH.
-    # On non-Windows, the dependency prefix follows the build directory so
-    # each compiler/build-dir gets isolated snapshots, caches and libraries.
+    # Unified directory scheme: build/unified/<platform>-<toolchain>-<config>-<arch>
+    # Windows compilers must never share a CMake cache or installed prefix.
+    import platform as plat
     root = ROOT if root is None else root
-    default_build = root / "build"
-    default_prefix = None
-    if toolchain in ("msvc", "mingw"):
-        default_build /= f"windows-{toolchain}-{args.config.lower()}"
-        default_prefix = root / "build/deps" / f"windows-{toolchain}" / "prefix"
+    arch = plat.machine()
+    # AriaRead is native-only (server app)
+    suffix = f"native-{toolchain}-{args.config.lower()}-{arch}"
+    default_build = root / "build" / "unified" / suffix
+    default_prefix = root / "build" / "unified" / suffix / "deps" / "prefix"
     build = (args.build_dir or default_build).expanduser().resolve()
-    if default_prefix is None:
-        default_prefix = build / "deps/prefix"
     return (build, (args.deps_prefix or default_prefix).expanduser().resolve())
 
 
