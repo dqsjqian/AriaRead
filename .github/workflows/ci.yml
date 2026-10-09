@@ -61,7 +61,7 @@ jobs:
             build/deps/cache
             deps
             build/deps/windows-msvc/prefix
-          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-msvc-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'scripts/_recipes/*.py', 'scripts/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-msvc-${{ steps.toolchain.outputs.key }}-
       # The default Schannel backend needs neither OpenSSL nor Perl/MSYS2.
       - name: Build, package and run all regressions
@@ -114,7 +114,7 @@ jobs:
             build/deps/cache
             deps
             build/deps/windows-mingw/prefix
-          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-mingw-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'scripts/_recipes/*.py', 'scripts/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-mingw-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
@@ -162,7 +162,7 @@ jobs:
             build/deps/cache
             deps
             build/deps/prefix
-          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'scripts/_recipes/*.py', 'scripts/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-linux-gcc16-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:
@@ -220,7 +220,7 @@ jobs:
             build/deps/cache
             deps
             build/deps/prefix
-          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'tools/_recipes/*.py', 'tools/_recipes/*', 'requirements-build.txt') }}
+          key: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('dependencies.json', 'scripts/build.py', 'scripts/_recipes/*.py', 'scripts/_recipes/*', 'requirements-build.txt') }}
           restore-keys: deps-${{ runner.os }}-${{ steps.toolchain.outputs.key }}-
       - name: Build, package and run all regressions
         env:

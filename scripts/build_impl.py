@@ -8,19 +8,19 @@ are required; install it with this same Python interpreter before building.
 
 Run from any shell:
 
-    python tools/build.py                    # deps + configure + build the server
-    python tools/build.py --test             # ... plus tests, then run CTest
-    python tools/build.py --toolchain mingw  # Windows: explicit MinGW build
-    python tools/build.py --clean            # rebuild the app, keep dependencies
-    python tools/build.py --clean-only       # clean app targets, keep everything
-    python tools/build.py --configure-only   # deps + configure, no compile
-    python tools/build.py --skip-cmake        # refresh assets beside an existing binary
-    python tools/build.py deps               # prepare sources and install dependencies
-    python tools/build.py deps-check         # verify installed sources and libraries
-    python tools/build.py deps-update        # refresh dependency records; next build updates sources
-    python tools/build.py deps-update --only aria --version aria=3.1.1
-    python tools/build.py cache-key          # machine output: key=... (for CI)
-    python tools/build.py test-tools          # run the offline build/dependency regression suites
+    python scripts/build.py                    # deps + configure + build the server
+    python scripts/build.py --test             # ... plus tests, then run CTest
+    python scripts/build.py --toolchain mingw  # Windows: explicit MinGW build
+    python scripts/build.py --clean            # rebuild the app, keep dependencies
+    python scripts/build.py --clean-only       # clean app targets, keep everything
+    python scripts/build.py --configure-only   # deps + configure, no compile
+    python scripts/build.py --skip-cmake        # refresh assets beside an existing binary
+    python scripts/build.py deps               # prepare sources and install dependencies
+    python scripts/build.py deps-check         # verify installed sources and libraries
+    python scripts/build.py deps-update        # refresh dependency records; next build updates sources
+    python scripts/build.py deps-update --only aria --version aria=3.1.1
+    python scripts/build.py cache-key          # machine output: key=... (for CI)
+    python scripts/build.py test-tools          # run the offline build/dependency regression suites
 
 Other knobs: --config (Release/Debug/...), --generator, --jobs, --tls-backend
 (openssl/schannel), --offline, --require-web-tests, --build-dir, --deps-prefix,
