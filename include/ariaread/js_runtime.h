@@ -52,7 +52,10 @@ public:
 
     /// 注入全局函数（C++ → JS）
     /// @param name 函数名
-    /// @param func 实现：接收参数列表，返回字符串
+    /// @param func 实现：接收参数列表，返回字符串。参数沿用 eval 的转换规则：
+    ///             null/undefined 为空串，对象/数组为 JSON，其他值转为字符串。
+    /// 同名注入替换全局函数；已保存的 JS 函数引用仍调用原实现。
+    /// 名称为空、含 NUL 或实现为空时注册失败；注册及回调异常由 getLastError 报告。
     void injectFunction(const std::string& name,
                         std::function<std::string(const std::vector<std::string>&)> func);
 
@@ -123,10 +126,14 @@ public:
     /// 传入空回调可清除检查；同步原生回调仍需自行响应取消。
     void setInterruptCallback(std::function<bool()> callback);
 
-    /// 获取原始 JSContext（高级用法，供 JsEvalSelector 使用）
+    /// 获取借用的原始 JSContext（高级用法，供 JsEvalSelector 使用）。
+    /// 使用期间此 JsRuntime 必须存活，且不能跨线程并发执行。
     void* rawContext() const;
 
 private:
+    friend class JsEvalSelector;
+    static std::string evalSelectorInContext(void* ctx, const std::string& code,
+                                             const std::string& content);
     class Impl;
     std::unique_ptr<Impl> pImpl;
 };

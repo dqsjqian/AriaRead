@@ -2,6 +2,7 @@
 /// @brief 各选择器实现：JsonPath、Regex、CSS、XPath、JsEval、DefaultJSoup
 
 #include "ariaread/selector.h"
+#include "ariaread/js_runtime.h"
 #include "ariaread/gumbo_helper.h"
 #include "ariaread/elements_single.h"
 #include "ariaread/css_engine.h"
@@ -331,22 +332,11 @@ std::vector<std::string> JsEvalSelector::select(const std::string& content) {
     return selectSingle(content, code_);
 }
 
-std::vector<std::string> JsEvalSelector::selectSingle(const std::string&, const std::string&) {
-    std::vector<std::string> results;
-
-    // 这里应该使用 QuickJS 执行 JS 代码
-    // 目前只是基本实现，后续可以扩展
-    // 支持格式：
-    // - @js:code  （执行 JS 代码）
-    // - {{js}}  （内嵌 JS 执行）
-
-    // 如果有 JS 上下文，使用它来执行
-    if (jsCtx_) {
-        // TODO: 使用 QuickJS 执行 JS 代码
-        // 这里需要实现 QuickJS 的绑定和执行逻辑
-    }
-
-    return results;
+std::vector<std::string> JsEvalSelector::selectSingle(const std::string& content,
+                                                   const std::string& rule) {
+    auto result = JsRuntime::evalSelectorInContext(jsCtx_, rule, content);
+    if (result.empty()) return {};
+    return {std::move(result)};
 }
 
 // ──────────────────────────────────────────────

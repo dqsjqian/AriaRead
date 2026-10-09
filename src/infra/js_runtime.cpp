@@ -12,6 +12,19 @@ namespace ariaread {
 
 using json = nlohmann::json;
 
+namespace {
+// Look up only contexts owned by this wrapper; do not inspect a foreign opaque pointer.
+std::map<void*, JsRuntime*>& selectorRuntimes() {
+    static std::map<void*, JsRuntime*> runtimes;
+    return runtimes;
+}
+
+std::mutex& selectorRuntimesMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+} // namespace
+
 // ──────────────────────────────────────────────
 // QuickJS 运行时实现
 // ──────────────────────────────────────────────
@@ -86,6 +99,46 @@ public:
     // 选择器桥接（java.getString/getElements 用）
     JsRuntime::SelectorFunc selectorFunc;
     std::string currentContent;
+
+    using NativeFunction = std::function<std::string(const std::vector<std::string>&)>;
+    struct NativeFunctionData {
+        std::shared_ptr<NativeFunction> function;
+    };
+
+    static JSClassID nativeFunctionClass() {
+        static JSClassID classId = 0;
+        static std::once_flag once;
+        std::call_once(once, [] { JS_NewClassID(&classId); });
+        return classId;
+    }
+
+    static void freeNativeFunction(::JSRuntime*, JSValue value) {
+        delete static_cast<NativeFunctionData*>(JS_GetOpaque(value, nativeFunctionClass()));
+    }
+
+    static JSValue callNativeFunction(JSContext* ctx, JSValueConst, int argc,
+                                     JSValueConst* argv, int, JSValue* data) {
+        auto* impl = static_cast<Impl*>(JS_GetContextOpaque(ctx));
+        auto* holder = static_cast<NativeFunctionData*>(
+            JS_GetOpaque(data[0], nativeFunctionClass()));
+        if (!impl || !holder) return JS_ThrowInternalError(ctx, "Missing native function");
+        try {
+            // Keep the same stateful callable alive if it reinjects/replaces its own name.
+            auto function = holder->function;
+            std::vector<std::string> args;
+            args.reserve(argc);
+            for (int i = 0; i < argc; ++i) {
+                args.push_back(impl->valueToString(argv[i]));
+                if (JS_HasException(ctx)) return JS_EXCEPTION;
+            }
+            const auto result = (*function)(args);
+            return JS_NewStringLen(ctx, result.data(), result.size());
+        } catch (const std::exception& error) {
+            return JS_ThrowInternalError(ctx, "%s", error.what());
+        } catch (...) {
+            return JS_ThrowInternalError(ctx, "Native function threw an unknown exception");
+        }
+    }
 
     Impl() {
         rt = JS_NewRuntime();
@@ -266,16 +319,23 @@ public:
         return JS_UNDEFINED;
     }
 
-    /// 将 JSValue 转为字符串。
-    /// - null / undefined：返回空串
-    /// - 数组 / 对象：JSON.stringify
-    /// - 其他（数字/布尔）：转字符串
+    /// Copy the full UTF-8 value, including embedded NUL bytes.
+    std::string stringValue(JSValueConst value) {
+        size_t length = 0;
+        const char* text = JS_ToCStringLen(ctx, &length, value);
+        if (!text) return "";
+        struct CStringDeleter {
+            JSContext* ctx;
+            void operator()(const char* str) const { JS_FreeCString(ctx, str); }
+        };
+        std::unique_ptr<const char, CStringDeleter> owned(text, CStringDeleter{ctx});
+        return std::string(text, length);
+    }
+
+    /// 将 JSValue 转为字符串：null/undefined 为空串，对象/数组为 JSON。
     std::string valueToString(JSValue v) {
         if (JS_IsString(v)) {
-            const char* s = JS_ToCString(ctx, v);
-            std::string r = s ? s : "";
-            JS_FreeCString(ctx, s);
-            return r;
+            return stringValue(v);
         }
         if (JS_IsNull(v) || JS_IsUndefined(v)) {
             return "";
@@ -295,9 +355,7 @@ public:
             JSValue r = JS_Call(ctx, stringify, jsonObj, 1, argv);
             std::string out;
             if (!JS_IsException(r) && JS_IsString(r)) {
-                const char* s = JS_ToCString(ctx, r);
-                out = s ? s : "";
-                JS_FreeCString(ctx, s);
+                out = stringValue(r);
             }
             JS_FreeValue(ctx, argv[0]);
             JS_FreeValue(ctx, r);
@@ -306,19 +364,34 @@ public:
             return out;
         }
         // 数字 / 布尔等
-        const char* s = JS_ToCString(ctx, v);
-        std::string r = s ? s : "";
-        JS_FreeCString(ctx, s);
-        return r;
+        return stringValue(v);
     }
 };
 
 // ──────────────────────────────────────────────
 // 构造/析构
 // ──────────────────────────────────────────────
-JsRuntime::JsRuntime() : pImpl(std::make_unique<Impl>()) {}
+JsRuntime::JsRuntime() : pImpl(std::make_unique<Impl>()) {
+    std::lock_guard<std::mutex> lock(selectorRuntimesMutex());
+    selectorRuntimes().emplace(pImpl->ctx, this);
+}
 
-JsRuntime::~JsRuntime() = default;
+JsRuntime::~JsRuntime() {
+    std::lock_guard<std::mutex> lock(selectorRuntimesMutex());
+    selectorRuntimes().erase(pImpl->ctx);
+}
+
+std::string JsRuntime::evalSelectorInContext(void* ctx, const std::string& code,
+                                            const std::string& content) {
+    JsRuntime* runtime;
+    {
+        std::lock_guard<std::mutex> lock(selectorRuntimesMutex());
+        const auto found = selectorRuntimes().find(ctx);
+        if (found == selectorRuntimes().end()) return "";
+        runtime = found->second;
+    }
+    return runtime->evalRuleJs(code, content);
+}
 
 // ──────────────────────────────────────────────
 // 执行 JS
@@ -531,10 +604,43 @@ var cache = java.cache;
 // ──────────────────────────────────────────────
 void JsRuntime::injectFunction(const std::string& name,
                                 std::function<std::string(const std::vector<std::string>&)> func) {
-    // TODO: 使用 JS_NewCFunctionData 注册 C++ 函数
-    // 当前简化实现：注入一个 JS 占位符
-    (void)name;
-    (void)func;
+    pImpl->lastError.clear();
+    if (name.empty() || name.find('\0') != std::string::npos || !func) {
+        pImpl->lastError = "Invalid native function name or implementation";
+        return;
+    }
+    const auto classId = Impl::nativeFunctionClass();
+    if (!JS_IsRegisteredClass(pImpl->rt, classId)) {
+        JSClassDef classDef{};
+        classDef.class_name = "AriaReadNativeFunction";
+        classDef.finalizer = Impl::freeNativeFunction;
+        if (JS_NewClass(pImpl->rt, classId, &classDef) < 0) {
+            pImpl->lastError = "Failed to register native function class";
+            return;
+        }
+    }
+    auto holder = std::make_unique<Impl::NativeFunctionData>();
+    holder->function = std::make_shared<Impl::NativeFunction>(std::move(func));
+    JSValue data = JS_NewObjectClass(pImpl->ctx, classId);
+    if (JS_IsException(data)) {
+        pImpl->captureException();
+        return;
+    }
+    JS_SetOpaque(data, holder.release());
+    JSValue function = JS_NewCFunctionData(pImpl->ctx, Impl::callNativeFunction,
+                                         0, 0, 1, &data);
+    JS_FreeValue(pImpl->ctx, data);
+    if (JS_IsException(function)) {
+        pImpl->captureException();
+        return;
+    }
+    JSValue global = JS_GetGlobalObject(pImpl->ctx);
+    // QuickJS consumes function even on failure. Function-data owns the callback
+    // until all JS aliases disappear, or the runtime is destroyed.
+    const int status = JS_DefinePropertyValueStr(pImpl->ctx, global, name.c_str(),
+                                                 function, JS_PROP_C_W_E | JS_PROP_THROW);
+    JS_FreeValue(pImpl->ctx, global);
+    if (status < 0) pImpl->captureException();
 }
 
 void JsRuntime::injectObject(const std::string& name, const std::string& jsonValue) {

@@ -116,7 +116,9 @@ public:
     SelectorType type() const override { return SelectorType::JsEval; }
     std::string rule() const override { return code_; }
 
-    /// 设置 JS 执行上下文（由引擎注入）
+    /// 借用活着的 JsRuntime::rawContext()，与 evalRuleJs 共用 result/src、
+    /// java 绑定、返回值转换及错误/超时处理。此选择器不持有运行时。
+    /// 未设置或非本封装上下文时返回空列表；JS 错误由运行时 getLastError 报告。
     void setJsContext(void* ctx) { jsCtx_ = ctx; }
 
 private:

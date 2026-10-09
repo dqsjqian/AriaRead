@@ -11,3 +11,8 @@
   independently even when a stored source JSON document is malformed.
 - Report the actual number of newly inserted sources when imports contain
   duplicate URLs.
+- Execute standalone JavaScript selectors through their borrowed runtime,
+  including rule context, value conversion, errors and interruption handling.
+- Implement injected native JavaScript functions with stateful callbacks,
+  preserved aliases, safe replacement, exception reporting and NUL-preserving
+  string conversion.
