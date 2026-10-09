@@ -37,7 +37,7 @@
 ```bash
 # macOS / Linux
 python3 -m pip install -r requirements-build.txt
-python3 tools/build.py
+python3 scripts/build.py
 
 # Windows：普通 PowerShell 即可，自动查找 Visual Studio C++ x64 工具链
 python -m pip install -r requirements-build.txt
@@ -47,7 +47,7 @@ python scripts/build.py
 python scripts/build.py --toolchain mingw
 
 # 开发验收：补齐测试依赖，构建并运行全部测试
-python3 tools/build.py --test
+python3 scripts/build.py --test
 ```
 
 Windows 默认只需 Visual Studio C++ 工具链、Windows SDK、CMake、Git、Python；**不要求安装 MSYS2、Perl 或 OpenSSL**。两套编译器是可选方案，无须同时安装。MSVC/MinGW 的构建目录与依赖前缀分开，下载缓存共享。默认 TLS 后端是 Schannel；需对比旧后端时传 `--tls-backend openssl`，届时才需要 Perl 和相应 make 工具。
@@ -66,7 +66,7 @@ macOS 使用 Xcode Command Line Tools；OpenSSL 构建仍需系统 Perl/make。c
 
 完成后入口打印实际可执行文件路径。运行目录包含服务程序、Aria 动态库、`web/` 和 `licenses/`，可以整体复制；开发时可用 `--web-root bindings/web/ariaread/web` 指定源码资源。
 
-`tools/build.py` 是全平台唯一构建入口。Windows 只支持 Release，提前拒绝不匹配的 Debug CRT；空 CMake build type 自动选择 Release。`--clean` 仅清理当前应用构建，不删除下载缓存或依赖前缀。
+`scripts/build.py` 是全平台唯一构建入口。Windows 只支持 Release，提前拒绝不匹配的 Debug CRT；空 CMake build type 自动选择 Release。`--clean` 仅清理当前应用构建，不删除下载缓存或依赖前缀。
 
 ## 项目结构
 
@@ -83,9 +83,9 @@ AriaRead/
 │   ├── infra/              # 基础设施（HTTP/JS/DB）
 │   ├── viewmodels/         # ViewModel 层
 │   └── apps/web_server/    # Web Server（Mira HTTP/1.1 + REST API）
-├── tools/build.py          # 跨平台统一构建入口
+├── scripts/build.py          # 跨平台统一构建入口
 ├── tools/_build/           # 构建入口回归
-├── tools/_recipes/         # 项目依赖配方与补丁
+├── scripts/_recipes/         # 项目依赖配方与补丁
 ├── requirements-build.txt  # 固定的 AriaDeps 构建依赖
 ├── deps/                   # 可编辑源码：aria/、Mira/、curl/、zlib/……
 ├── build/                  # 应用产物、依赖安装前缀、归档和编译缓存
@@ -113,7 +113,7 @@ python scripts/build.py test-tools                        # 构建工具自身�
 
 缓存按实际源码、配方、补丁、编译器/ABI 和安装文件哈希校验。成功安装的未变组件可以复用；失败回滚旧前缀。用户修改源码和用户修改已安装的二进制是两回事，后者仍会触发保护。中断重跑复用下载，不保证未提交编译工作的断点续建。
 
-详见[依赖指南](docs/dependencies.md)和[构建与目录设计约定](docs/build-architecture.md)。所有平台、CI 和维护流程使用 `tools/build.py`，`tools/_build/` 是内部实现，不是第二套用户入口。
+详见[依赖指南](docs/dependencies.md)和[构建与目录设计约定](docs/build-architecture.md)。所有平台、CI 和维护流程使用 `scripts/build.py`，`tools/_build/` 是内部实现，不是第二套用户入口。
 
 ## 测试
 
@@ -123,7 +123,7 @@ python scripts/build.py test-tools                        # 构建工具自身�
 python scripts/build.py --test --require-web-tests
 ```
 
-默认使用 Release；Windows 配置阶段会拒绝不受支持的配置，避免链接时才出现 CRT 失配。推荐 `python3 tools/build.py --test`，同时管理测试依赖和 CMake 选项。
+默认使用 Release；Windows 配置阶段会拒绝不受支持的配置，避免链接时才出现 CRT 失配。推荐 `python3 scripts/build.py --test`，同时管理测试依赖和 CMake 选项。
 
 CTest 会注册引擎、可用的 ViewModel 测试和本地依赖获取安全回归，并在找到 Node.js 18+、Python 3.10+ 与 Web Server 目标时注册相应的调试回归。缺少可选依赖时，CMake 会明确提示跳过；可用 `-DARIAREAD_BUILD_WEB_TESTS=OFF` 关闭 Web 回归。
 

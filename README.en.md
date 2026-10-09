@@ -36,10 +36,10 @@ Requires CMake 3.21+, a C++23 compiler, Git and Python 3.10+. Install the pinned
 
 ```bash
 python3 -m pip install -r requirements-build.txt  # use python on Windows
-python3 tools/build.py                       # macOS / Linux
+python3 scripts/build.py                       # macOS / Linux
 python scripts/build.py                        # Windows: auto-discovered MSVC x64
 python scripts/build.py --toolchain mingw      # Windows: explicit MSYS2 UCRT64 / MinGW
-python3 tools/build.py --test                # add test dependencies, build and run tests
+python3 scripts/build.py --test                # add test dependencies, build and run tests
 ```
 
 Windows needs Visual Studio C++ tools/SDK, CMake, Git and Python. The default Schannel backend needs no MSYS2, Perl or OpenSSL build. MSVC and MinGW are alternatives, with isolated build/prefix directories and shared source downloads. `--tls-backend openssl` opts into the previous backend and its Perl/make prerequisites.
@@ -74,7 +74,7 @@ The entry point prints the actual executable path. Default runtime directories:
 
 Copy the directory as a unit, including Aria libraries, `web/` and `licenses/`. Assets load beside the executable; use `--web-root bindings/web/ariaread/web` for source-tree assets. `ARIAREAD_BUILD_DIR` and `ARIAREAD_DEPS_PREFIX` remain supported.
 
-`tools/build.py` is the single build entry point on every platform. Windows supports Release only and rejects incompatible configurations early. `--clean` cleans application output while preserving downloaded and compiled dependencies. CI caches verified prefixes and sources, excluding intermediate build trees.
+`scripts/build.py` is the single build entry point on every platform. Windows supports Release only and rejects incompatible configurations early. `--clean` cleans application output while preserving downloaded and compiled dependencies. CI caches verified prefixes and sources, excluding intermediate build trees.
 
 See [dependency responsibilities and Mira boundaries](docs/build-architecture.md).
 
@@ -93,9 +93,9 @@ AriaRead/
 │   ├── infra/              # infrastructure (HTTP/JS/DB)
 │   ├── viewmodels/         # ViewModel layer
 │   └── apps/web_server/    # web server (Mira HTTP/1.1 + REST API)
-├── tools/build.py          # unified cross-platform build
+├── scripts/build.py          # unified cross-platform build
 ├── tools/_build/           # build-entry regressions
-├── tools/_recipes/         # project dependency recipes and patches
+├── scripts/_recipes/         # project dependency recipes and patches
 ├── requirements-build.txt  # pinned AriaDeps build dependency
 ├── deps/                   # editable sources: aria/, Mira/, curl/, zlib/, ...
 ├── build/                  # application output, installed libraries and caches
@@ -111,7 +111,7 @@ Configure, build, and run the tests from the repository root:
 python scripts/build.py --test --require-web-tests
 ```
 
-An empty single-config build type defaults to Release. Windows rejects unsupported configurations before reaching CRT-mismatch linker errors. Prefer `python3 tools/build.py --test` to manage the test SDK and configuration together.
+An empty single-config build type defaults to Release. Windows rejects unsupported configurations before reaching CRT-mismatch linker errors. Prefer `python3 scripts/build.py --test` to manage the test SDK and configuration together.
 
 CTest registers engine tests, available ViewModel tests, and local dependency-fetch safety regressions. It also registers the relevant debug regressions when Node.js 18+, Python 3.10+, and the Web Server target are available. CMake reports skipped optional dependencies; use `-DARIAREAD_BUILD_WEB_TESTS=OFF` to disable Web regressions.
 
@@ -129,7 +129,7 @@ HTTP tests use local mock sources and an in-memory database to cover console val
 ## Release checklist
 
 - [x] All sources compile from source (no prebuilt binaries)
-- [x] No git submodules; initial sources selected by dependencies.json and prepared by tools/build.py
+- [x] No git submodules; initial sources selected by dependencies.json and prepared by scripts/build.py
 - [x] MIT LICENSE
 - [x] README.md (Chinese) + README.en.md (English)
 
