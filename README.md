@@ -41,10 +41,10 @@ python3 tools/build.py
 
 # Windows：普通 PowerShell 即可，自动查找 Visual Studio C++ x64 工具链
 python -m pip install -r requirements-build.txt
-python tools/build.py
+python scripts/build.py
 
 # Windows：明确选择已经安装的 MSYS2 UCRT64 / MinGW 工具链
-python tools/build.py --toolchain mingw
+python scripts/build.py --toolchain mingw
 
 # 开发验收：补齐测试依赖，构建并运行全部测试
 python3 tools/build.py --test
@@ -98,13 +98,13 @@ AriaRead/
 `dependencies.json` 保存初次获取的来源、版本和 SHA256；源码平铺在 `deps/<name>/`，目录名不含版本或提交号。已有源码允许自己 `git pull`、切换分支或编辑，普通构建使用实际内容；记录实际 Git HEAD 和内容指纹，变更会使该组件及其消费者重编。不会把手动更新的源码伪报为锁定版本。
 
 ```bash
-python tools/build.py deps                              # 只准备运行时依赖
-python tools/build.py deps --profile tests              # 补齐测试依赖
-python tools/build.py deps-check --profile tests        # 只读检查源码与安装结果
-python tools/build.py deps-update --only curl           # 更新版本记录，不立即替换源码
-python tools/build.py deps-update --only zlib --version zlib=1.3.2
-python tools/build.py --offline --test                   # 从已有来源离线构建并验收
-python tools/build.py test-tools                        # 构建工具自身的离线回归
+python scripts/build.py deps                              # 只准备运行时依赖
+python scripts/build.py deps --profile tests              # 补齐测试依赖
+python scripts/build.py deps-check --profile tests        # 只读检查源码与安装结果
+python scripts/build.py deps-update --only curl           # 更新版本记录，不立即替换源码
+python scripts/build.py deps-update --only zlib --version zlib=1.3.2
+python scripts/build.py --offline --test                   # 从已有来源离线构建并验收
+python scripts/build.py test-tools                        # 构建工具自身的离线回归
 ```
 
 依赖更新后运行普通构建。没有手动改动的旧源码可备份后替换；有本地改动则保留并明确报错，待用户处理。第三方补丁在编译快照上应用，不改 `deps/` 中的源码。不是每个上游目录都是 Git 仓库：归档发布的库可直接编辑，要换版本用 `deps-update`。
@@ -120,7 +120,7 @@ python tools/build.py test-tools                        # 构建工具自身的�
 从仓库根目录配置、构建并运行测试：
 
 ```bash
-python tools/build.py --test --require-web-tests
+python scripts/build.py --test --require-web-tests
 ```
 
 默认使用 Release；Windows 配置阶段会拒绝不受支持的配置，避免链接时才出现 CRT 失配。推荐 `python3 tools/build.py --test`，同时管理测试依赖和 CMake 选项。

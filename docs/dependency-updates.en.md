@@ -2,7 +2,7 @@
 
 Run these commands from the **AriaRead repository root** with Python 3.10+, CMake and the toolchain listed in the [README](../README.en.md). Substitute `python3` when needed. First install the pinned AriaDeps package with that same interpreter: `python -m pip install -r requirements-build.txt`, preferably in a virtual environment. Initial discovery and deliberate updates need network access; GitHub requests can use an authenticated `gh` CLI.
 
-Every command goes through the single entry point `python tools/build.py`. The shared pipeline comes from the AriaDeps package; project recipes and patches live in `tools/_recipes/`. There is no per-dependency script to run.
+Every command goes through the single entry point `python scripts/build.py`. The shared pipeline comes from the AriaDeps package; project recipes and patches live in `scripts/_recipes/`. There is no per-dependency script to run.
 
 ## One dependency file
 
@@ -21,16 +21,16 @@ After a lock change, an untouched directory is replaced automatically (the previ
 ## Select and update
 
 ```bash
-python tools/build.py deps-update --help
+python scripts/build.py deps-update --help
 
 # Update curl only, preserving other selections including Mira
-python tools/build.py deps-update --only curl
+python scripts/build.py deps-update --only curl
 
 # Update selected libraries with explicit versions for this invocation
-python tools/build.py deps-update --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
+python scripts/build.py deps-update --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
 
 # Deliberately update every dependency according to its requirements
-python tools/build.py deps-update
+python scripts/build.py deps-update
 ```
 
 Repeat `--only` to select several libraries and `--version` for different overrides. When using both, select every overridden name. Unknown names, repeated overrides and overrides outside the selection fail explicitly.
@@ -38,7 +38,7 @@ Repeat `--only` to select several libraries and `--version` for different overri
 To keep two libraries fixed while updating a third, add `"version": "3.12.0"` to the existing JSON entry and `"version": "4.0.3"` to the OpenSSL entry, preserving their source fields. Leave curl without a top-level `version`, then run:
 
 ```bash
-python tools/build.py deps-update --only json --only openssl --only curl
+python scripts/build.py deps-update --only json --only openssl --only curl
 ```
 
 Only the unpinned curl re-selects the latest stable release. Remove a top-level `version` and update again to unpin; no script edits and no `resolved` deletions are needed.
@@ -50,7 +50,7 @@ Precedence: CLI overrides for this invocation, then the file's explicit `version
 The updater stores results atomically, compiles nothing and cannot promise API compatibility. After a successful update run:
 
 ```bash
-python tools/build.py --test
+python scripts/build.py --test
 ```
 
 That single command prepares the source workspaces, installs the prefix, configures, builds and runs CTest. CI adds `--require-web-tests` so missing Node.js prerequisites fail loudly; local builds keep optional web tests.
@@ -61,13 +61,13 @@ Review `git diff -- dependencies.json` and commit the file once the build and te
 
 ```bash
 # One-shot offline build: existing workspaces or exact source caches, loud failure when missing
-python tools/build.py --offline
+python scripts/build.py --offline
 
 # Build only selected libraries plus their prerequisites
-python tools/build.py deps --only zlib,json
+python scripts/build.py deps --only zlib,json
 
 # Read-only verification that sources match installed components (CMake uses this too)
-python tools/build.py deps-check
+python scripts/build.py deps-check
 ```
 
 Offline metadata resolution does not imply archives are downloaded. Offline rebuilds need exact archives or existing source workspaces; `deps-update --offline` cannot discover new versions. Partial installs cannot configure the full application.
@@ -83,7 +83,7 @@ The prefix binds each component to its resolved selection, recipe and patches, c
 Experiments use `--file` with a separate complete dependency file:
 
 ```bash
-python tools/build.py deps --file build/deps/experiment.json --only json
+python scripts/build.py deps --file build/deps/experiment.json --only json
 ```
 
 An experiment file never changes which root file the application's CMake uses. Review and port the selections to the root file before a production build. Custom install locations use `--deps-prefix <path>` plus `-DARIAREAD_DEPS_PREFIX=<path>` for CMake.
@@ -94,6 +94,6 @@ A failed resolution or checksum verification never commits partial results; fix 
 
 ## One entry point and platform profiles
 
-`python tools/build.py` is the recommended way to build: dependencies, configure, compile and runtime directory in one command. `--test` adds test dependencies and runs CTest. `--profile` selects the dependency set (`--test` implies `tests`, otherwise `runtime`), and CMake receives the matching `-DARIAREAD_BUILD_TESTS`.
+`python scripts/build.py` is the recommended way to build: dependencies, configure, compile and runtime directory in one command. `--test` adds test dependencies and runs CTest. `--profile` selects the dependency set (`--test` implies `tests`, otherwise `runtime`), and CMake receives the matching `-DARIAREAD_BUILD_TESTS`.
 
 Windows defaults `--tls-backend auto` to Schannel without building OpenSSL; pass `--tls-backend openssl` explicitly to build it, and CMake receives `-DARIAREAD_TLS_BACKEND=openssl`. macOS/Linux keep OpenSSL with Apple SecTrust on macOS. MSVC and MinGW prefixes stay separate while download caches are shared. See [build architecture](build-architecture.md).

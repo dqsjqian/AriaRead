@@ -2,7 +2,7 @@
 
 从 **AriaRead 仓库根目录**执行。需要 Python 3.10+、CMake 和 [README](../README.md) 所列工具链；macOS/Linux 可把 `python` 换成 `python3`。先用同一解释器执行 `python -m pip install -r requirements-build.txt` 安装固定的 AriaDeps，建议使用虚拟环境。首次解析和主动更新需要联网，GitHub API 可使用已登录的 `gh`。
 
-所有命令走统一入口 `python tools/build.py`。通用依赖流水线来自 AriaDeps 包，项目配方和补丁在 `tools/_recipes/`；没有单独可执行的依赖脚本。
+所有命令走统一入口 `python scripts/build.py`。通用依赖流水线来自 AriaDeps 包，项目配方和补丁在 `scripts/_recipes/`；没有单独可执行的依赖脚本。
 
 ## 只维护一个依赖文件
 
@@ -25,16 +25,16 @@
 ## 常用命令
 
 ```bash
-python tools/build.py deps-update --help
+python scripts/build.py deps-update --help
 
 # 只更新 curl；其他依赖保持原选择
-python tools/build.py deps-update --only curl
+python scripts/build.py deps-update --only curl
 
 # 选择多个库，并为本次操作指定版本
-python tools/build.py deps-update --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
+python scripts/build.py deps-update --only json --only openssl --version json=3.12.0 --version openssl=4.0.3
 
 # 按文件中的要求主动更新全部依赖
-python tools/build.py deps-update
+python scripts/build.py deps-update
 ```
 
 `--only` 可重复；`--version` 对不同名称可重复。同用时，所有版本覆盖项都必须列在 `--only` 中。名称拼错、同名覆盖重复或选择范围不一致会报错。
@@ -42,7 +42,7 @@ python tools/build.py deps-update
 要让两个库长期固定、另一个跟最新，在现有 `json` 条目中加 `"version": "3.12.0"`，在 `openssl` 条目中加 `"version": "4.0.3"`，保留来源字段；`curl` 条目不填顶层 `version`。然后执行：
 
 ```bash
-python tools/build.py deps-update --only json --only openssl --only curl
+python scripts/build.py deps-update --only json --only openssl --only curl
 ```
 
 这样固定要求持续生效，只有未固定的 curl 重新选择最新稳定版。删除某项顶层 `version` 后主动更新即可解除固定；不需要改任何脚本，也不需要删除 `resolved`。
@@ -54,7 +54,7 @@ python tools/build.py deps-update --only json --only openssl --only curl
 更新器原子保存解析结果，不自动编译项目，也不保证新版本 API 兼容。更新成功后执行：
 
 ```bash
-python tools/build.py --test
+python scripts/build.py --test
 ```
 
 这一条命令完成依赖工作区准备、安装前缀、配置、编译和 CTest。CI 加 `--require-web-tests`，缺少 Node 等测试依赖就明确失败；普通本机构建保留可选 Web 测试行为。
@@ -65,13 +65,13 @@ python tools/build.py --test
 
 ```bash
 # 一键离线构建：使用已有源码工作区或精确来源缓存，缺失时明确失败
-python tools/build.py --offline
+python scripts/build.py --offline
 
 # 只构建指定第三方库及所需前置依赖
-python tools/build.py deps --only zlib,json
+python scripts/build.py deps --only zlib,json
 
 # 只读验证源码与已安装组件是否匹配（CMake 配置期也调用它）
-python tools/build.py deps-check
+python scripts/build.py deps-check
 ```
 
 离线元数据解析成功不代表归档已下载。离线重建需要精确匹配的归档或已存在的源码工作区；`deps-update --offline` 不能发现新版本。部分安装不能用于完整应用配置，须先补齐依赖。
@@ -87,7 +87,7 @@ CMake 通过入口的 `deps-check` 验证结果和前缀，不联网、不重新
 实验用 `--file` 指向另一份完整依赖文件：
 
 ```bash
-python tools/build.py deps --file build/deps/experiment.json --only json
+python scripts/build.py deps --file build/deps/experiment.json --only json
 ```
 
 实验文件不会自动改变应用 CMake 使用的根文件。用于正式构建前，应审查并把所需选择同步到根文件，再按根文件构建前缀。自定义安装位置用 `--deps-prefix <path>`，再传 `-DARIAREAD_DEPS_PREFIX=<path>` 给 CMake。
@@ -98,6 +98,6 @@ python tools/build.py deps --file build/deps/experiment.json --only json
 
 ## 统一入口与平台精简
 
-推荐 `python tools/build.py`；它完成固定依赖获取、配置、编译和运行目录检查。`--test` 同时补测试依赖并执行 CTest。依赖集合由 `--profile` 控制（`--test` 自动选 `tests`，否则 `runtime`），CMake 相应传 `-DARIAREAD_BUILD_TESTS`。
+推荐 `python scripts/build.py`；它完成固定依赖获取、配置、编译和运行目录检查。`--test` 同时补测试依赖并执行 CTest。依赖集合由 `--profile` 控制（`--test` 自动选 `tests`，否则 `runtime`），CMake 相应传 `-DARIAREAD_BUILD_TESTS`。
 
 Windows 默认 `--tls-backend auto` 选择 Schannel，OpenSSL 不在构建集合；显式 `--tls-backend openssl` 才构建它，CMake 同时传 `-DARIAREAD_TLS_BACKEND=openssl`。macOS/Linux 的 auto 仍为 OpenSSL，macOS 启用 Apple SecTrust。Windows MSVC/MinGW 不共用二进制前缀；下载缓存仍共享。详见[依赖精简与分工](build-architecture.md)。

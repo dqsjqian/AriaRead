@@ -37,8 +37,8 @@ Requires CMake 3.21+, a C++23 compiler, Git and Python 3.10+. Install the pinned
 ```bash
 python3 -m pip install -r requirements-build.txt  # use python on Windows
 python3 tools/build.py                       # macOS / Linux
-python tools/build.py                        # Windows: auto-discovered MSVC x64
-python tools/build.py --toolchain mingw      # Windows: explicit MSYS2 UCRT64 / MinGW
+python scripts/build.py                        # Windows: auto-discovered MSVC x64
+python scripts/build.py --toolchain mingw      # Windows: explicit MSYS2 UCRT64 / MinGW
 python3 tools/build.py --test                # add test dependencies, build and run tests
 ```
 
@@ -49,13 +49,13 @@ macOS uses Xcode Command Line Tools and system Perl/make for OpenSSL; Apple SecT
 Dependency sources live in `deps/<name>/`, without version or commit IDs in directory names. `dependencies.json` selects the initial sources. Existing Git checkouts may be pulled, switched or edited by the user. Builds use their actual contents, record the actual revision and content fingerprint, and rebuild changed libraries and affected consumers.
 
 ```bash
-python tools/build.py deps                           # prepare runtime dependencies only
-python tools/build.py deps --profile tests           # include test dependencies
-python tools/build.py deps-check --profile tests     # read-only source/install validation
-python tools/build.py deps-update --only curl        # update records, not source directories
-python tools/build.py deps-update --only zlib --version zlib=1.3.2
-python tools/build.py --offline --test
-python tools/build.py test-tools                     # offline build-tool regressions
+python scripts/build.py deps                           # prepare runtime dependencies only
+python scripts/build.py deps --profile tests           # include test dependencies
+python scripts/build.py deps-check --profile tests     # read-only source/install validation
+python scripts/build.py deps-update --only curl        # update records, not source directories
+python scripts/build.py deps-update --only zlib --version zlib=1.3.2
+python scripts/build.py --offline --test
+python scripts/build.py test-tools                     # offline build-tool regressions
 ```
 
 Run the normal build after updating records. Unmodified old sources are backed up before replacement; local changes are retained and reported instead of silently overwritten. Patches apply to build snapshots, leaving editable source trees intact. Archive-based dependencies are editable directories, not Git repositories; select another upstream release with `deps-update`.
@@ -108,7 +108,7 @@ AriaRead/
 Configure, build, and run the tests from the repository root:
 
 ```bash
-python tools/build.py --test --require-web-tests
+python scripts/build.py --test --require-web-tests
 ```
 
 An empty single-config build type defaults to Release. Windows rejects unsupported configurations before reaching CRT-mismatch linker errors. Prefer `python3 tools/build.py --test` to manage the test SDK and configuration together.

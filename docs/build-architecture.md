@@ -1,6 +1,6 @@
 # 构建精简与依赖分工
 
-统一入口：`python tools/build.py`（macOS/Linux 可用 `python3`）。默认构建可运行的 Web 服务，`--test` 增加开发测试。依赖仍从 `dependencies.json` 的固定来源获取并校验，CMake 配置期不联网。
+统一入口：`python scripts/build.py`（macOS/Linux 可用 `python3`）。默认构建可运行的 Web 服务，`--test` 增加开发测试。依赖仍从 `dependencies.json` 的固定来源获取并校验，CMake 配置期不联网。
 
 ## 哪些依赖可以去掉
 
@@ -59,7 +59,7 @@ macOS CI 使用提供正式 Xcode 27.0 的 [`xcode-27` 镜像](https://github.co
 
 ## 供其他项目参考的构建约定
 
-唯一用户入口是 `python tools/build.py`，不要求用户在多个 shell 脚本之间选择。省略命令等价于 `build`，已有 `--test`、`--clean` 等选项继续有效。通用流水线来自 `requirements-build.txt` 固定的 AriaDeps 包，负责锁解析、源码工作区、组件缓存、事务安装与校验；`tools/_recipes/` 保存 Read 专用配方和补丁，`tools/_build/` 保留构建入口回归。构建入口显式将当前 Python 路径传给 CMake，保证配置期校验使用已安装同一包的解释器。
+唯一用户入口是 `python scripts/build.py`，不要求用户在多个 shell 脚本之间选择。省略命令等价于 `build`，已有 `--test`、`--clean` 等选项继续有效。通用流水线来自 `requirements-build.txt` 固定的 AriaDeps 包，负责锁解析、源码工作区、组件缓存、事务安装与校验；`scripts/_recipes/` 保存 Read 专用配方和补丁，`tools/_build/` 保留构建入口回归。构建入口显式将当前 Python 路径传给 CMake，保证配置期校验使用已安装同一包的解释器。
 
 | 命令 | 职责 |
 |---|---|

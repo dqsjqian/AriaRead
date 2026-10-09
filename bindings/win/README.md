@@ -3,7 +3,7 @@
 目前没有独立的原生应用壳，可运行的应用入口是 Web 服务。从仓库根目录使用统一入口：
 
 ```powershell
-python tools/build.py
+python scripts/build.py
 ```
 
 默认使用 **MSVC x64 + Ninja + Schannel**。准备 Git、Python 3.10+，以及 Visual Studio 2026 / Build Tools **18.10.3 稳定版**的“使用 C++ 的桌面开发”、Windows SDK 和 C++ CMake 工具；MSVC 要求 **19.51.36247+**（14.51 工具集）。也可单独安装 CMake 3.21+ 和 Ninja。普通 PowerShell 或命令提示符可直接执行，脚本会查找 VS 并配置 x64 编译环境，默认流程不需要安装 MSYS2、OpenSSL 或 Perl。
@@ -16,23 +16,23 @@ Schannel 是 Windows 自带的 TLS 实现，由 libcurl 用来处理 HTTPS 和�
 
 ```powershell
 # 构建全部测试目标并执行 CTest；要求 Web 测试依赖（包括 Node.js）齐全
-python tools/build.py --test --require-web-tests
+python scripts/build.py --test --require-web-tests
 
 # 使用已安装的 Visual Studio 生成器（名称以 cmake --help 为准）
-python tools/build.py --generator "Visual Studio 18 2026"
+python scripts/build.py --generator "Visual Studio 18 2026"
 
 # MSYS2 UCRT64 是显式备选，须准备 GCC/G++ 16.2+、CMake 和 Ninja
-python tools/build.py --toolchain mingw
+python scripts/build.py --toolchain mingw
 
 # 只清理应用构建产物，保留依赖安装、下载和源码缓存
-python tools/build.py --clean-only
+python scripts/build.py --clean-only
 ```
 
 默认 MSVC 构建目录为 `build/windows-msvc-release`，依赖安装在 `build/deps/windows-msvc/prefix`；MinGW 对应 `build/windows-mingw-release` 和 `build/deps/windows-mingw/prefix`。两种工具链不能共用同一个 CMake 构建目录或依赖安装目录。`--build-dir`、`--deps-prefix` 可分别覆盖路径；非标准安装可使用 `ARIAREAD_VS_ROOT`、`ARIAREAD_WINDOWS_KITS_ROOT` 或 `MSYS2_ROOT`。
 
 显式安装路径优先；未指定时也会探测 D/E/F/G 盘常见布局，包括 `worksoft/VS2026`、`Windows Kits/10`、`msys64`、`msys2` 和 `worksoft/msys64`。受限环境阻止 `vswhere` 时会保留诊断并继续探测。只有显式选择 OpenSSL 才会额外查找原生 Perl，优先使用 `ARIAREAD_PERL_DIR` 或已有 `PATH`，随后检查 Strawberry Perl 与 MSYS2 的常见路径。
 
-Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python tools/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
+Windows 当前仅支持 `--config Release`，保证应用与依赖使用一致的 CRT。构建完成后按输出路径运行 `ariaread_web_server.exe`；分发时保留整个运行目录，包括 DLL、`web/` 和 `licenses/`。完整选项见 `python scripts/build.py --help` 与[构建架构说明](../../docs/build-architecture.md)。
 
 ## 原生界面接入
 
