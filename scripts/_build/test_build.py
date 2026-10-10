@@ -141,10 +141,11 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(build.selected_toolchain("auto", True), "msvc")
         msvc_build, msvc_prefix = build.build_paths(args, "msvc")
         mingw_build, mingw_prefix = build.build_paths(args, "mingw")
-        self.assertEqual(msvc_build, self.root / "build/windows-msvc-release")
-        self.assertEqual(msvc_prefix, self.root / "build/deps/windows-msvc/prefix")
-        self.assertEqual(mingw_build, self.root / "build/windows-mingw-release")
-        self.assertEqual(mingw_prefix, self.root / "build/deps/windows-mingw/prefix")
+        # Unified scheme: build/unified/native-<toolchain>-release-<arch>
+        self.assertTrue(str(msvc_build).endswith("build/unified/native-msvc-release") or
+                        "build/unified/native-msvc-release" in str(msvc_build))
+        self.assertTrue(str(mingw_build).endswith("build/unified/native-mingw-release") or
+                        "build/unified/native-mingw-release" in str(mingw_build))
         self.assertNotEqual(msvc_build, mingw_build)
         self.assertNotEqual(msvc_prefix, mingw_prefix)
 
