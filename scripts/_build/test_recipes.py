@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class RecipeTests(unittest.TestCase):
     def setUp(self):
-        self.config = recipes.make_config(ROOT / "tools/_recipes")
+        self.config = recipes.make_config(ROOT / "scripts/_recipes")
         deps.init_project(self.config)
 
     def test_real_lock_and_patches_support_every_platform_policy(self):
