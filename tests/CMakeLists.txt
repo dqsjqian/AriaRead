@@ -1,6 +1,6 @@
 # AriaRead Unit Tests
 
-# 使用 doctest（轻量级测试框架）：来自 tools/build.py 管理的依赖前缀。
+# 使用 doctest（轻量级测试框架）：来自 scripts/build.py 管理的依赖前缀。
 find_package(doctest REQUIRED)
 # doctest_discover_tests 的实现随包安装，位置在上游两种可能都出现过。
 find_path(ARIAREAD_DOCTEST_CMAKE_DIR NAMES doctest.cmake
@@ -82,7 +82,7 @@ if(TARGET ariaread_vm)
         PRIVATE
             ${CMAKE_SOURCE_DIR}/include
             # Aria binding 的测试辅助（FakeAdapter/FakeView）不随安装前缀分发，
-            # 直接引用源码工作区（deps/aria 由 tools/build.py 保证存在）。
+            # 直接引用源码工作区（deps/aria 由 scripts/build.py 保证存在）。
             "${ARIAREAD_DEPS_SOURCE_DIR}/aria/modules/binding/tests"
             SYSTEM ${ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR}
     )
@@ -122,7 +122,7 @@ endif()
 find_package(Python3 3.10 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
     add_test(NAME ariaread-build-tools
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/build.py" test-tools)
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/build.py" test-tools)
     set_tests_properties(ariaread-build-tools PROPERTIES TIMEOUT 180 LABELS "dependencies")
 endif()
 

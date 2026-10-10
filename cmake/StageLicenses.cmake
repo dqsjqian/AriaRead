@@ -1,6 +1,6 @@
 # The build prefix records the libraries actually compiled, including overrides.
 # aria's license arrives the same way as every other dependency: installed into
-# share/licenses/aria by tools/build.py and listed in the manifest.
+# share/licenses/aria by scripts/build.py and listed in the manifest.
 if(ARIAREAD_RUNTIME_CONFIG)
     if(NOT EXISTS "${ARIAREAD_RUNTIME_CONFIG}")
         message(FATAL_ERROR "Runtime configuration is missing; reconfigure this build before packaging")

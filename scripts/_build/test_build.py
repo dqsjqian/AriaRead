@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-# The public entry point is tools/build.py; this suite lives with its internals.
+# The public entry point is scripts/build.py; this suite lives with its internals.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build  # noqa: E402
 
@@ -567,7 +567,7 @@ add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-objec
         environment = dict(self.original_env)
         configure = [cmake, "-S", str(source), "-B", str(folder)]
         if os.name == "nt":
-            # tools/build.py pins Ninja on Windows, and Ninja's clean target is
+            # scripts/build.py pins Ninja on Windows, and Ninja's clean target is
             # the one that removes custom-command outputs; the Visual Studio
             # generator leaves them, which would assert against a generator
             # the product never selects. The suite clears os.environ, so the

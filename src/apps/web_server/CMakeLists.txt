@@ -10,7 +10,7 @@
 
 if(NOT TARGET Mira::http)
     message(FATAL_ERROR "ariaread_web_server 需要 Mira："
-        "先执行 python tools/build.py deps，再配置（prefix 留空自动探测 "
+        "先执行 python scripts/build.py deps，再配置（prefix 留空自动探测 "
         "build/deps/prefix）")
 endif()
 

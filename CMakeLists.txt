@@ -54,7 +54,7 @@ else()
 endif()
 # ARIAREAD_BUILD_PYTHON removed — C++ Web Server (Mira) fully replaces Python/Flask
 # ARIAREAD_ENFORCE_SELF_CONTAINED / ARIAREAD_USE_SYSTEM_CURL removed — 依赖现在只有
-# 一个来源（tools/build.py 管理的依赖前缀），不再有"系统库 vs
+# 一个来源（scripts/build.py 管理的依赖前缀），不再有"系统库 vs
 # vendored"的开关。
 
 # ──────────────────────────────────────────────
@@ -74,17 +74,17 @@ configure_file(
 )
 
 # ──────────────────────────────────────────────
-# 第三方依赖：唯一来源是 tools/build.py 构建的前缀
+# 第三方依赖：唯一来源是 scripts/build.py 构建的前缀
 #
 # 与 Mira 一致的依赖哲学：
 #   * 初次来源由依赖文件 + SHA256 固定，源码平铺 deps/，产物放 build/；
 #   * CMake 侧只 find_package，配置时不联网、不 FetchContent、不 add_subdirectory
 #     第三方源码；
 #   * 没有前缀就直接失败并提示先跑脚本——不再维护 vendored third_party 回退。
-#     aria 也一样：由 tools/build.py 与其他依赖一起装进前缀。
+#     aria 也一样：由 scripts/build.py 与其他依赖一起装进前缀。
 # ──────────────────────────────────────────────
 set(ARIAREAD_DEPS_PREFIX "" CACHE PATH
-    "tools/build.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
+    "scripts/build.py 的安装前缀；留空则自动探测 <repo>/build/deps/prefix")
 set(ARIAREAD_DEPENDENCIES_FILE "${CMAKE_SOURCE_DIR}/dependencies.json" CACHE FILEPATH
     "Dependency declarations and initial source selections")
 set(ARIAREAD_DEPS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps" CACHE PATH
@@ -95,7 +95,7 @@ if(NOT ARIAREAD_DEPS_PREFIX
 endif()
 if(NOT ARIAREAD_DEPS_PREFIX)
     message(FATAL_ERROR
-        "未找到依赖前缀。请先执行：python tools/build.py deps --profile tests\n"
+        "未找到依赖前缀。请先执行：python scripts/build.py deps --profile tests\n"
         "再用 -DARIAREAD_DEPS_PREFIX=<prefix> 配置（留空会自动探测 build/deps/prefix）。")
 endif()
 if(NOT EXISTS "${ARIAREAD_DEPS_PREFIX}/share/ariaread-deps/manifest.json")
@@ -105,7 +105,7 @@ endif()
 # Offline validation also detects edits/pulls made after the last dependency build.
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 execute_process(
-    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/build.py" deps-check
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/build.py" deps-check
         --prefix "${ARIAREAD_DEPS_PREFIX}"
         --profile "${_ariaread_deps_profile}" --tls-backend "${ARIAREAD_TLS_BACKEND}"
         --file "${ARIAREAD_DEPENDENCIES_FILE}" --source-dir "${ARIAREAD_DEPS_SOURCE_DIR}"
@@ -162,7 +162,7 @@ set(ARIAREAD_SQLITE_MODERN_CPP_INCLUDE_DIR "${ARIAREAD_DEPS_PREFIX}/include")
 # ──────────────────────────────────────────────
 # Aria（C++23 响应式 MVVM 框架）
 # 用于在 C++ 层承载响应式状态/协程异步/ViewModel，供各端 UI 复用同一业务逻辑。
-# 与其他依赖完全一致：tools/build.py 从 dependencies.json 取到 deps/aria，
+# 与其他依赖完全一致：scripts/build.py 从 dependencies.json 取到 deps/aria，
 # 装进依赖前缀，这里只 find_package。上游 ARIA_BUILD_SHARED=ON 保留其
 # 单例 ABI 设计（前缀里是共享库，其余依赖均为静态）。
 # ──────────────────────────────────────────────
