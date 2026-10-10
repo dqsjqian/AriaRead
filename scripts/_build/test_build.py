@@ -141,18 +141,22 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(build.selected_toolchain("auto", True), "msvc")
         msvc_build, msvc_prefix = build.build_paths(args, "msvc")
         mingw_build, mingw_prefix = build.build_paths(args, "mingw")
-        # Unified scheme: build/unified/native-<toolchain>-release-<arch>
-        self.assertTrue(str(msvc_build).endswith("build/unified/native-msvc-release") or
-                        "build/unified/native-msvc-release" in str(msvc_build))
-        self.assertTrue(str(mingw_build).endswith("build/unified/native-mingw-release") or
-                        "build/unified/native-mingw-release" in str(mingw_build))
+        # Unified scheme: build/unified/native-<toolchain>-<config>-<arch>.
+        # Compare path parts: Windows stringifies paths with backslashes, so
+        # forward-slash substring assertions would never match there.
+        self.assertEqual(msvc_build.parent, self.root / "build" / "unified")
+        self.assertEqual(mingw_build.parent, self.root / "build" / "unified")
+        self.assertTrue(msvc_build.name.startswith("native-msvc-release-"), msvc_build.name)
+        self.assertTrue(mingw_build.name.startswith("native-mingw-release-"), mingw_build.name)
         self.assertNotEqual(msvc_build, mingw_build)
         self.assertNotEqual(msvc_prefix, mingw_prefix)
 
     def test_native_keeps_existing_build_prefix_and_accepts_environment_overrides(self):
         args = build.parse_args([])
+        arch = __import__("platform").machine()
+        expected_build = self.root / "build" / "unified" / f"native-native-release-{arch}"
         self.assertEqual(build.build_paths(args, "native"),
-                         (self.root / "build", self.root / "build/deps/prefix"))
+                         (expected_build, expected_build / "deps" / "prefix"))
         with patch.dict(os.environ, {"ARIAREAD_BUILD_DIR": str(self.root / "custom build"),
                                      "ARIAREAD_DEPS_PREFIX": str(self.root / "custom deps"),
                                      "ARIAREAD_BUILD_JOBS": "3"}):
@@ -654,7 +658,9 @@ add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-objec
             self.assertEqual(build.main(["deps-update", "--only", "aria", "--version", "aria=3.1.1"]), 0)
         file, work, options = updates[0]
         self.assertEqual(Path(file), self.root / "dependencies.json")
-        self.assertEqual(Path(work), self.root / "build/deps")
+        arch = __import__("platform").machine()
+        self.assertEqual(Path(work), self.root / "build" / "unified" /
+                         f"native-native-release-{arch}" / "deps")
         self.assertEqual(options["only"], ["aria"])
         self.assertEqual(options["versions"], {"aria": "3.1.1"})
         self.assertEqual(self.commands, [])  # no compiler discovery for a records-only command
