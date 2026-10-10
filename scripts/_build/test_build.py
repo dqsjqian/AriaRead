@@ -658,9 +658,15 @@ add_custom_target(application ALL DEPENDS "${CMAKE_BINARY_DIR}/application-objec
             self.assertEqual(build.main(["deps-update", "--only", "aria", "--version", "aria=3.1.1"]), 0)
         file, work, options = updates[0]
         self.assertEqual(Path(file), self.root / "dependencies.json")
-        arch = __import__("platform").machine()
-        self.assertEqual(Path(work), self.root / "build" / "unified" /
-                         f"native-native-release-{arch}" / "deps")
+        if sys.platform == "win32":
+            # Windows keeps the shared historical work directory
+            # (dependency_locations) unless --build-dir overrides it.
+            expected_work = self.root / "build" / "deps"
+        else:
+            arch = __import__("platform").machine()
+            expected_work = self.root / "build" / "unified" / \
+                f"native-native-release-{arch}" / "deps"
+        self.assertEqual(Path(work), expected_work)
         self.assertEqual(options["only"], ["aria"])
         self.assertEqual(options["versions"], {"aria": "3.1.1"})
         self.assertEqual(self.commands, [])  # no compiler discovery for a records-only command
